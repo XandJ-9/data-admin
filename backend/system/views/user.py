@@ -2,35 +2,10 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
-from .models import User, Dept, Role, UserRole
-from .serializers import UserSerializer, DeptSerializer, UserProfileSerializer, RoleSerializer
-from rest_framework_simplejwt.views import TokenObtainPairView
-from captcha.helpers import captcha_image_url
-from captcha.models import CaptchaStore
-import base64
 
-class CaptchaView(TokenObtainPairView):
-    def get(self, request, *args, **kwargs):
-        hashkey = CaptchaStore.generate_key()
-        image = captcha_image_url(hashkey)
-        # 读取图片并转换为base64
-        with open(image, 'rb') as f:
-            img_base64 = base64.b64encode(f.read())
-        return Response({
-            'img': img_base64,
-            'uuid': hashkey
-        })
+from ..models import User, Dept, Role, UserRole
+from ..serializers import UserSerializer, DeptSerializer, UserProfileSerializer, RoleSerializer
 
-class LoginView(TokenObtainPairView):
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-        except Exception as e:
-            return Response({'msg': '用户名或密码错误'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({
-            'token': serializer.validated_data.get('access')
-        })
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -39,34 +14,32 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = User.objects.all()
         
-        # 获取查询参数
         user_name = self.request.query_params.get('userName', '')
         phonenumber = self.request.query_params.get('phonenumber', '')
-        status = self.request.query_params.get('status', '')
+        status_value = self.request.query_params.get('status', '')
         dept_id = self.request.query_params.get('deptId', '')
-        create_time_start = self.request.query_params.get('params', {}).get('beginTime', '')
-        create_time_end = self.request.query_params.get('params', {}).get('endTime', '')
+        params = self.request.query_params.get('params', {})
+        begin_time = params.get('beginTime') if isinstance(params, dict) else ''
+        end_time = params.get('endTime') if isinstance(params, dict) else ''
         
-        # 构建查询条件
         if user_name:
             queryset = queryset.filter(Q(username__icontains=user_name) | Q(nick_name__icontains=user_name))
         if phonenumber:
             queryset = queryset.filter(phonenumber__icontains=phonenumber)
-        if status:
-            queryset = queryset.filter(status=status)
+        if status_value:
+            queryset = queryset.filter(status=status_value)
         if dept_id:
             queryset = queryset.filter(dept_id=dept_id)
-        if create_time_start:
-            queryset = queryset.filter(create_time__gte=create_time_start)
-        if create_time_end:
-            queryset = queryset.filter(create_time__lte=create_time_end)
+        if begin_time:
+            queryset = queryset.filter(create_time__gte=begin_time)
+        if end_time:
+            queryset = queryset.filter(create_time__lte=end_time)
             
         return queryset.order_by('-create_time')
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         
-        # 分页处理
         page_size = int(request.query_params.get('pageSize', 10))
         page_num = int(request.query_params.get('pageNum', 1))
         total = queryset.count()
@@ -121,7 +94,6 @@ class UserViewSet(viewsets.ModelViewSet):
         depts = Dept.objects.filter(status='0').order_by('parent_id', 'order_num')
         serializer = DeptSerializer(depts, many=True)
         
-        # 构建树形结构
         def build_tree(data, parent_id=0):
             tree = []
             for item in data:
@@ -139,11 +111,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def profile(self, request):
         user = request.user
         serializer = UserProfileSerializer(user)
-        return Response({
-            'code': 200,
-            'msg': '操作成功',
-            'data': serializer.data
-        })
+        return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
     
     @action(detail=False, methods=['put'])
     def updateProfile(self, request):
@@ -151,15 +119,8 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = UserProfileSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response({
-                'code': 200,
-                'msg': '个人信息修改成功'
-            })
-        return Response({
-            'code': 400,
-            'msg': '参数错误',
-            'errors': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'code': 200, 'msg': '个人信息修改成功'})
+        return Response({'code': 400, 'msg': '参数错误', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['put'])
     def updatePwd(self, request):
@@ -179,7 +140,6 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def avatar(self, request):
-        # 头像上传功能，这里简化处理
         avatar_url = request.data.get('avatar')
         if not avatar_url:
             return Response({'code': 400, 'msg': '请上传头像'}, status=status.HTTP_400_BAD_REQUEST)
@@ -206,12 +166,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 role_data['flag'] = role.role_id in user_roles
                 roles_data.append(role_data)
             
-            return Response({
-                'code': 200,
-                'msg': '操作成功',
-                'user': UserSerializer(user).data,
-                'roles': roles_data
-            })
+            return Response({'code': 200, 'msg': '操作成功', 'user': UserSerializer(user).data, 'roles': roles_data})
         except User.DoesNotExist:
             return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
     
@@ -225,18 +180,13 @@ class UserViewSet(viewsets.ModelViewSet):
         
         try:
             user = User.objects.get(id=user_id)
-            
-            # 删除现有角色关联
             UserRole.objects.filter(user=user).delete()
-            
-            # 添加新角色关联
             for role_id in role_ids:
                 try:
                     role = Role.objects.get(role_id=role_id)
                     UserRole.objects.create(user=user, role=role)
                 except Role.DoesNotExist:
                     continue
-            
             return Response({'code': 200, 'msg': '授权成功'})
         except User.DoesNotExist:
             return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)

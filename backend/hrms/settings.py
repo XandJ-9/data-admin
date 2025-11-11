@@ -26,9 +26,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'system',
     'rest_framework_simplejwt',
     'captcha',
+    'system'
 ]
 
 MIDDLEWARE = [
@@ -121,3 +121,6 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'system.User'
+
+
+APPEND_SLASH=False

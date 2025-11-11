@@ -81,3 +81,91 @@ class UserRole(models.Model):
         verbose_name = '用户角色关联'
         verbose_name_plural = '用户角色关联'
         unique_together = ('user', 'role')
+
+
+class Menu(models.Model):
+    menu_id = models.AutoField(primary_key=True, verbose_name='菜单ID')
+    parent_id = models.IntegerField(default=0, verbose_name='父菜单ID')
+    menu_name = models.CharField(max_length=50, verbose_name='菜单名称')
+    order_num = models.IntegerField(default=0, verbose_name='显示顺序')
+    path = models.CharField(max_length=200, blank=True, default='', verbose_name='路由地址')
+    component = models.CharField(max_length=200, blank=True, default='', verbose_name='组件路径')
+    query = models.CharField(max_length=255, blank=True, default='', verbose_name='路由参数')
+    is_frame = models.CharField(max_length=1, choices=[('0', '是'), ('1', '否')], default='1', verbose_name='是否外链')
+    is_cache = models.CharField(max_length=1, choices=[('0', '缓存'), ('1', '不缓存')], default='0', verbose_name='是否缓存')
+    menu_type = models.CharField(max_length=1, choices=[('M', '目录'), ('C', '菜单'), ('F', '按钮')], default='M', verbose_name='菜单类型')
+    visible = models.CharField(max_length=1, choices=[('0', '显示'), ('1', '隐藏')], default='0', verbose_name='显示状态')
+    status = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '停用')], default='0', verbose_name='菜单状态')
+    perms = models.CharField(max_length=100, blank=True, default='', verbose_name='权限标识')
+    icon = models.CharField(max_length=100, blank=True, default='', verbose_name='菜单图标')
+    create_by = models.CharField(max_length=64, blank=True, verbose_name='创建者')
+    update_by = models.CharField(max_length=64, blank=True, verbose_name='更新者')
+    create_time = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
+    update_time = models.DateTimeField(default=timezone.now, verbose_name='更新时间')
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+    del_flag = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '删除')], default='0', verbose_name='删除标志')
+
+    class Meta:
+        db_table = 'sys_menu'
+        verbose_name = '菜单'
+        verbose_name_plural = '菜单'
+
+    def __str__(self):
+        return self.menu_name
+
+
+class RoleMenu(models.Model):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, verbose_name='角色')
+    menu = models.ForeignKey(Menu, on_delete=models.CASCADE, verbose_name='菜单')
+
+    class Meta:
+        db_table = 'sys_role_menu'
+        verbose_name = '角色菜单关联'
+        verbose_name_plural = '角色菜单关联'
+        unique_together = ('role', 'menu')
+
+
+class DictType(models.Model):
+    dict_id = models.AutoField(primary_key=True, verbose_name='字典主键')
+    dict_name = models.CharField(max_length=100, verbose_name='字典名称')
+    dict_type = models.CharField(max_length=100, unique=True, verbose_name='字典类型')
+    status = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '停用')], default='0', verbose_name='状态')
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+    create_by = models.CharField(max_length=64, blank=True, verbose_name='创建者')
+    update_by = models.CharField(max_length=64, blank=True, verbose_name='更新者')
+    create_time = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
+    update_time = models.DateTimeField(default=timezone.now, verbose_name='更新时间')
+    del_flag = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '删除')], default='0', verbose_name='删除标志')
+
+    class Meta:
+        db_table = 'sys_dict_type'
+        verbose_name = '字典类型'
+        verbose_name_plural = '字典类型'
+
+    def __str__(self):
+        return self.dict_name
+
+
+class DictData(models.Model):
+    dict_code = models.AutoField(primary_key=True, verbose_name='字典编码')
+    dict_sort = models.IntegerField(default=0, verbose_name='字典排序')
+    dict_label = models.CharField(max_length=100, verbose_name='字典标签')
+    dict_value = models.CharField(max_length=100, verbose_name='字典键值')
+    dict_type = models.CharField(max_length=100, verbose_name='字典类型')
+    css_class = models.CharField(max_length=100, blank=True, default='', verbose_name='样式属性')
+    list_class = models.CharField(max_length=20, blank=True, default='default', verbose_name='回显样式')
+    status = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '停用')], default='0', verbose_name='状态')
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+    create_by = models.CharField(max_length=64, blank=True, verbose_name='创建者')
+    update_by = models.CharField(max_length=64, blank=True, verbose_name='更新者')
+    create_time = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
+    update_time = models.DateTimeField(default=timezone.now, verbose_name='更新时间')
+    del_flag = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '删除')], default='0', verbose_name='删除标志')
+
+    class Meta:
+        db_table = 'sys_dict_data'
+        verbose_name = '字典数据'
+        verbose_name_plural = '字典数据'
+
+    def __str__(self):
+        return self.dict_label

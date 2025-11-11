@@ -1,7 +1,5 @@
 # 项目结构说明
 
-此文档基于工作区：`d:\\svn\\xujia\\常用脚本\\code_store\\web-hrms`，对仓库的主要目录、关键文件、技术栈、运行方式和注意事项作说明。
-
 ## 一、总体概览
 该仓库是一个前后端分离的 Web 应用，包含两个主要子项目：
 - `backend/`：后端（Django）项目
@@ -126,6 +124,3 @@
 - `frontend/package.json`：Vue 3、Element Plus、Vite 等依赖；脚本：`dev`, `build:prod`, `build:stage`, `preview`
 - `frontend/index.html`：Vite + SPA 入口，加载 `/src/main.js`，标题 “若依管理系统”
 
----
-
-文件由分析工具自动生成。若需要我替换或追加更多细节（例如环境变量示例、启动脚本具体参数或 Docker 文件），请告诉我。

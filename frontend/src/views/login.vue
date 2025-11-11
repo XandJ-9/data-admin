@@ -145,7 +145,9 @@ function getCode() {
       codeUrl.value = "data:image/gif;base64," + res.img
       loginForm.value.uuid = res.uuid
     }
-  })
+  }).catch(
+    console.log("getCodeImg error")
+  )
 }
 
 function getCookie() {
