@@ -26,10 +26,10 @@ class MenuViewSet(BaseViewSet):
             qs = qs.filter(menu_name__icontains=menu_name)
         if status_value:
             qs = qs.filter(status=status_value)
-        page = self.paginate_queryset(qs)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+        # page = self.paginate_queryset(qs)
+        # if page is not None:
+        #     serializer = self.get_serializer(page, many=True)
+        #     return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(qs, many=True)
         return Response({"code": 200, "msg": "操作成功", "data": serializer.data})
 
@@ -41,25 +41,37 @@ class MenuViewSet(BaseViewSet):
     def create(self, request, *args, **kwargs):
         v = MenuCreateSerializer(data=request.data)
         v.is_valid(raise_exception=True)
-        serializer = self.get_serializer(data=normalize_input(v.validated_data))
+        serializer = self.get_serializer(data=v.validated_data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        self.perform_create(serializer)
         return Response({"code": 200, "msg": "操作成功"})
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        v = MenuUpdateSerializer(data=request.data)
-        v.is_valid(raise_exception=True)
-        serializer = self.get_serializer(instance, data=normalize_input(v.validated_data), partial=partial)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        self.perform_update(serializer)
         return Response({"code": 200, "msg": "操作成功"})
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.del_flag = '1'
         instance.save(update_fields=['del_flag'])
+        return Response({"code": 200, "msg": "操作成功"})
+
+    # 兼容前端 PUT /system/menu（不带主键）更新
+    def update_by_body(self, request, *args, **kwargs):
+        v = MenuUpdateSerializer(data=request.data)
+        v.is_valid(raise_exception=True)
+        menu_id = v.validated_data.get('menuId')
+        try:
+            instance = Menu.objects.get(menu_id=menu_id, del_flag='0')
+        except Menu.DoesNotExist:
+            return Response({"code": 404, "msg": "菜单不存在"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(instance, data=request.data, partial=False)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
         return Response({"code": 200, "msg": "操作成功"})
 
     @action(detail=False, methods=['get'])

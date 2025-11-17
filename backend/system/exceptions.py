@@ -1,6 +1,8 @@
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
+import traceback
+
 
 
 def _first_error_message(data):
@@ -13,9 +15,9 @@ def _first_error_message(data):
         if detail:
             return str(detail)
         # Otherwise pick the first field error
-        for value in data.values():
+        for key,value in data.items():
             if isinstance(value, (list, tuple)) and value:
-                return str(value[0])
+                return str(key)+':'+str(value[0])
             if isinstance(value, dict):
                 return _first_error_message(value)
         return ''
@@ -29,6 +31,7 @@ def custom_exception_handler(exc, context):
     Custom DRF exception handler that wraps all errors with {code, message}.
     """
     response = exception_handler(exc, context)
+    traceback.print_exc()
     if response is not None:
         message = _first_error_message(response.data)
         # Fallback when message is empty

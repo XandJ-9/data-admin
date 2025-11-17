@@ -14,6 +14,33 @@ class PaginationQuerySerializer(serializers.Serializer):
     pageNum = serializers.IntegerField(required=False, min_value=1, default=1)
     pageSize = serializers.IntegerField(required=False, min_value=1, default=10)
 
+class BaseSerializer(serializers.ModelSerializer):
+    """
+    抽取各模型通用的审计/状态字段，统一命名为驼峰，以减少重复定义。
+    字段在模型中不存在时，序列化为 None；写入时不强制要求。
+    """
+    createBy = serializers.CharField(source='create_by', required=False, read_only=True)
+    updateBy = serializers.CharField(source='update_by', required=False, read_only=True)
+    createTime = serializers.DateTimeField(source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
+    updateTime = serializers.DateTimeField(source='update_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
+    remark = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.CharField(required=False)
+
+    # 自动将公共字段并入子类 Meta.fields，避免每个子类重复声明
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        meta = getattr(cls, 'Meta', None)
+        if not meta:
+            return
+        fields = getattr(meta, 'fields', None)
+        default_public_fields = ['createBy', 'updateBy', 'createTime', 'updateTime', 'remark', 'status']
+        if isinstance(fields, (list, tuple)):
+            merged = list(fields)
+            for f in default_public_fields:
+                if f not in merged:
+                    merged.append(f)
+            meta.fields = merged
+
 # User related
 class UserQuerySerializer(PaginationQuerySerializer):
     userName = serializers.CharField(required=False, allow_blank=True)
@@ -45,13 +72,16 @@ class AuthRoleAssignSerializer(serializers.Serializer):
 class AuthRoleQuerySerializer(serializers.Serializer):
     userId = serializers.IntegerField()
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(BaseSerializer):
+    userId = serializers.IntegerField(source='id')
+    userName = serializers.CharField(source='username', required=False)
+    nickName = serializers.CharField(source='nick_name', required=False)
     dept = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'nick_name', 'phonenumber', 'email', 'sex', 'avatar', 'status', 
-                 'remark', 'dept_id', 'dept', 'create_by', 'update_by', 'create_time', 'update_time']
+        fields = ['userId', 'userName', 'nickName', 'phonenumber', 'email', 'sex', 'avatar', 'status', 
+                 'remark', 'dept_id', 'dept']
     
     def get_dept(self, obj):
         if obj.dept_id:
@@ -65,7 +95,7 @@ class UserSerializer(serializers.ModelSerializer):
                 return None
         return None
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserProfileSerializer(BaseSerializer):
     dept = serializers.SerializerMethodField()
     roleIds = serializers.SerializerMethodField()
     postIds = serializers.SerializerMethodField()
@@ -106,16 +136,61 @@ class UserInfoSerializer(serializers.Serializer):
         fields = ['userId', 'userName', 'nickName', 'avatar', 'phonenumber', 'email', 'sex']
 
 # Dept related
-class DeptSerializer(serializers.ModelSerializer):
+class DeptSerializer(BaseSerializer):
     class Meta:
         model = Dept
         fields = '__all__'
 
 # Role related
-class RoleSerializer(serializers.ModelSerializer):
+class RoleSerializer(BaseSerializer):
+    roleId = serializers.IntegerField(source='role_id', read_only=True)
+    roleName = serializers.CharField(source='role_name')
+    roleKey = serializers.CharField(source='role_key')
+    roleSort = serializers.IntegerField(source='role_sort')
+    dataScope = serializers.CharField(source='data_scope', required=False)
+    menuCheckStrictly = serializers.SerializerMethodField()
+    deptCheckStrictly = serializers.SerializerMethodField()
+
     class Meta:
         model = Role
-        fields = '__all__'
+        fields = ['roleId', 'roleName', 'roleKey', 'roleSort', 'dataScope', 'menuCheckStrictly', 'deptCheckStrictly']
+
+    def get_menuCheckStrictly(self, obj):
+        return True if getattr(obj, 'menu_check_strictly', 1) == 1 else False
+
+    def get_deptCheckStrictly(self, obj):
+        return True if getattr(obj, 'dept_check_strictly', 1) == 1 else False
+
+class RoleQuerySerializer(PaginationQuerySerializer):
+    roleName = serializers.CharField(required=False, allow_blank=True)
+    roleKey = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(required=False, choices=['0','1'])
+    beginTime = serializers.DateTimeField(required=False)
+    endTime = serializers.DateTimeField(required=False)
+
+class RoleCreateSerializer(serializers.Serializer):
+    roleName = serializers.CharField(max_length=30)
+    roleKey = serializers.CharField(max_length=100)
+    roleSort = serializers.IntegerField(required=False, default=0)
+    status = serializers.ChoiceField(choices=['0','1'], default='0')
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+    dataScope = serializers.ChoiceField(required=False, choices=['1','2','3','4','5'], default='1')
+    menuCheckStrictly = serializers.BooleanField(required=False, default=True)
+    deptCheckStrictly = serializers.BooleanField(required=False, default=True)
+    menuIds = serializers.ListField(child=serializers.IntegerField(), required=False, allow_empty=True)
+
+class RoleUpdateSerializer(RoleCreateSerializer):
+    roleId = serializers.IntegerField()
+
+class RoleChangeStatusSerializer(serializers.Serializer):
+    roleId = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=['0','1'])
+
+class RoleDataScopeSerializer(serializers.Serializer):
+    roleId = serializers.IntegerField()
+    dataScope = serializers.ChoiceField(choices=['1','2','3','4','5'])
+    deptIds = serializers.ListField(child=serializers.IntegerField(), required=False, allow_empty=True)
+    deptCheckStrictly = serializers.BooleanField(required=False, default=True)
 
 # Menu related
 class MenuQuerySerializer(PaginationQuerySerializer):
@@ -141,7 +216,7 @@ class MenuCreateSerializer(serializers.Serializer):
 class MenuUpdateSerializer(MenuCreateSerializer):
     menuId = serializers.IntegerField()
 
-class MenuSerializer(serializers.ModelSerializer):
+class MenuSerializer(BaseSerializer):
     menuId = serializers.IntegerField(source='menu_id', read_only=True)
     parentId = serializers.IntegerField(source='parent_id')
     menuName = serializers.CharField(source='menu_name')
@@ -153,20 +228,13 @@ class MenuSerializer(serializers.ModelSerializer):
     isCache = serializers.CharField(source='is_cache')
     menuType = serializers.CharField(source='menu_type')
     visible = serializers.CharField()
-    status = serializers.CharField()
     perms = serializers.CharField(allow_blank=True)
     icon = serializers.CharField(allow_blank=True)
-    createBy = serializers.CharField(source='create_by', required=False)
-    updateBy = serializers.CharField(source='update_by', required=False)
-    createTime = serializers.DateTimeField(source='create_time', read_only=True)
-    updateTime = serializers.DateTimeField(source='update_time', read_only=True)
-    remark = serializers.CharField(allow_blank=True, required=False)
 
     class Meta:
         model = Menu
         fields = ['menuId', 'parentId', 'menuName', 'orderNum', 'path', 'component', 'query', 'isFrame',
-                  'isCache', 'menuType', 'visible', 'status', 'perms', 'icon', 'createBy', 'updateBy',
-                  'createTime', 'updateTime', 'remark']
+                  'isCache', 'menuType', 'visible', 'perms', 'icon']
 
 # DictType related
 class DictTypeQuerySerializer(PaginationQuerySerializer):
@@ -174,18 +242,14 @@ class DictTypeQuerySerializer(PaginationQuerySerializer):
     dictType = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(required=False, choices=['0','1'])
 
-class DictTypeSerializer(serializers.ModelSerializer):
+class DictTypeSerializer(BaseSerializer):
     dictId = serializers.IntegerField(source='dict_id', read_only=True)
     dictName = serializers.CharField(source='dict_name')
     dictType = serializers.CharField(source='dict_type')
-    status = serializers.CharField()
-    remark = serializers.CharField(allow_blank=True, required=False)
-    createTime = serializers.DateTimeField(source='create_time', read_only=True)
-    updateTime = serializers.DateTimeField(source='update_time', read_only=True)
 
     class Meta:
         model = DictType
-        fields = ['dictId', 'dictName', 'dictType', 'status', 'remark', 'createTime', 'updateTime']
+        fields = ['dictId', 'dictName', 'dictType']
 
 # DictData related
 class DictDataQuerySerializer(PaginationQuerySerializer):
@@ -193,20 +257,15 @@ class DictDataQuerySerializer(PaginationQuerySerializer):
     dictType = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(required=False, choices=['0','1'])
 
-class DictDataSerializer(serializers.ModelSerializer):
+class DictDataSerializer(BaseSerializer):
     dictCode = serializers.IntegerField(source='dict_code', read_only=True)
     dictSort = serializers.IntegerField(source='dict_sort')
     dictLabel = serializers.CharField(source='dict_label')
     dictValue = serializers.CharField(source='dict_value')
     dictType = serializers.CharField(source='dict_type')
     cssClass = serializers.CharField(source='css_class', allow_blank=True, required=False)
-    listClass = serializers.CharField(source='list_class', allow_blank=True)
-    status = serializers.CharField()
-    remark = serializers.CharField(allow_blank=True, required=False)
-    createTime = serializers.DateTimeField(source='create_time', read_only=True)
-    updateTime = serializers.DateTimeField(source='update_time', read_only=True)
+    listClass = serializers.CharField(source='list_class', allow_blank=True, required=False)
 
     class Meta:
         model = DictData
-        fields = ['dictCode', 'dictSort', 'dictLabel', 'dictValue', 'dictType', 'cssClass', 'listClass',
-                  'status', 'remark', 'createTime', 'updateTime']
+        fields = ['dictCode', 'dictSort', 'dictLabel', 'dictValue', 'dictType', 'cssClass', 'listClass']

@@ -52,26 +52,41 @@ class DictTypeViewSet(BaseViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        # 更新该类型缓存
+        dict_type = serializer.instance.dict_type
+        cache_key = f'dict_data_by_type:{dict_type}'
+        qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
+        data = self.get_serializer(qs, many=True).data
+        cache.set(cache_key, data, timeout=3600)
         return Response({'code': 200, 'msg': '操作成功'})
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        old_type = instance.dict_type
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        # 如果类型发生变化，同时更新旧类型与新类型缓存
+        new_type = serializer.instance.dict_type
+        for t in {old_type, new_type}:
+            cache_key = f'dict_data_by_type:{t}'
+            qs = DictData.objects.filter(dict_type=t, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
+            data = self.get_serializer(qs, many=True).data
+            cache.set(cache_key, data, timeout=3600)
         return Response({'code': 200, 'msg': '操作成功'})
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.del_flag = '1'
         instance.save(update_fields=['del_flag'])
+        # 刷新对应类型缓存
+        dict_type = instance.dict_type
+        cache_key = f'dict_data_by_type:{dict_type}'
+        qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
+        data = self.get_serializer(qs, many=True).data
+        cache.set(cache_key, data, timeout=3600)
         return Response({'code': 200, 'msg': '操作成功'})
-
-    @action(detail=False, methods=['get'], url_path='list')
-    def list_action(self, request):
-        # 兼容前端 /system/dict/type/list
-        return self.list(request)
 
     @action(detail=False, methods=['delete'], url_path='refreshCache')
     def refreshCache(self, request):

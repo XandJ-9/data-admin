@@ -78,7 +78,7 @@ class GetInfoView(generics.GenericAPIView):
         resp = {
             'code': 200,
             'msg': '操作成功',
-            'user': user_info.data,
+            'user': user_data,
             'roles': roles,
             'permissions': permissions,
             'isDefaultModifyPwd': False,
