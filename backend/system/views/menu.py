@@ -47,9 +47,6 @@ class MenuViewSet(viewsets.ModelViewSet):
         instance.save(update_fields=['del_flag'])
         return Response({"code": 200, "msg": "操作成功"})
 
-    def list2(self, request, *args, **kwargs):
-        self.list(request, *args, **kwargs)
-
     @action(detail=False, methods=['get'])
     def treeselect(self, request):
         qs = self.get_queryset()

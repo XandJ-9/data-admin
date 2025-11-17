@@ -14,7 +14,7 @@ router.register(r'dict/data', DictDataViewSet, basename='dict-data')
 
 urlpatterns = [
     path('system/', include(router.urls)),
-    # path('system/menu/list', MenuViewSet.as_view({'get': 'list2'}), name='menu-list'),
+    # path('menu/list', MenuViewSet.as_view({'get': 'list'}), name='menu-list'),
     path('login', LoginView.as_view(), name='login'),
     path('captchaImage/', CaptchaView.as_view(), name='captcha-image'),
     path('getInfo', GetInfoView.as_view(), name='get-info'),
