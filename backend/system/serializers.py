@@ -1,15 +1,49 @@
 from rest_framework import serializers
 from .models import User, Dept, Role, UserRole, Menu, DictType, DictData
+from .common import snake_to_camel
 
-class DeptSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Dept
-        fields = '__all__'
+class CamelCaseModelSerializer(serializers.ModelSerializer):
+    camelize = True
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not getattr(self, 'camelize', True):
+            return data
+        return { snake_to_camel(k): v for k, v in data.items() }
 
-class RoleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Role
-        fields = '__all__'
+class PaginationQuerySerializer(serializers.Serializer):
+    pageNum = serializers.IntegerField(required=False, min_value=1, default=1)
+    pageSize = serializers.IntegerField(required=False, min_value=1, default=10)
+
+# User related
+class UserQuerySerializer(PaginationQuerySerializer):
+    userName = serializers.CharField(required=False, allow_blank=True)
+    phonenumber = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(required=False, choices=['0','1'])
+    deptId = serializers.IntegerField(required=False)
+    beginTime = serializers.DateTimeField(required=False)
+    endTime = serializers.DateTimeField(required=False)
+
+class ResetPwdSerializer(serializers.Serializer):
+    userId = serializers.IntegerField()
+    password = serializers.CharField(min_length=6, max_length=128)
+
+class ChangeStatusSerializer(serializers.Serializer):
+    userId = serializers.IntegerField()
+    status = serializers.ChoiceField(choices=['0','1'])
+
+class UpdatePwdSerializer(serializers.Serializer):
+    oldPassword = serializers.CharField(min_length=6, max_length=128)
+    newPassword = serializers.CharField(min_length=6, max_length=128)
+
+class AvatarSerializer(serializers.Serializer):
+    avatar = serializers.CharField()
+
+class AuthRoleAssignSerializer(serializers.Serializer):
+    userId = serializers.IntegerField()
+    roleIds = serializers.ListField(child=serializers.IntegerField(), allow_empty=True)
+
+class AuthRoleQuerySerializer(serializers.Serializer):
+    userId = serializers.IntegerField()
 
 class UserSerializer(serializers.ModelSerializer):
     dept = serializers.SerializerMethodField()
@@ -54,16 +88,60 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return None
     
     def get_roleIds(self, obj):
-        # 获取用户关联的角色ID列表
         return list(UserRole.objects.filter(user=obj).values_list('role_id', flat=True))
     
     def get_postIds(self, obj):
-        # 这里需要实现岗位关联，暂时返回空列表
         return []
 
+class UserInfoSerializer(serializers.Serializer):
+    userId = serializers.IntegerField()
+    userName = serializers.CharField()
+    nickName = serializers.CharField()
+    avatar = serializers.CharField()
+    phonenumber = serializers.CharField()
+    email = serializers.CharField()
+    sex = serializers.CharField()
+    class Meta:
+        model = User
+        fields = ['userId', 'userName', 'nickName', 'avatar', 'phonenumber', 'email', 'sex']
+
+# Dept related
+class DeptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Dept
+        fields = '__all__'
+
+# Role related
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = '__all__'
+
+# Menu related
+class MenuQuerySerializer(PaginationQuerySerializer):
+    menuName = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(required=False, choices=['0','1'])
+
+class MenuCreateSerializer(serializers.Serializer):
+    parentId = serializers.IntegerField(required=False, default=0)
+    menuName = serializers.CharField(max_length=50)
+    orderNum = serializers.IntegerField(required=False, default=0)
+    path = serializers.CharField(required=False, allow_blank=True, default='')
+    component = serializers.CharField(required=False, allow_blank=True, default='')
+    query = serializers.CharField(required=False, allow_blank=True, default='')
+    isFrame = serializers.ChoiceField(choices=['0','1'], default='1')
+    isCache = serializers.ChoiceField(choices=['0','1'], default='0')
+    menuType = serializers.ChoiceField(choices=['M','C','F'], default='M')
+    visible = serializers.ChoiceField(choices=['0','1'], default='0')
+    status = serializers.ChoiceField(choices=['0','1'], default='0')
+    perms = serializers.CharField(required=False, allow_blank=True, default='')
+    icon = serializers.CharField(required=False, allow_blank=True, default='')
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+
+class MenuUpdateSerializer(MenuCreateSerializer):
+    menuId = serializers.IntegerField()
 
 class MenuSerializer(serializers.ModelSerializer):
-    # 将数据库字段映射为前端期望的驼峰命名
     menuId = serializers.IntegerField(source='menu_id', read_only=True)
     parentId = serializers.IntegerField(source='parent_id')
     menuName = serializers.CharField(source='menu_name')
@@ -90,6 +168,11 @@ class MenuSerializer(serializers.ModelSerializer):
                   'isCache', 'menuType', 'visible', 'status', 'perms', 'icon', 'createBy', 'updateBy',
                   'createTime', 'updateTime', 'remark']
 
+# DictType related
+class DictTypeQuerySerializer(PaginationQuerySerializer):
+    dictName = serializers.CharField(required=False, allow_blank=True)
+    dictType = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(required=False, choices=['0','1'])
 
 class DictTypeSerializer(serializers.ModelSerializer):
     dictId = serializers.IntegerField(source='dict_id', read_only=True)
@@ -104,6 +187,11 @@ class DictTypeSerializer(serializers.ModelSerializer):
         model = DictType
         fields = ['dictId', 'dictName', 'dictType', 'status', 'remark', 'createTime', 'updateTime']
 
+# DictData related
+class DictDataQuerySerializer(PaginationQuerySerializer):
+    dictLabel = serializers.CharField(required=False, allow_blank=True)
+    dictType = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(required=False, choices=['0','1'])
 
 class DictDataSerializer(serializers.ModelSerializer):
     dictCode = serializers.IntegerField(source='dict_code', read_only=True)

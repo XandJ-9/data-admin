@@ -1,27 +1,37 @@
-from rest_framework import viewsets, status
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Q
 
+from rest_framework.permissions import IsAuthenticated
+from .core import BaseViewSet
+from ..permission import HasRolePermission
+from ..common import audit_log
+from ..serializers import (
+    UserSerializer, DeptSerializer, UserProfileSerializer, RoleSerializer,
+    UserQuerySerializer, ResetPwdSerializer, ChangeStatusSerializer,
+    UpdatePwdSerializer, AvatarSerializer, AuthRoleAssignSerializer, AuthRoleQuerySerializer
+)
 from ..models import User, Dept, Role, UserRole
 from ..serializers import UserSerializer, DeptSerializer, UserProfileSerializer, RoleSerializer
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(BaseViewSet):
+    permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = User.objects.all()
     serializer_class = UserSerializer
     
     def get_queryset(self):
         queryset = User.objects.all()
-        
-        user_name = self.request.query_params.get('userName', '')
-        phonenumber = self.request.query_params.get('phonenumber', '')
-        status_value = self.request.query_params.get('status', '')
-        dept_id = self.request.query_params.get('deptId', '')
-        params = self.request.query_params.get('params', {})
-        begin_time = params.get('beginTime') if isinstance(params, dict) else ''
-        end_time = params.get('endTime') if isinstance(params, dict) else ''
-        
+        s = UserQuerySerializer(data=self.request.query_params)
+        s.is_valid(raise_exception=True)
+        data = s.validated_data
+        user_name = data.get('userName') or ''
+        phonenumber = data.get('phonenumber') or ''
+        status_value = data.get('status') or ''
+        dept_id = data.get('deptId')
+        begin_time = data.get('beginTime')
+        end_time = data.get('endTime')
         if user_name:
             queryset = queryset.filter(Q(username__icontains=user_name) | Q(nick_name__icontains=user_name))
         if phonenumber:
@@ -34,37 +44,24 @@ class UserViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(create_time__gte=begin_time)
         if end_time:
             queryset = queryset.filter(create_time__lte=end_time)
-            
         return queryset.order_by('-create_time')
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        
-        page_size = int(request.query_params.get('pageSize', 10))
-        page_num = int(request.query_params.get('pageNum', 1))
-        total = queryset.count()
-        
-        start = (page_num - 1) * page_size
-        end = start + page_size
-        users = queryset[start:end]
-        
-        serializer = self.get_serializer(users, many=True)
-        
-        return Response({
-            'total': total,
-            'rows': serializer.data,
-            'code': 200,
-            'msg': '操作成功'
-        })
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({'total': len(serializer.data), 'rows': serializer.data, 'code': 200, 'msg': '操作成功'})
     
     @action(detail=False, methods=['put'])
+    @audit_log
     def resetPwd(self, request):
-        user_id = request.data.get('userId')
-        password = request.data.get('password')
-        
-        if not user_id or not password:
-            return Response({'code': 400, 'msg': '参数错误'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        v = ResetPwdSerializer(data=request.data)
+        v.is_valid(raise_exception=True)
+        user_id = v.validated_data['userId']
+        password = v.validated_data['password']
         try:
             user = User.objects.get(id=user_id)
             user.set_password(password)
@@ -74,13 +71,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=False, methods=['put'])
+    @audit_log
     def changeStatus(self, request):
-        user_id = request.data.get('userId')
-        status_value = request.data.get('status')
-        
-        if not user_id or status_value is None:
-            return Response({'code': 400, 'msg': '参数错误'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        v = ChangeStatusSerializer(data=request.data)
+        v.is_valid(raise_exception=True)
+        user_id = v.validated_data['userId']
+        status_value = v.validated_data['status']
         try:
             user = User.objects.get(id=user_id)
             user.status = status_value
@@ -114,22 +110,21 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
     
     @action(detail=False, methods=['put'])
+    @audit_log
     def updateProfile(self, request):
         user = request.user
         serializer = UserProfileSerializer(user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'code': 200, 'msg': '个人信息修改成功'})
-        return Response({'code': 400, 'msg': '参数错误', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'code': 200, 'msg': '个人信息修改成功'})
     
     @action(detail=False, methods=['put'])
+    @audit_log
     def updatePwd(self, request):
-        old_password = request.data.get('oldPassword')
-        new_password = request.data.get('newPassword')
-        
-        if not old_password or not new_password:
-            return Response({'code': 400, 'msg': '参数错误'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        v = UpdatePwdSerializer(data=request.data)
+        v.is_valid(raise_exception=True)
+        old_password = v.validated_data['oldPassword']
+        new_password = v.validated_data['newPassword']
         user = request.user
         if not user.check_password(old_password):
             return Response({'code': 400, 'msg': '旧密码错误'}, status=status.HTTP_400_BAD_REQUEST)
@@ -139,11 +134,11 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({'code': 200, 'msg': '密码修改成功'})
     
     @action(detail=False, methods=['post'])
+    @audit_log
     def avatar(self, request):
-        avatar_url = request.data.get('avatar')
-        if not avatar_url:
-            return Response({'code': 400, 'msg': '请上传头像'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        v = AvatarSerializer(data=request.data)
+        v.is_valid(raise_exception=True)
+        avatar_url = v.validated_data['avatar']
         user = request.user
         user.avatar = avatar_url
         user.save()
@@ -151,10 +146,9 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def authRole(self, request, pk=None):
-        user_id = request.query_params.get('userId')
-        if not user_id:
-            return Response({'code': 400, 'msg': '参数错误'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        v = AuthRoleQuerySerializer(data=request.query_params)
+        v.is_valid(raise_exception=True)
+        user_id = v.validated_data['userId']
         try:
             user = User.objects.get(id=user_id)
             roles = Role.objects.filter(status='0', del_flag='0')
@@ -171,13 +165,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=False, methods=['put'])
+    @audit_log
     def authRole(self, request):
-        user_id = request.data.get('userId')
-        role_ids = request.data.get('roleIds', [])
-        
-        if not user_id:
-            return Response({'code': 400, 'msg': '参数错误'}, status=status.HTTP_400_BAD_REQUEST)
-        
+        v = AuthRoleAssignSerializer(data=request.data)
+        v.is_valid(raise_exception=True)
+        user_id = v.validated_data['userId']
+        role_ids = v.validated_data.get('roleIds', [])
         try:
             user = User.objects.get(id=user_id)
             UserRole.objects.filter(user=user).delete()

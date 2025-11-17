@@ -1,16 +1,25 @@
+from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework import status, viewsets
 from rest_framework_simplejwt.views import TokenObtainPairView
 from captcha.models import CaptchaStore
 from captcha.views import captcha_image
 import base64
 
 from ..models import UserRole, Menu, DictType, DictData
-from ..serializers import DictTypeSerializer, DictDataSerializer
+from ..serializers import DictTypeSerializer, DictDataSerializer, UserProfileSerializer, UserInfoSerializer
 from django.db.models import Q
 from django.core.cache import cache
+from rest_framework.pagination import PageNumberPagination
+from ..common import audit_log, normalize_input
+
+from drf_spectacular.utils import extend_schema
+
+
+ 
 
 
 class CaptchaView(TokenObtainPairView):
@@ -30,6 +39,7 @@ class CaptchaView(TokenObtainPairView):
 
 
 class LoginView(TokenObtainPairView):
+    @audit_log
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         try:
@@ -39,9 +49,10 @@ class LoginView(TokenObtainPairView):
         return Response({'token': serializer.validated_data.get('access')})
 
 
-class GetInfoView(APIView):
+class GetInfoView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=UserInfoSerializer)
     def get(self, request):
         user = request.user
         user_data = {
@@ -67,7 +78,7 @@ class GetInfoView(APIView):
         resp = {
             'code': 200,
             'msg': '操作成功',
-            'user': user_data,
+            'user': user_info.data,
             'roles': roles,
             'permissions': permissions,
             'isDefaultModifyPwd': False,
@@ -76,17 +87,21 @@ class GetInfoView(APIView):
         return Response(resp)
 
 
-class LogoutView(APIView):
+class LogoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
+    @audit_log
     def post(self, request):
         return Response({'code': 200, 'msg': '操作成功'})
 
 
-class GetRoutersView(APIView):
+class GetRoutersView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        cached = cache.get('routers')
+        if cached is not None:
+            return Response({"code": 200, "msg": "操作成功", "data": cached})
         menus = list(Menu.objects.filter(status='0', del_flag='0').order_by('parent_id', 'order_num'))
 
         def build_tree(items, pid=0):
@@ -143,5 +158,71 @@ class GetRoutersView(APIView):
 
         tree = build_tree(menus, 0)
         routers = [r for r in [to_router(n) for n in tree] if r is not None]
+        cache.set('routers', routers, timeout=3600)
         return Response({"code": 200, "msg": "操作成功", "data": routers})
 
+
+class BaseViewSet(viewsets.ModelViewSet):
+    required_roles = None
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        model = qs.model
+        if hasattr(model, 'del_flag'):
+            try:
+                qs = qs.filter(del_flag='0')
+            except Exception:
+                pass
+        return qs
+
+    @audit_log
+    def create(self, request, *args, **kwargs):
+        data = normalize_input(request.data)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response({'code': 200, 'msg': '操作成功'})
+
+    @audit_log
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        data = normalize_input(request.data)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response({'code': 200, 'msg': '操作成功'})
+
+    @audit_log
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        user = getattr(self.request, 'user', None)
+        kwargs = {}
+        if hasattr(serializer.Meta.model, 'create_by') and user and getattr(user, 'username', None):
+            kwargs['create_by'] = user.username
+        if hasattr(serializer.Meta.model, 'update_by') and user and getattr(user, 'username', None):
+            kwargs['update_by'] = user.username
+        serializer.save(**kwargs)
+
+    def perform_update(self, serializer):
+        user = getattr(self.request, 'user', None)
+        kwargs = {}
+        if hasattr(serializer.Meta.model, 'update_by') and user and getattr(user, 'username', None):
+            kwargs['update_by'] = user.username
+        serializer.save(**kwargs)
+
+    @audit_log
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if hasattr(instance, 'del_flag'):
+            instance.del_flag = '1'
+            instance.save(update_fields=['del_flag'])
+            return Response({'code': 200, 'msg': '操作成功'})
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get'],url_path='list')
+    def model_list(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
