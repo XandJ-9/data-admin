@@ -5,7 +5,7 @@ from system.models import Menu
 
 
 class Command(BaseCommand):
-    help = "Initialize base menus: 系统管理/用户管理/菜单管理/字典管理"
+    help = "Initialize base menus: 系统管理/用户管理/部门管理/菜单管理/字典管理/系统配置管理"
 
     def handle(self, *args, **options):
         now = timezone.now()
@@ -75,10 +75,42 @@ class Command(BaseCommand):
             user_menu.update_time = now
             user_menu.save()
 
+        # 子菜单：部门管理
+        dept_defaults = {
+            'menu_name': '部门管理',
+            'order_num': 2,
+            'component': 'system/dept/index',
+            'query': '',
+            'is_frame': '1',
+            'is_cache': '0',
+            'menu_type': 'C',
+            'visible': '0',
+            'status': '0',
+            'perms': 'system:dept:list',
+            'icon': 'dept',
+            'create_by': 'system',
+            'update_by': 'system',
+            'create_time': now,
+            'update_time': now,
+            'remark': '部门管理菜单',
+            'del_flag': '0'
+        }
+        dept_menu, created_dept = Menu.objects.get_or_create(
+            parent_id=root.menu_id, path='dept', menu_type='C', defaults=dept_defaults
+        )
+        if not created_dept:
+            for k, v in dept_defaults.items():
+                setattr(dept_menu, k, getattr(dept_menu, k) or v)
+            dept_menu.visible = '0'
+            dept_menu.status = '0'
+            dept_menu.del_flag = '0'
+            dept_menu.update_time = now
+            dept_menu.save()
+
         # 子菜单：菜单管理
         menu_defaults = {
             'menu_name': '菜单管理',
-            'order_num': 2,
+            'order_num': 3,
             'component': 'system/menu/index',
             'query': '',
             'is_frame': '1',
@@ -110,7 +142,7 @@ class Command(BaseCommand):
         # 子菜单：字典管理
         dict_defaults = {
             'menu_name': '字典管理',
-            'order_num': 3,
+            'order_num': 4,
             'component': 'system/dict/index',
             'query': '',
             'is_frame': '1',
@@ -139,4 +171,36 @@ class Command(BaseCommand):
             dict_menu.update_time = now
             dict_menu.save()
 
-        self.stdout.write(self.style.SUCCESS('Initialized menus: 系统管理/用户管理/菜单管理/字典管理'))
+        # 子菜单：系统配置管理
+        config_defaults = {
+            'menu_name': '系统配置管理',
+            'order_num': 5,
+            'component': 'system/config/index',
+            'query': '',
+            'is_frame': '1',
+            'is_cache': '0',
+            'menu_type': 'C',
+            'visible': '0',
+            'status': '0',
+            'perms': 'system:config:list',
+            'icon': 'config',
+            'create_by': 'system',
+            'update_by': 'system',
+            'create_time': now,
+            'update_time': now,
+            'remark': '系统配置管理菜单',
+            'del_flag': '0'
+        }
+        config_menu, created_config = Menu.objects.get_or_create(
+            parent_id=root.menu_id, path='config', menu_type='C', defaults=config_defaults
+        )
+        if not created_config:
+            for k, v in config_defaults.items():
+                setattr(config_menu, k, getattr(config_menu, k) or v)
+            config_menu.visible = '0'
+            config_menu.status = '0'
+            config_menu.del_flag = '0'
+            config_menu.update_time = now
+            config_menu.save()
+
+        self.stdout.write(self.style.SUCCESS('Initialized menus: 系统管理/用户管理/部门管理/菜单管理/字典管理/系统配置管理'))

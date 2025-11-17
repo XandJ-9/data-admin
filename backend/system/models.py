@@ -184,3 +184,24 @@ class DictData(BaseModel):
 
     def __str__(self):
         return self.dict_label
+
+
+class Config(BaseModel):
+    config_id = models.AutoField(primary_key=True, verbose_name='参数主键')
+    config_name = models.CharField(max_length=100, verbose_name='参数名称')
+    config_key = models.CharField(max_length=100, unique=True, verbose_name='参数键名')
+    config_value = models.CharField(max_length=500, verbose_name='参数键值')
+    config_type = models.CharField(max_length=1, choices=[('Y', '是'), ('N', '否')], default='Y', verbose_name='系统内置')
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+
+    class Meta:
+        db_table = 'sys_config'
+        verbose_name = '参数配置'
+        verbose_name_plural = '参数配置'
+        indexes = [
+            models.Index(fields=['del_flag']),
+            models.Index(fields=['config_key']),
+        ]
+
+    def __str__(self):
+        return f"{self.config_name}({self.config_key})"

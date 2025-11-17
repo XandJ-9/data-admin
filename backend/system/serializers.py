@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Dept, Role, UserRole, Menu, DictType, DictData
+from .models import User, Dept, Role, UserRole, Menu, DictType, DictData, Config
 from .common import snake_to_camel
 
 class CamelCaseModelSerializer(serializers.ModelSerializer):
@@ -141,6 +141,22 @@ class DeptSerializer(BaseSerializer):
         model = Dept
         fields = '__all__'
 
+class DeptQuerySerializer(serializers.Serializer):
+    deptName = serializers.CharField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(required=False, choices=['0','1'])
+
+class DeptCreateSerializer(serializers.Serializer):
+    parentId = serializers.IntegerField(required=False, default=0)
+    deptName = serializers.CharField(max_length=30)
+    orderNum = serializers.IntegerField(required=False, default=0)
+    leader = serializers.CharField(required=False, allow_blank=True, default='')
+    phone = serializers.CharField(required=False, allow_blank=True, default='')
+    email = serializers.CharField(required=False, allow_blank=True, default='')
+    status = serializers.ChoiceField(required=False, choices=['0','1'], default='0')
+
+class DeptUpdateSerializer(DeptCreateSerializer):
+    deptId = serializers.IntegerField()
+
 # Role related
 class RoleSerializer(BaseSerializer):
     roleId = serializers.IntegerField(source='role_id', read_only=True)
@@ -269,3 +285,32 @@ class DictDataSerializer(BaseSerializer):
     class Meta:
         model = DictData
         fields = ['dictCode', 'dictSort', 'dictLabel', 'dictValue', 'dictType', 'cssClass', 'listClass']
+
+# Config related
+class ConfigQuerySerializer(PaginationQuerySerializer):
+    configName = serializers.CharField(required=False, allow_blank=True)
+    configKey = serializers.CharField(required=False, allow_blank=True)
+    configType = serializers.ChoiceField(required=False, choices=['Y','N'])
+    beginTime = serializers.DateTimeField(required=False)
+    endTime = serializers.DateTimeField(required=False)
+
+class ConfigSerializer(BaseSerializer):
+    configId = serializers.IntegerField(source='config_id', read_only=True)
+    configName = serializers.CharField(source='config_name')
+    configKey = serializers.CharField(source='config_key')
+    configValue = serializers.CharField(source='config_value')
+    configType = serializers.CharField(source='config_type')
+
+    class Meta:
+        model = Config
+        fields = ['configId', 'configName', 'configKey', 'configValue', 'configType']
+
+class ConfigCreateSerializer(serializers.Serializer):
+    configName = serializers.CharField(max_length=100)
+    configKey = serializers.CharField(max_length=100)
+    configValue = serializers.CharField(max_length=500)
+    configType = serializers.ChoiceField(choices=['Y','N'], default='Y')
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+
+class ConfigUpdateSerializer(ConfigCreateSerializer):
+    configId = serializers.IntegerField()
