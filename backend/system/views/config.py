@@ -22,6 +22,8 @@ class ConfigViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = Config.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = ConfigSerializer
+    update_body_serializer_class = ConfigUpdateSerializer
+    update_body_id_field = 'configId'
 
     def get_queryset(self):
         qs = Config.objects.filter(del_flag='0')
@@ -53,12 +55,9 @@ class ConfigViewSet(BaseViewSet):
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(qs, many=True)
-        return Response({"code": 200, "msg": "操作成功", "data": serializer.data})
+        return Response({"code": 200, "msg": "操作成功", "rows": serializer.data, "total": qs.count()})
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        data = self.get_serializer(instance).data
-        return Response({"code": 200, "msg": "操作成功", "data": data})
+    # 详情响应由 BaseViewSet.retrieve 统一封装
 
     def create(self, request, *args, **kwargs):
         v = ConfigCreateSerializer(data=request.data)
@@ -81,7 +80,7 @@ class ConfigViewSet(BaseViewSet):
             cache.set(f"config:{cfg.config_key}", cfg.config_value, timeout=3600)
         except Exception:
             pass
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -106,7 +105,7 @@ class ConfigViewSet(BaseViewSet):
             cache.set(f"config:{instance.config_key}", instance.config_value, timeout=3600)
         except Exception:
             pass
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -116,21 +115,9 @@ class ConfigViewSet(BaseViewSet):
             cache.delete(f"config:{instance.config_key}")
         except Exception:
             pass
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
-    # 兼容前端 PUT /system/config（不带主键）更新
-    def update_by_body(self, request, *args, **kwargs):
-        v = ConfigUpdateSerializer(data=request.data)
-        v.is_valid(raise_exception=True)
-        config_id = v.validated_data.get('configId')
-        try:
-            instance = Config.objects.get(config_id=config_id, del_flag='0')
-        except Config.DoesNotExist:
-            return Response({"code": 404, "msg": "参数不存在"}, status=status.HTTP_404_NOT_FOUND)
-        kwargs['partial'] = False
-        self.kwargs.update(kwargs)
-        self.get_object = lambda: instance
-        return self.update(request, *args, **kwargs)
+    # 集合更新由 BaseViewSet.update_by_body 统一实现
 
     @action(detail=False, methods=['get'], url_path=r'configKey/(?P<configKey>[^/]+)')
     def get_config_key(self, request, configKey=None):

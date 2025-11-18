@@ -14,6 +14,8 @@ class MenuViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = Menu.objects.filter(del_flag='0').order_by('parent_id', 'order_num')
     serializer_class = MenuSerializer
+    update_body_serializer_class = MenuUpdateSerializer
+    update_body_id_field = 'menuId'
 
     def list(self, request, *args, **kwargs):
         s = MenuQuerySerializer(data=request.query_params)
@@ -33,18 +35,13 @@ class MenuViewSet(BaseViewSet):
         serializer = self.get_serializer(qs, many=True)
         return Response({"code": 200, "msg": "操作成功", "data": serializer.data})
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        data = self.get_serializer(instance).data
-        return Response({"code": 200, "msg": "操作成功", "data": data})
-
     def create(self, request, *args, **kwargs):
         v = MenuCreateSerializer(data=request.data)
         v.is_valid(raise_exception=True)
         serializer = self.get_serializer(data=v.validated_data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -52,27 +49,11 @@ class MenuViewSet(BaseViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.del_flag = '1'
-        instance.save(update_fields=['del_flag'])
-        return Response({"code": 200, "msg": "操作成功"})
+    # 软删除由 BaseViewSet.destroy 统一实现
 
-    # 兼容前端 PUT /system/menu（不带主键）更新
-    def update_by_body(self, request, *args, **kwargs):
-        v = MenuUpdateSerializer(data=request.data)
-        v.is_valid(raise_exception=True)
-        menu_id = v.validated_data.get('menuId')
-        try:
-            instance = Menu.objects.get(menu_id=menu_id, del_flag='0')
-        except Menu.DoesNotExist:
-            return Response({"code": 404, "msg": "菜单不存在"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = self.get_serializer(instance, data=request.data, partial=False)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response({"code": 200, "msg": "操作成功"})
+    # 集合更新由 BaseViewSet.update_by_body 统一实现
 
     @action(detail=False, methods=['get'])
     def treeselect(self, request):

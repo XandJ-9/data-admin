@@ -164,6 +164,9 @@ class GetRoutersView(generics.GenericAPIView):
 
 class BaseViewSet(viewsets.ModelViewSet):
     required_roles = None
+    # 兼容前端 PUT /xxx（集合更新）通用支持
+    update_body_serializer_class = None  # 子类设置：用于校验请求体
+    update_body_id_field = 'id'          # 子类设置：请求体中的主键字段名，如 menuId/deptId/roleId/configId
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -175,13 +178,29 @@ class BaseViewSet(viewsets.ModelViewSet):
                 pass
         return qs
 
+    # 通用响应封装
+    def ok(self, msg='操作成功'):
+        return Response({'code': 200, 'msg': msg})
+
+    def data(self, data, msg='操作成功'):
+        return Response({'code': 200, 'msg': msg, 'data': data})
+
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({'total': len(serializer.data), 'rows': serializer.data, 'code': 200, 'msg': '操作成功'})
     @audit_log
     def create(self, request, *args, **kwargs):
         data = normalize_input(request.data)
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return Response({'code': 200, 'msg': '操作成功'})
+        return self.ok()
 
     @audit_log
     def update(self, request, *args, **kwargs):
@@ -191,7 +210,7 @@ class BaseViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        return Response({'code': 200, 'msg': '操作成功'})
+        return self.ok()
 
     @audit_log
     def partial_update(self, request, *args, **kwargs):
@@ -220,9 +239,37 @@ class BaseViewSet(viewsets.ModelViewSet):
         if hasattr(instance, 'del_flag'):
             instance.del_flag = '1'
             instance.save(update_fields=['del_flag'])
-            return Response({'code': 200, 'msg': '操作成功'})
+            return self.ok()
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'],url_path='list')
     def model_list(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
+
+    # 统一数据详情响应包装
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = self.get_serializer(instance).data
+        return self.data(data)
+
+    # 兼容前端 PUT /xxx（不带主键）更新：子类设置 update_body_serializer_class + update_body_id_field 即可复用
+    def update_by_body(self, request, *args, **kwargs):
+        vcls = getattr(self, 'update_body_serializer_class', None)
+        id_field = getattr(self, 'update_body_id_field', 'id')
+        if not vcls:
+            return Response({'code': 404, 'msg': '未实现集合更新'}, status=status.HTTP_404_NOT_FOUND)
+        v = vcls(data=request.data)
+        v.is_valid(raise_exception=True)
+        obj_id = v.validated_data.get(id_field)
+        Model = self.get_queryset().model
+        try:
+            if hasattr(Model, 'del_flag'):
+                instance = Model.objects.get(pk=obj_id, del_flag='0')
+            else:
+                instance = Model.objects.get(pk=obj_id)
+        except Model.DoesNotExist:
+            return Response({'code': 404, 'msg': '资源不存在'}, status=status.HTTP_404_NOT_FOUND)
+        kwargs['partial'] = False
+        self.kwargs.update(kwargs)
+        self.get_object = lambda: instance
+        return self.update(request, *args, **kwargs)

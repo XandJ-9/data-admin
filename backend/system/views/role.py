@@ -22,8 +22,10 @@ class RoleViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = Role.objects.filter(del_flag='0').order_by('create_time')
     serializer_class = RoleSerializer
+    update_body_serializer_class = RoleUpdateSerializer
+    update_body_id_field = 'roleId'
 
-    def list(self, request, *args, **kwargs):
+    def get_queryset(self):
         s = RoleQuerySerializer(data=request.query_params)
         s.is_valid(raise_exception=True)
         data = s.validated_data
@@ -45,18 +47,7 @@ class RoleViewSet(BaseViewSet):
             qs = qs.filter(create_time__gte=begin_time)
         if end_time:
             qs = qs.filter(create_time__lte=end_time)
-
-        page = self.paginate_queryset(qs)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(qs, many=True)
-        return Response({"code": 200, "msg": "操作成功", "rows": serializer.data, "total": qs.count()})
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        data = self.get_serializer(instance).data
-        return Response({"code": 200, "msg": "操作成功", "data": data})
+        return qs
 
     def create(self, request, *args, **kwargs):
         v = RoleCreateSerializer(data=request.data)
@@ -88,37 +79,14 @@ class RoleViewSet(BaseViewSet):
             menus = list(Menu.objects.filter(menu_id__in=menu_ids, del_flag='0').values_list('menu_id', flat=True))
             RoleMenu.objects.bulk_create([RoleMenu(role=role, menu_id=mid) for mid in menus])
 
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        v = RoleUpdateSerializer(instance=instance, data=request.data, partial=partial)
-        v.is_valid(raise_exception=True)
-        vd = v.validated_data
-
-        # 更新基本字段
-        for src, dst in [
-            ('roleName', 'role_name'),
-            ('roleKey', 'role_key'),
-            ('roleSort', 'role_sort'),
-            ('status', 'status'),
-            ('remark', 'remark'),
-            ('dataScope', 'data_scope'),
-        ]:
-            if src in vd:
-                setattr(instance, dst, vd.get(src))
-        if 'menuCheckStrictly' in vd:
-            instance.menu_check_strictly = 1 if vd.get('menuCheckStrictly') else 0
-        if 'deptCheckStrictly' in vd:
-            instance.dept_check_strictly = 1 if vd.get('deptCheckStrictly') else 0
-
-        # 审计字段
-        user = getattr(self.request, 'user', None)
-        if user and getattr(user, 'username', None):
-            instance.update_by = user.username
-        instance.save()
-
+        vd = RoleUpdateSerializer(instance, data=request.data, partial=partial)
+        vd.is_valid(raise_exception=True)
+        instance = vd.save()
         # 更新菜单关联（全量替换）
         if 'menuIds' in vd:
             new_ids = set(vd.get('menuIds') or [])
@@ -127,29 +95,7 @@ class RoleViewSet(BaseViewSet):
                 menus = list(Menu.objects.filter(menu_id__in=new_ids, del_flag='0').values_list('menu_id', flat=True))
                 RoleMenu.objects.bulk_create([RoleMenu(role=instance, menu_id=mid) for mid in menus])
 
-        return Response({"code": 200, "msg": "操作成功"})
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.del_flag = '1'
-        instance.save(update_fields=['del_flag'])
-        return Response({"code": 200, "msg": "操作成功"})
-
-    # 兼容前端 PUT /system/role（不带主键）更新
-    def update_by_body(self, request, *args, **kwargs):
-        v = RoleUpdateSerializer(data=request.data)
-        v.is_valid(raise_exception=True)
-        role_id = v.validated_data.get('roleId')
-        try:
-            instance = Role.objects.get(role_id=role_id, del_flag='0')
-        except Role.DoesNotExist:
-            return Response({"code": 404, "msg": "角色不存在"}, status=status.HTTP_404_NOT_FOUND)
-        # 复用 update 逻辑
-        kwargs['partial'] = False
-        self.kwargs.update(kwargs)
-        # 将 instance 设置为当前对象
-        self.get_object = lambda: instance
-        return self.update(request, *args, **kwargs)
+        return self.ok()
 
     @action(detail=False, methods=['put'], url_path='changeStatus')
     def change_status(self, request):

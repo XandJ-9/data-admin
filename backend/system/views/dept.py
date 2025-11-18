@@ -18,6 +18,8 @@ class DeptViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = Dept.objects.filter(del_flag='0').order_by('parent_id', 'order_num')
     serializer_class = DeptSerializer
+    update_body_serializer_class = DeptUpdateSerializer
+    update_body_id_field = 'deptId'
 
     def list(self, request, *args, **kwargs):
         s = DeptQuerySerializer(data=request.query_params)
@@ -35,10 +37,7 @@ class DeptViewSet(BaseViewSet):
         serializer = self.get_serializer(qs, many=True)
         return Response({"code": 200, "msg": "操作成功", "data": serializer.data})
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        data = self.get_serializer(instance).data
-        return Response({"code": 200, "msg": "操作成功", "data": data})
+    # 详情响应由 BaseViewSet.retrieve 统一封装
 
     def create(self, request, *args, **kwargs):
         v = DeptCreateSerializer(data=request.data)
@@ -60,7 +59,7 @@ class DeptViewSet(BaseViewSet):
             dept.create_by = user.username
             dept.update_by = user.username
         dept.save()
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -85,27 +84,11 @@ class DeptViewSet(BaseViewSet):
         if user and getattr(user, 'username', None):
             instance.update_by = user.username
         instance.save()
-        return Response({"code": 200, "msg": "操作成功"})
+        return self.ok()
 
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        instance.del_flag = '1'
-        instance.save(update_fields=['del_flag'])
-        return Response({"code": 200, "msg": "操作成功"})
+    # 软删除由 BaseViewSet.destroy 统一实现
 
-    # 兼容前端 PUT /system/dept（不带主键）更新
-    def update_by_body(self, request, *args, **kwargs):
-        v = DeptUpdateSerializer(data=request.data)
-        v.is_valid(raise_exception=True)
-        dept_id = v.validated_data.get('deptId')
-        try:
-            instance = Dept.objects.get(dept_id=dept_id, del_flag='0')
-        except Dept.DoesNotExist:
-            return Response({"code": 404, "msg": "部门不存在"}, status=status.HTTP_404_NOT_FOUND)
-        kwargs['partial'] = False
-        self.kwargs.update(kwargs)
-        self.get_object = lambda: instance
-        return self.update(request, *args, **kwargs)
+    # 集合更新由 BaseViewSet.update_by_body 统一实现
 
     @action(detail=False, methods=['get'], url_path=r'list/exclude/(?P<deptId>\d+)')
     def list_exclude_child(self, request, deptId=None):

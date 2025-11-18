@@ -46,15 +46,6 @@ class UserViewSet(BaseViewSet):
             queryset = queryset.filter(create_time__lte=end_time)
         return queryset.order_by('-create_time')
     
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({'total': len(serializer.data), 'rows': serializer.data, 'code': 200, 'msg': '操作成功'})
-    
     @action(detail=False, methods=['put'])
     @audit_log
     def resetPwd(self, request):
