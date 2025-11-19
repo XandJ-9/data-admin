@@ -137,9 +137,14 @@ class UserInfoSerializer(serializers.Serializer):
 
 # Dept related
 class DeptSerializer(BaseSerializer):
+    deptId = serializers.IntegerField(source='dept_id')
+    parentId = serializers.IntegerField(source='parent_id')
+    deptName = serializers.CharField(source='dept_name')
+    orderNum = serializers.IntegerField(source='order_num')
+    
     class Meta:
         model = Dept
-        fields = '__all__'
+        fields = ['deptId', 'parentId', 'deptName', 'orderNum', 'leader', 'phone', 'email', 'status', 'remark']
 
 class DeptQuerySerializer(serializers.Serializer):
     deptName = serializers.CharField(required=False, allow_blank=True)

@@ -57,9 +57,9 @@ class UserViewSet(BaseViewSet):
             user = User.objects.get(id=user_id)
             user.set_password(password)
             user.save()
-            return Response({'code': 200, 'msg': '密码重置成功'})
+            return self.ok('密码重置成功')
         except User.DoesNotExist:
-            return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return self.not_found('用户不存在')
     
     @action(detail=False, methods=['put'])
     @audit_log
@@ -72,9 +72,9 @@ class UserViewSet(BaseViewSet):
             user = User.objects.get(id=user_id)
             user.status = status_value
             user.save()
-            return Response({'code': 200, 'msg': '状态修改成功'})
+            return self.ok('状态修改成功')
         except User.DoesNotExist:
-            return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return self.not_found('用户不存在')
     
     @action(detail=False, methods=['get'])
     def deptTree(self, request):
@@ -92,13 +92,13 @@ class UserViewSet(BaseViewSet):
             return tree
         
         tree_data = build_tree(serializer.data)
-        return Response(tree_data)
+        return self.raw_response(tree_data)
     
     @action(detail=False, methods=['get'])
     def profile(self, request):
         user = request.user
         serializer = UserProfileSerializer(user)
-        return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
+        return self.data(serializer.data)
     
     @action(detail=False, methods=['put'])
     @audit_log
@@ -107,7 +107,7 @@ class UserViewSet(BaseViewSet):
         serializer = UserProfileSerializer(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({'code': 200, 'msg': '个人信息修改成功'})
+        return self.ok('个人信息修改成功')
     
     @action(detail=False, methods=['put'])
     @audit_log
@@ -118,11 +118,11 @@ class UserViewSet(BaseViewSet):
         new_password = v.validated_data['newPassword']
         user = request.user
         if not user.check_password(old_password):
-            return Response({'code': 400, 'msg': '旧密码错误'}, status=status.HTTP_400_BAD_REQUEST)
+            return self.error('旧密码错误')
         
         user.set_password(new_password)
         user.save()
-        return Response({'code': 200, 'msg': '密码修改成功'})
+        return self.ok('密码修改成功')
     
     @action(detail=False, methods=['post'])
     @audit_log
@@ -133,11 +133,12 @@ class UserViewSet(BaseViewSet):
         user = request.user
         user.avatar = avatar_url
         user.save()
-        return Response({'code': 200, 'msg': '头像上传成功'})
+        # return Response({'code': 200, 'msg': '头像上传成功'})
+        return self.ok('头像上传成功')
     
-    @action(detail=False, methods=['get'])
-    def authRole(self, request, pk=None):
-        v = AuthRoleQuerySerializer(data=request.query_params)
+    @action(detail=False, methods=['get'], url_path=r'authRole/(?P<userId>[^/]+)')
+    def getAuthRole(self, request, userId = None):
+        v = AuthRoleQuerySerializer(data={'userId': userId})
         v.is_valid(raise_exception=True)
         user_id = v.validated_data['userId']
         try:
@@ -151,13 +152,13 @@ class UserViewSet(BaseViewSet):
                 role_data['flag'] = role.role_id in user_roles
                 roles_data.append(role_data)
             
-            return Response({'code': 200, 'msg': '操作成功', 'user': UserSerializer(user).data, 'roles': roles_data})
+            return self.data({'user': UserSerializer(user).data, 'roles': roles_data})
         except User.DoesNotExist:
-            return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return self.not_found('用户不存在')
     
-    @action(detail=False, methods=['put'])
+    @action(detail=False, methods=['put'], url_path=r'authRole')
     @audit_log
-    def authRole(self, request):
+    def updateAuthRole(self, request):
         v = AuthRoleAssignSerializer(data=request.data)
         v.is_valid(raise_exception=True)
         user_id = v.validated_data['userId']
@@ -171,6 +172,6 @@ class UserViewSet(BaseViewSet):
                     UserRole.objects.create(user=user, role=role)
                 except Role.DoesNotExist:
                     continue
-            return Response({'code': 200, 'msg': '授权成功'})
+            return self.ok('授权成功')
         except User.DoesNotExist:
-            return Response({'code': 404, 'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+            return self.not_found('用户不存在')

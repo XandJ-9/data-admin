@@ -7,7 +7,6 @@ from .core import BaseViewSet
 from ..permission import HasRolePermission
 from ..models import Menu, RoleMenu
 from ..serializers import MenuSerializer, MenuQuerySerializer, MenuCreateSerializer, MenuUpdateSerializer
-from ..common import normalize_input
 
 
 class MenuViewSet(BaseViewSet):
@@ -50,10 +49,6 @@ class MenuViewSet(BaseViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return self.ok()
-
-    # 软删除由 BaseViewSet.destroy 统一实现
-
-    # 集合更新由 BaseViewSet.update_by_body 统一实现
 
     @action(detail=False, methods=['get'])
     def treeselect(self, request):

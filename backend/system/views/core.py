@@ -182,10 +182,18 @@ class BaseViewSet(viewsets.ModelViewSet):
     def ok(self, msg='操作成功'):
         return Response({'code': 200, 'msg': msg})
 
+    def error(self, msg='操作失败'):
+        return Response({'code': 400, 'msg': msg}, status=status.HTTP_400_BAD_REQUEST)
+    
     def data(self, data, msg='操作成功'):
         return Response({'code': 200, 'msg': msg, 'data': data})
 
-
+    def not_found(self, msg='未找到'):
+        return Response({'code': 404, 'msg': msg}, status=status.HTTP_404_NOT_FOUND)
+    
+    def raw_response(self, data):
+        return Response(data)
+    
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
