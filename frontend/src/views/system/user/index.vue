@@ -353,7 +353,7 @@ function resetQuery() {
 
 /** 删除按钮操作 */
 function handleDelete(row) {
-  const userIds = row.userId || ids.value
+  const userIds = row.userId || ids.value.join(',')
   proxy.$modal.confirm('是否确认删除用户编号为"' + userIds + '"的数据项？').then(function () {
     return delUser(userIds)
   }).then(() => {
@@ -515,7 +515,8 @@ function handleAdd() {
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset()
-  const userId = row.userId || ids.value
+  let userId = row.userId
+  
   getUser(userId).then(response => {
     form.value = response.data
     postOptions.value = response.posts
