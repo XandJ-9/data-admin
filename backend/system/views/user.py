@@ -23,7 +23,7 @@ class UserViewSet(BaseViewSet):
     serializer_class = UserSerializer
     update_body_serializer_class = UserSerializer
     def get_queryset(self):
-        queryset = User.objects.all()
+        queryset = super().get_queryset()
         s = UserQuerySerializer(data=self.request.query_params)
         s.is_valid(raise_exception=True)
         data = s.validated_data
@@ -79,21 +79,42 @@ class UserViewSet(BaseViewSet):
     
     @action(detail=False, methods=['get'])
     def deptTree(self, request):
+        # 仅返回启用状态的部门，按父子关系与排序号组织
         depts = Dept.objects.filter(status='0').order_by('parent_id', 'order_num')
         serializer = DeptSerializer(depts, many=True)
-        
-        def build_tree(data, parent_id=0):
+
+        # 将序列化数据转换为前端期望的树形结构：id/label/children
+        raw_items = serializer.data
+        mapped = [
+            {
+                'id': item['deptId'],
+                'label': item['deptName'],
+                'parentId': item['parentId'],
+                # 为兼容筛选逻辑保留 disabled 字段（当前均为启用）
+                'disabled': False,
+            }
+            for item in raw_items
+        ]
+
+        def build_tree(nodes, parent_id=0):
             tree = []
-            for item in data:
-                if item['parent_id'] == parent_id:
-                    children = build_tree(data, item['dept_id'])
+            for n in nodes:
+                if n['parentId'] == parent_id:
+                    children = build_tree(nodes, n['id'])
+                    node = {
+                        'id': n['id'],
+                        'label': n['label'],
+                    }
                     if children:
-                        item['children'] = children
-                    tree.append(item)
+                        node['children'] = children
+                    # 仅当为禁用时传递该标记；保持输出简洁
+                    if n.get('disabled'):
+                        node['disabled'] = True
+                    tree.append(node)
             return tree
-        
-        tree_data = build_tree(serializer.data)
-        return self.raw_response(tree_data)
+
+        tree_data = build_tree(mapped)
+        return self.data(tree_data)
     
     @action(detail=False, methods=['get'])
     def profile(self, request):

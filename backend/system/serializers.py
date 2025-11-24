@@ -48,14 +48,24 @@ class UserSerializer(BaseModelSerializer):
     userId = serializers.IntegerField(source='id', required=False)
     userName = serializers.CharField(source='username', required=False)
     nickName = serializers.CharField(source='nick_name', required=False)
-    # dept = serializers.SerializerMethodField()
+    dept = serializers.SerializerMethodField()
     deptId = serializers.IntegerField(source='dept_id')
     
     class Meta:
         model = User
-        fields = ['userId', 'userName', 'nickName', 'phonenumber', 'email', 'sex', 'avatar', 'status', 
-                 'remark', 'deptId']
+        fields = ['userId', 'userName', 'nickName', 'phonenumber', 'email', 'sex', 'avatar', 'status','remark','dept','deptId']
     
+    def get_dept(self, obj):
+        if obj.dept_id:
+            try:
+                dept = Dept.objects.get(dept_id=obj.dept_id)
+                return {
+                    'deptId': dept.dept_id,
+                    'deptName': dept.dept_name
+                }
+            except Dept.DoesNotExist:
+                return None
+        return None
 
 
 class UserQuerySerializer(PaginationQuerySerializer):
@@ -134,7 +144,7 @@ class AvatarSerializer(serializers.Serializer):
 
 class AuthRoleAssignSerializer(serializers.Serializer):
     userId = serializers.IntegerField()
-    roleIds = serializers.ListField(child=serializers.IntegerField(), allow_empty=True)
+    roleIds = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
 
 class AuthRoleQuerySerializer(PaginationQuerySerializer):
     userId = serializers.IntegerField()
@@ -269,7 +279,7 @@ class DictTypeQuerySerializer(PaginationQuerySerializer):
     status = serializers.ChoiceField(required=False, choices=['0','1'])
 
 class DictTypeSerializer(BaseModelSerializer):
-    dictId = serializers.IntegerField(source='dict_id', read_only=True)
+    dictId = serializers.IntegerField(source='dict_id')
     dictName = serializers.CharField(source='dict_name')
     dictType = serializers.CharField(source='dict_type')
 
@@ -284,7 +294,7 @@ class DictDataQuerySerializer(PaginationQuerySerializer):
     status = serializers.ChoiceField(required=False, choices=['0','1'])
 
 class DictDataSerializer(BaseModelSerializer):
-    dictCode = serializers.IntegerField(source='dict_code', read_only=True)
+    dictCode = serializers.IntegerField(source='dict_code')
     dictSort = serializers.IntegerField(source='dict_sort')
     dictLabel = serializers.CharField(source='dict_label')
     dictValue = serializers.CharField(source='dict_value')

@@ -17,6 +17,8 @@ class DictTypeViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DictType.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = DictTypeSerializer
+    update_body_serializer_class = DictTypeSerializer
+    update_body_id_field = 'dict_id'
 
     def get_queryset(self):
         qs = DictType.objects.filter(del_flag='0')
@@ -33,20 +35,6 @@ class DictTypeViewSet(BaseViewSet):
         if status_value:
             qs = qs.filter(status=status_value)
         return qs.order_by('-create_time')
-
-    def list(self, request, *args, **kwargs):
-        qs = self.get_queryset()
-        page = self.paginate_queryset(qs)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(qs, many=True)
-        return Response({'code': 200, 'msg': '操作成功', 'rows': serializer.data, 'total': len(serializer.data)})
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        data = self.get_serializer(instance).data
-        return Response({'code': 200, 'msg': '操作成功', 'data': data})
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -72,7 +60,7 @@ class DictTypeViewSet(BaseViewSet):
         for t in {old_type, new_type}:
             cache_key = f'dict_data_by_type:{t}'
             qs = DictData.objects.filter(dict_type=t, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
-            data = self.get_serializer(qs, many=True).data
+            data = DictDataSerializer(qs, many=True).data
             cache.set(cache_key, data, timeout=3600)
         return Response({'code': 200, 'msg': '操作成功'})
 
@@ -108,6 +96,8 @@ class DictDataViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DictData.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = DictDataSerializer
+    update_body_serializer_class = DictDataSerializer
+    update_body_id_field = 'dict_code'
 
     def get_queryset(self):
         qs = DictData.objects.filter(del_flag='0')
