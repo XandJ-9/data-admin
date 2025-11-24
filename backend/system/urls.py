@@ -16,10 +16,11 @@ router.register(r'config', ConfigViewSet, basename='config')
 
 urlpatterns = [
     # 兼容前端集合 PUT 路由，需在 include(router.urls) 之前以确保优先匹配
-    path('system/menu', MenuViewSet.as_view({'put': 'update_by_body'}), name='menu-update-body'),
-    path('system/user', UserViewSet.as_view({'put': 'update_by_body'}), name='user-update-body'),
-    path('system/role', RoleViewSet.as_view({'put': 'update_by_body'}), name='role-update-body'),
-    path('system/dept', DeptViewSet.as_view({'put': 'update_by_body'}), name='dept-update-body'),
+    # 同时兼容前端 POST 路由创建新资源
+    path('system/menu', MenuViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='menu-update-body'),
+    path('system/user', UserViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='user-update-body'),
+    path('system/role', RoleViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='role-update-body'),
+    path('system/dept', DeptViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='dept-update-body'),
     path('system/config', ConfigViewSet.as_view({'put': 'update_by_body'}), name='config-update-body'),
     path('system/dict/type', DictTypeViewSet.as_view({'put': 'update_by_body'}), name='dict-type-update-body'),
     path('system/dict/data', DictDataViewSet.as_view({'put': 'update_by_body'}), name='dict-data-update-body'),

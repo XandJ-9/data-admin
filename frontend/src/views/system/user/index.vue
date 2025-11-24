@@ -503,13 +503,13 @@ function cancel() {
 /** 新增按钮操作 */
 function handleAdd() {
   reset()
-  getUser().then(response => {
-    postOptions.value = response.posts
-    roleOptions.value = response.roles
+  // getUser().then(response => {
+  //   postOptions.value = response.posts
+  //   roleOptions.value = response.roles
     open.value = true
     title.value = "添加用户"
     form.value.password = initPassword.value
-  })
+  // })
 }
 
 /** 修改按钮操作 */
