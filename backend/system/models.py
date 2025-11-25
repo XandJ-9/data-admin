@@ -47,7 +47,8 @@ class User(AbstractUser, BaseModel):
     dept_id = models.IntegerField(null=True, blank=True, verbose_name="Department ID")
     first_name = None
     last_name = None
-
+    username = models.CharField(max_length=30, verbose_name="Username")
+    USERNAME_FIELD = 'id'
     class Meta:
         db_table = 'sys_user'
         verbose_name = '用户'

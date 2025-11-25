@@ -268,7 +268,6 @@ class BaseViewSet(viewsets.ModelViewSet):
             return Response({'code': 404, 'msg': '未实现集合更新'}, status=status.HTTP_404_NOT_FOUND)
         v = vcls(data=request.data)
         v.is_valid(raise_exception=True)
-        print(v.validated_data)
         obj_id = v.validated_data.get(id_field)
         Model = self.get_queryset().model
         try:
