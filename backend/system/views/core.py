@@ -99,9 +99,9 @@ class GetRoutersView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cached = cache.get('routers')
-        if cached is not None:
-            return Response({"code": 200, "msg": "操作成功", "data": cached})
+        # cached = cache.get('routers')
+        # if cached is not None:
+        #     return Response({"code": 200, "msg": "操作成功", "data": cached})
         menus = list(Menu.objects.filter(status='0', del_flag='0').order_by('parent_id', 'order_num'))
 
         def build_tree(items, pid=0):
@@ -158,7 +158,7 @@ class GetRoutersView(generics.GenericAPIView):
 
         tree = build_tree(menus, 0)
         routers = [r for r in [to_router(n) for n in tree] if r is not None]
-        cache.set('routers', routers, timeout=3600)
+        # cache.set('routers', routers, timeout=3600)
         return Response({"code": 200, "msg": "操作成功", "data": routers})
 
 

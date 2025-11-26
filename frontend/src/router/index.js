@@ -83,6 +83,20 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  // 数据源管理（隐藏入口，独立功能路径）
+  {
+    path: '/datasource',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/datasource/index.vue'),
+        name: 'Datasource',
+        meta: { title: '数据源管理', activeMenu: '/datasource' }
+      }
+    ]
   }
 ]
 
