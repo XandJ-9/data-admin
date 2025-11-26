@@ -45,8 +45,10 @@ class User(AbstractUser, BaseModel):
     status = models.CharField(max_length=1, choices=(('0', 'Active'), ('1', 'Inactive')), default='0', verbose_name="Status")
     remark = models.CharField(max_length=500, blank=True, null=True, verbose_name="Remark")
     dept_id = models.IntegerField(null=True, blank=True, verbose_name="Department ID")
-    
-
+    first_name = None
+    last_name = None
+    username = models.CharField(max_length=30, verbose_name="Username")
+    USERNAME_FIELD = 'id'
     class Meta:
         db_table = 'sys_user'
         verbose_name = '用户'
