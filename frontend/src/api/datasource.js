@@ -50,3 +50,12 @@ export function testDatasource(dataSourceId) {
     method: 'post'
   })
 }
+
+// 根据请求体测试数据源连通性（不落库）
+export function testDatasourceByBody(data) {
+  return request({
+    url: '/datasource/manage/test',
+    method: 'post',
+    data: data
+  })
+}

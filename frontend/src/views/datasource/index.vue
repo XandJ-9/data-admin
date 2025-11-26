@@ -141,6 +141,7 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
+          <el-button type="warning" @click="testFormConnection">测试连接</el-button>
           <el-button type="primary" @click="submitForm">确 定</el-button>
           <el-button @click="cancel">取 消</el-button>
         </div>
@@ -151,7 +152,7 @@
 
 <script setup name="Datasource">
 /* eslint-disable vue/no-v-model-argument */
-import { listDatasource, getDatasource, addDatasource, updateDatasource, delDatasource, testDatasource } from '@/api/datasource'
+import { listDatasource, getDatasource, addDatasource, updateDatasource, delDatasource, testDatasource, testDatasourceByBody } from '@/api/datasource'
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
@@ -286,6 +287,22 @@ function handleDelete(row) {
     getList()
     proxy.$modal.msgSuccess('删除成功')
   }).catch(() => {})
+}
+
+function testFormConnection() {
+  proxy.$refs['formRef'].validate(valid => {
+    if (!valid) return
+    proxy.$modal.loading('正在测试连通性...')
+    testDatasourceByBody(form.value).then((res) => {
+      proxy.$modal.closeLoading()
+      const msg = res?.message || '测试成功'
+      proxy.$modal.msgSuccess(msg)
+    }).catch((err) => {
+      proxy.$modal.closeLoading()
+      const msg = err?.message || err?.response?.data?.message || '测试失败'
+      proxy.$modal.msgError(msg)
+    })
+  })
 }
 
 function handleTest(row) {
