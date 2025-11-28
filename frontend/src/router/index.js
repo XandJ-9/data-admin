@@ -159,6 +159,19 @@ export const dynamicRoutes = [
     ]
   },
   {
+    path: '/datasource/query',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: 'index/:id(\\d+)?',
+        component: () => import('@/views/datasource/query'),
+        name: 'DatasourceQuery',
+        meta: { title: '数据查询' }
+      }
+    ]
+  },
+  {
     path: '/tool/gen-edit',
     component: Layout,
     hidden: true,

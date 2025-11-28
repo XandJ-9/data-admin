@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
 from .models import DataSource
-from .serializers import DataSourceSerializer, DataSourceQuerySerializer, DataSourceUpdateSerializer, DataSourceCreateSerializer
+from .serializers import DataSourceSerializer, DataSourceQuerySerializer, DataSourceUpdateSerializer, DataSourceCreateSerializer, DataQuerySerializer
 
 from apps.dbutils.factory import get_executor
 
@@ -69,9 +69,10 @@ class DataSourceViewSet(BaseViewSet):
 
     @action(detail=False, methods=['post'], url_path='test')
     def test_by_body(self, request):
-        s = DataSourceSerializer(data=request.data)
+        s = DataSourceUpdateSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        vd = getattr(s, 'validated_data', {})
+        vd = s.validated_data
+
         db_info = {
             'type': vd['db_type'],
             'host': vd['host'],
@@ -89,3 +90,29 @@ class DataSourceViewSet(BaseViewSet):
         finally:
             ex.close()
         return self.ok('连接成功')
+
+    @action(detail=True, methods=['post'], url_path='query')
+    def query_by_id(self, request, pk=None):
+        obj = self.get_object()
+        q = DataQuerySerializer(data=request.data)
+        q.is_valid(raise_exception=True)
+        vd = getattr(q, 'validated_data', {})
+        info = {
+            'type': obj.db_type,
+            'host': obj.host,
+            'port': obj.port,
+            'username': obj.username,
+            'password': decrypt_password(obj.password),
+            'database': obj.db_name,
+            'params': obj.params or {},
+        }
+        ex = get_executor(info)
+        try:
+            res = ex.execute_query(vd['sql'], vd.get('params') or [])
+        except Exception as e:
+            return self.error(str(e))
+        finally:
+            ex.close()
+        return self.data(res)
+
+

@@ -253,8 +253,8 @@ function handleUpdate(row) {
   const id = row.dataSourceId || ids.value
   getDatasource(id).then(response => {
     form.value = response.data
-    // 编辑时不强制修改密码，留空表示不变
-    // form.value.password = ''
+    // 临时保存旧密码
+    form.value.oldPassword = form.value.password
     open.value = true
     title.value = '修改数据源'
   })
@@ -291,7 +291,7 @@ function handleDelete(row) {
 
 function testFormConnection() {
   proxy.$refs['formRef'].validate(valid => {
-    if (!valid) return
+      if (!valid) return
     proxy.$modal.loading('正在测试连通性...')
     testDatasourceByBody(form.value).then((res) => {
       proxy.$modal.closeLoading()

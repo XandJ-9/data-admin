@@ -26,7 +26,7 @@ export function addDatasource(data) {
   })
 }
 
-// 修改数据源（REST，按资源ID）
+// 修改数据源
 export function updateDatasource(data) {
   return request({
     url: '/datasource/' + data.dataSourceId,
@@ -59,3 +59,12 @@ export function testDatasourceByBody(data) {
     data: data
   })
 }
+
+export function executeQueryById(dataSourceId, payload) {
+  return request({
+    url: '/datasource/' + dataSourceId + '/query',
+    method: 'post',
+    data: payload
+  })
+}
+
