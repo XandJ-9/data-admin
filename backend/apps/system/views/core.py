@@ -243,11 +243,38 @@ class BaseViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = getattr(self.request, 'user', None)
         kwargs = {}
-        if hasattr(serializer.Meta.model, 'create_by') and user and getattr(user, 'username', None):
+        Model = getattr(serializer.Meta, 'model', None)
+        if hasattr(Model, 'create_by') and user and getattr(user, 'username', None):
             kwargs['create_by'] = user.username
-        if hasattr(serializer.Meta.model, 'update_by') and user and getattr(user, 'username', None):
+        if hasattr(Model, 'update_by') and user and getattr(user, 'username', None):
             kwargs['update_by'] = user.username
-        serializer.save(**kwargs)
+
+        instance = None
+        try:
+            data = getattr(serializer, 'validated_data', {})
+            if Model is not None:
+                pk_name = Model._meta.pk.attname
+                lookup = {}
+                if pk_name in data:
+                    lookup[pk_name] = data.get(pk_name)
+                else:
+                    # 尝试使用唯一字段匹配
+                    for f in Model._meta.fields:
+                        if getattr(f, 'unique', False) and f.attname in data:
+                            lookup[f.attname] = data.get(f.attname)
+                            break
+                if lookup:
+                    instance = Model.objects.filter(**lookup).first()
+        except Exception:
+            instance = None
+
+        if instance is not None:
+            serializer.instance = instance
+            if hasattr(Model, 'del_flag'):
+                kwargs['del_flag'] = '0'
+            serializer.save(**kwargs)
+        else:
+            serializer.save(**kwargs)
 
     def perform_update(self, serializer):
         user = getattr(self.request, 'user', None)
