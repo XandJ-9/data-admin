@@ -3,8 +3,8 @@ from rest_framework.decorators import action
 from rest_framework import status
 from rest_framework.response import Response
 
-from system.views.core import BaseViewSet
-from system.permission import HasRolePermission
+from apps.system.views.core import BaseViewSet
+from apps.system.permission import HasRolePermission
 from .models import DataSource
 from .serializers import DataSourceSerializer, DataSourceQuerySerializer, DataSourceUpdateSerializer
 

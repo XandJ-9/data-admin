@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from system.serializers import BaseModelSerializer
+from apps.system.serializers import BaseModelSerializer
 from .models import DataSource
 
 

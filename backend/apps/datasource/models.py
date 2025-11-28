@@ -1,5 +1,5 @@
 from django.db import models
-from system.models import BaseModel
+from apps.system.models import BaseModel
 
 
 class DataSource(BaseModel):
