@@ -2,6 +2,7 @@ from rest_framework import serializers
 from apps.system.serializers import BaseModelSerializer
 from .models import DataSource
 
+from apps.common.encrypt import encrypt_password, decrypt_password
 
 class DataSourceSerializer(BaseModelSerializer):
     dataSourceId = serializers.IntegerField(source='id', read_only=True)
@@ -11,8 +12,11 @@ class DataSourceSerializer(BaseModelSerializer):
     port = serializers.IntegerField()
     dbName = serializers.CharField(source='db_name')
     username = serializers.CharField()
-    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    password = serializers.SerializerMethodField()
     params = serializers.CharField(required=False, allow_blank=True)
+    
+    def get_password(self, obj):
+        return encrypt_password(obj.password)
 
     class Meta:
         model = DataSource
@@ -27,6 +31,8 @@ class DataSourceQuerySerializer(serializers.Serializer):
     dbType = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(required=False, choices=['0', '1'])
 
+class DataSourceCreateSerializer(DataSourceSerializer):
+    password = serializers.CharField(required=False, allow_blank=True)
 
 class DataSourceUpdateSerializer(DataSourceSerializer):
-    dataSourceId = serializers.IntegerField(source='id')
+    password = serializers.CharField(required=False, allow_blank=True)

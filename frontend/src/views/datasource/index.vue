@@ -254,7 +254,7 @@ function handleUpdate(row) {
   getDatasource(id).then(response => {
     form.value = response.data
     // 编辑时不强制修改密码，留空表示不变
-    form.value.password = ''
+    // form.value.password = ''
     open.value = true
     title.value = '修改数据源'
   })
