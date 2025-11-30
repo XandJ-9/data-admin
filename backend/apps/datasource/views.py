@@ -69,10 +69,14 @@ class DataSourceViewSet(BaseViewSet):
 
     @action(detail=False, methods=['post'], url_path='test')
     def test_by_body(self, request):
-        s = DataSourceUpdateSerializer(data=request.data)
+        if 'dataSourceId' in request.data:
+            instance = DataSource.objects.get(id=request.data['dataSourceId'])
+            if not request.data.get('passwordIsUpdated'):
+                request.data['password'] = instance.password
+
+        s = DataSourceCreateSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         vd = s.validated_data
-
         db_info = {
             'type': vd['db_type'],
             'host': vd['host'],
