@@ -106,13 +106,18 @@ class DataSourceViewSet(BaseViewSet):
             'host': obj.host,
             'port': obj.port,
             'username': obj.username,
-            'password': decrypt_password(obj.password),
+            'password': obj.password,
             'database': obj.db_name,
             'params': obj.params or {},
         }
         ex = get_executor(info)
         try:
-            res = ex.execute_query(vd['sql'], vd.get('params') or [])
+            res = ex.execute_query(
+                vd['sql'],
+                vd.get('params') or [],
+                vd.get('pageSize'),
+                vd.get('offset')
+            )
         except Exception as e:
             return self.error(str(e))
         finally:

@@ -40,3 +40,5 @@ class DataSourceUpdateSerializer(DataSourceSerializer):
 class DataQuerySerializer(serializers.Serializer):
     sql = serializers.CharField()
     params = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+    pageSize = serializers.IntegerField(required=False, min_value=1, default=50)
+    offset = serializers.IntegerField(required=False, min_value=0, default=0)
