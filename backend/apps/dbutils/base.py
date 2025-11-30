@@ -1,3 +1,7 @@
+from datetime import datetime, date, time
+from decimal import Decimal
+
+
 class DataSourceExecutor:
 
     username = None
@@ -41,7 +45,12 @@ class DataSourceExecutor:
             if cur.description:
                 cols = [d[0] for d in cur.description]
                 rows = cur.fetchall()
-                data = {"columns": cols, "rows": rows}
+                # 对返回结果进行时间戳/日期/时间等类型的格式化，遵循统一字符串输出规范
+                fmt_rows = [
+                    tuple(self._format_cell(v) for v in r)
+                    for r in rows
+                ]
+                data = {"columns": cols, "rows": fmt_rows}
                 if paginated:
                     has_more = len(rows) == int(page_size)
                     data["next"] = {"offset": int(offset) + int(page_size), "pageSize": int(page_size)} if has_more else None
@@ -57,4 +66,17 @@ class DataSourceExecutor:
 
     def get_table_schema(self, table):
         raise NotImplementedError
+
+    def _format_cell(self, v):
+        # 统一时间戳/日期/时间格式化为字符串；数值保留原样，Decimal 转为 float
+        if isinstance(v, datetime):
+            return v.strftime('%Y-%m-%d %H:%M:%S')
+        # 避免 datetime 命中 date 分支，需先判断 datetime
+        if isinstance(v, date):
+            return v.strftime('%Y-%m-%d')
+        if isinstance(v, time):
+            return v.strftime('%H:%M:%S')
+        if isinstance(v, Decimal):
+            return float(v)
+        return v
 
