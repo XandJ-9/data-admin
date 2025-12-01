@@ -9,6 +9,7 @@ from .models import DataSource, QueryLog
 from .serializers import DataSourceSerializer, DataSourceQuerySerializer, DataSourceUpdateSerializer, DataSourceCreateSerializer, DataQuerySerializer, QueryLogSerializer
 
 from apps.dbutils.factory import get_executor
+from django.template import Template, Context
 
 class DataSourceViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
@@ -115,13 +116,29 @@ class DataSourceViewSet(BaseViewSet):
         start = time.perf_counter()
         status_flag = 'success'
         error_msg = ''
+        sql_raw = vd['sql']
+        params_map = vd.get('params') or {}
         try:
-            res = ex.execute_query(
-                vd['sql'],
-                vd.get('params') or [],
-                vd.get('pageSize'),
-                vd.get('offset')
-            )
+            rendered_sql = Template(sql_raw).render(Context(params_map))
+        except Exception as e:
+            status_flag = 'fail'
+            error_msg = str(e)
+            duration = int((time.perf_counter() - start) * 1000)
+            try:
+                QueryLog.objects.create(
+                    data_source=obj,
+                    sql_text=sql_raw,
+                    username=getattr(request.user, 'username', '') or '',
+                    status=status_flag,
+                    duration_ms=duration,
+                    error_msg=error_msg,
+                )
+            except Exception:
+                pass
+            ex.close()
+            return self.error(error_msg)
+        try:
+            res = ex.execute_query(rendered_sql)
             return self.data(res)
         except Exception as e:
             status_flag = 'fail'
@@ -132,7 +149,7 @@ class DataSourceViewSet(BaseViewSet):
             try:
                 QueryLog.objects.create(
                     data_source=obj,
-                    sql_text=vd.get('sql') or '',
+                    sql_text=rendered_sql,
                     username=getattr(request.user, 'username', '') or '',
                     status=status_flag,
                     duration_ms=duration,

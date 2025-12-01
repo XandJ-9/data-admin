@@ -132,7 +132,7 @@ class GetRoutersView(generics.GenericAPIView):
                     "component": "Layout" if m.parent_id == 0 else "ParentView",
                     "hidden": hidden,
                     "alwaysShow": True,
-                    "name": m.menu_name.replace('-', '').replace('_', ''),
+                    "name": m.route_name or None,
                     "meta": meta
                 }
                 route["children"] = [r for r in [to_router(c) for c in children] if r is not None]
@@ -143,14 +143,14 @@ class GetRoutersView(generics.GenericAPIView):
                         "path": m.path,
                         "component": "InnerLink",
                         "hidden": hidden,
-                        "name": m.menu_name.replace('-', '').replace('_', ''),
+                        "name": m.route_name or None,
                         "meta": meta
                     }
                 return {
                     "path": m.path or ("/" + str(m.menu_id)),
                     "component": m.component or "Layout",
                     "hidden": hidden,
-                    "name": m.menu_name.replace('-', '').replace('_', ''),
+                    "name": m.route_name or None,
                     "meta": meta
                 }
             else:

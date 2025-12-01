@@ -420,7 +420,11 @@ async function handleUpdate(row) {
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["menuRef"].validate(valid => {
-    if (valid) {
+      if (valid) {
+        // 如果routeName为空，则自动生成
+        if (!form.value.routeName) {
+          form.value.routeName = form.value.menuName.replace('-', '').replace('_', '')
+        }
       if (form.value.menuId != undefined) {
         updateMenu(form.value).then(response => {
           proxy.$modal.msgSuccess("修改成功")

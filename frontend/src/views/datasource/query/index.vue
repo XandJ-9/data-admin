@@ -2,7 +2,7 @@
   <div class="app-container">
     <el-tabs v-model="active" type="card" @tab-click="onTabClick" @tab-remove="removeTab">
       <el-tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.title" :closable="tabs.length > 1">
-        <query-view v-model:dataSourceId="t.dataSourceId" v-model:sqlText="t.sqlText" v-model:pageSize="t.pageSize" v-model:offset="t.offset" :next="t.next" :ds-list="dsList" :running="t.running" @run="(p) => runQuery(t, p)" />
+        <query-view v-model:dataSourceId="t.dataSourceId" v-model:sqlText="t.sqlText" v-model:pageSize="t.pageSize" v-model:offset="t.offset" v-model:templateParams="t.templateParams" :next="t.next" :ds-list="dsList" :running="t.running" @run="(p) => runQuery(t, p)" />
         <query-result :columns="t.columns" :rows="t.rows" />
       </el-tab-pane>
       <el-tab-pane :name="addKey" label="新增查询">
@@ -14,7 +14,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup name="DatasourceQuery">
 import { Plus } from '@element-plus/icons-vue';
 import { listDatasource, executeQueryById } from '@/api/datasource'
 import QueryView from './queryView.vue'
@@ -28,7 +28,7 @@ const addKey = '__add__'
 
 function addTab() {
   const key = 'new-' + Date.now()
-  tabs.value.push({ key, title: '未命名查询', dataSourceId: undefined, sqlText: '', pageSize: 20, offset: 0, next: null, columns: [], rows: [], running: false })
+  tabs.value.push({ key, title: '未命名查询', dataSourceId: undefined, sqlText: '', templateParams: {}, pageSize: 20, offset: 0, next: null, columns: [], rows: [], running: false })
   active.value = key
 }
 
@@ -50,7 +50,7 @@ function runQuery(t, p) {
     return
   }
   t.running = true
-  const payload = { sql: t.sqlText }
+  const payload = { sql: t.sqlText, params: t.templateParams || {} }
   if (p && typeof p.pageSize !== 'undefined') payload.pageSize = p.pageSize
   if (p && typeof p.offset !== 'undefined') payload.offset = p.offset
   executeQueryById(t.dataSourceId, payload).then(res => {
