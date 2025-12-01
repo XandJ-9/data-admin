@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.system.serializers import BaseModelSerializer
-from .models import DataSource
+from .models import DataSource, QueryLog
 
 from apps.common.encrypt import encrypt_password, decrypt_password
 
@@ -42,3 +42,17 @@ class DataQuerySerializer(serializers.Serializer):
     params = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     pageSize = serializers.IntegerField(required=False, min_value=1, default=50)
     offset = serializers.IntegerField(required=False, min_value=0, default=0)
+
+
+class QueryLogSerializer(BaseModelSerializer):
+    logId = serializers.IntegerField(source='id')
+    # dataSourceId = serializers.IntegerField(source='data_source_id', allow_null=True)
+    dataSourceName = serializers.CharField(source='data_source.name')
+    userName = serializers.CharField(source='username')
+    sqlText = serializers.CharField(source='sql_text')
+    status = serializers.CharField()
+    durationMs = serializers.IntegerField(source='duration_ms')
+
+    class Meta:
+        model = QueryLog
+        fields = ['logId', 'dataSourceName', 'userName', 'sqlText', 'status', 'durationMs', 'createTime']

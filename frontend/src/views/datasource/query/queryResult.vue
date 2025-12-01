@@ -1,6 +1,6 @@
 <template>
-  <el-table :data="rows" style="margin-top: 16px">
-    <el-table-column v-for="col in columns" :key="col" :prop="col" :label="col" :width="columnWidth(col)" />
+  <el-table :data="rows" style="margin-top: 16px"  >
+    <el-table-column v-for="col in columns" :key="col" :prop="col" :label="col" :width="columnWidth(col)" show-overflow-tooltip/>
   </el-table>
 </template>
 
@@ -16,7 +16,7 @@ function columnWidth(columnName) {
   let maxWidth = 200
   props.rows.forEach(item => {
     const val = item[columnName]
-    const width = (proxy?.calculateColumnWidth || calculateColumnWidth)(val, { minWidth: 150, maxWidth: 300 })
+    const width = (proxy?.calculateColumnWidth || calculateColumnWidth)(val, { minWidth: 100, maxWidth: 500 })
     maxWidth = Math.max(maxWidth, width)
   })
   return maxWidth

@@ -5,8 +5,8 @@ from rest_framework.response import Response
 
 from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
-from .models import DataSource
-from .serializers import DataSourceSerializer, DataSourceQuerySerializer, DataSourceUpdateSerializer, DataSourceCreateSerializer, DataQuerySerializer
+from .models import DataSource, QueryLog
+from .serializers import DataSourceSerializer, DataSourceQuerySerializer, DataSourceUpdateSerializer, DataSourceCreateSerializer, DataQuerySerializer, QueryLogSerializer
 
 from apps.dbutils.factory import get_executor
 
@@ -111,6 +111,10 @@ class DataSourceViewSet(BaseViewSet):
             'params': obj.params or {},
         }
         ex = get_executor(info)
+        import time
+        start = time.perf_counter()
+        status_flag = 'success'
+        error_msg = ''
         try:
             res = ex.execute_query(
                 vd['sql'],
@@ -118,10 +122,29 @@ class DataSourceViewSet(BaseViewSet):
                 vd.get('pageSize'),
                 vd.get('offset')
             )
+            return self.data(res)
         except Exception as e:
-            return self.error(str(e))
+            status_flag = 'fail'
+            error_msg = str(e)
+            return self.error(error_msg)
         finally:
+            duration = int((time.perf_counter() - start) * 1000)
+            try:
+                QueryLog.objects.create(
+                    data_source=obj,
+                    sql_text=vd.get('sql') or '',
+                    username=getattr(request.user, 'username', '') or '',
+                    status=status_flag,
+                    duration_ms=duration,
+                    error_msg=error_msg,
+                )
+            except Exception:
+                pass
             ex.close()
-        return self.data(res)
+
+class QueryLogViewSet(BaseViewSet):
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    queryset = QueryLog.objects.filter(del_flag='0').order_by('-create_time')
+    serializer_class = QueryLogSerializer
 
 

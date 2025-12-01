@@ -68,3 +68,10 @@ export function executeQueryById(dataSourceId, payload) {
   })
 }
 
+export function listQueryLog(query) {
+  return request({
+    url: '/datasource/query-log',
+    method: 'get',
+    params: query
+  })
+}
