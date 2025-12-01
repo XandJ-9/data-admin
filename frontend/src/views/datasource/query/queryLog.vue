@@ -28,9 +28,13 @@
       <el-table-column prop="durationMs" label="耗时(ms)" width="120" />
       <el-table-column prop="sqlText" label="SQL">
         <template #default="scope">
-          <el-tooltip :content="scope.row.sqlText" placement="top">
-            <span class="ellipsis">{{ scope.row.sqlText }}</span>
+          <el-tooltip placement="top" v-if="scope.row.sqlText">
+            <template #content>
+              <div class="prewrap">{{ scope.row.sqlText }}</div>
+            </template>
+            <div class="prewrap">{{ scope.row.sqlText }}</div>
           </el-tooltip>
+          <span v-else>-</span>
         </template>
       </el-table-column>
       <el-table-column prop="errorMsg" label="错误信息">
@@ -42,7 +46,15 @@
         </template>
       </el-table-column>
     </el-table>
-    <pagination v-show="total>0" :total="total" v-model:page="query.pageNum" v-model:limit="query.pageSize" @pagination="getList" />
+    <pagination
+      v-show="total>0"
+      :total="total"
+      :page="query.pageNum"
+      :limit="query.pageSize"
+      @update:page="val => (query.pageNum = val)"
+      @update:limit="val => (query.pageSize = val)"
+      @pagination="getList"
+    />
   </div>
 </template>
 
@@ -78,5 +90,10 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.prewrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 600px;
 }
 </style>

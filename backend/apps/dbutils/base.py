@@ -31,13 +31,14 @@ class DataSourceExecutor:
 
     def execute_query(self, sql, params=None, page_size=None, offset=None):
         self.connect()
+        # 基础校验：仅允许查询类语句，禁止执行非查询（如 INSERT/UPDATE/DELETE/DDL）
+        _sql = self._check_sql(sql)
+
         # 自动在 SELECT 语句后追加 LIMIT/OFFSET 以实现简单分页
         paginated = False
-        _sql = sql
         if isinstance(page_size, int) and page_size > 0 and isinstance(offset, int) and offset >= 0:
-            s = (sql or '').strip().lower()
-            if s.startswith('select'):
-                _sql = f"{sql} LIMIT {int(page_size)} OFFSET {int(offset)}"
+            if not _sql.lower().startswith(('show', 'describe', 'explain')):
+                _sql = f"{_sql} LIMIT {int(page_size)} OFFSET {int(offset)}"
                 paginated = True
         cur = self.conn.cursor()
         try:
@@ -80,3 +81,13 @@ class DataSourceExecutor:
             return float(v)
         return v
 
+    def _check_sql(self, sql):
+        s_raw = (sql or '').strip()  
+        if not s_raw:
+            raise ValueError('SQL不能为空')
+        # 移除注释并转换为小写
+        s = '\n'.join([line for line in s_raw.split('\n') if not line.strip().startswith('--')]).strip().lower() or ''
+        allowed_prefixes = ('select', 'with', 'show', 'describe', 'explain')
+        if not s.startswith(allowed_prefixes):
+            raise ValueError('仅允许执行查询语句（SELECT/WITH/SHOW/DESCRIBE/EXPLAIN），禁止执行其他语句')
+        return s
