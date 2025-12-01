@@ -16,8 +16,11 @@
         <el-input-number v-model="innerPageSize" :min="1" :max="1000" />
       </el-form-item>
     </el-form>
+    <!--
     <el-input v-model="innerSql" type="textarea" :rows="8" placeholder="输入 SQL (支持 {{ var }} / {% if %} / {% for %} )" />
-
+    -->
+    <CodeEditor v-model="innerSql" language="sql" placeholder="输入 SQL (支持 {{ var }} / {% if %} / {% for %} )" theme="monokai" />
+    
     <el-dialog v-model="showTpl" title="模板参数" width="500px">
       <div>
         <el-button size="small" @click="addParam">新增参数</el-button>
@@ -36,6 +39,8 @@
 </template>
 
 <script setup>
+import CodeEditor from '@/components/CodeEditor'
+
 const props = defineProps({
   dsList: { type: Array, default: () => [] },
   dataSourceId: { type: Number, default: undefined },
