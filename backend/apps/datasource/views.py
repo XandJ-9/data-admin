@@ -163,5 +163,15 @@ class QueryLogViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = QueryLog.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = QueryLogSerializer
+    
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user_name = self.request.query_params.get('userName', '')
+        status_value = self.request.query_params.get('status', '')
+        if user_name:
+            qs = qs.filter(username__icontains=user_name)
+        if status_value in ('success', 'fail'):
+            qs = qs.filter(status=status_value)
+        return qs.order_by('-create_time')
 
 

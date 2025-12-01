@@ -52,7 +52,8 @@ class QueryLogSerializer(BaseModelSerializer):
     sqlText = serializers.CharField(source='sql_text')
     status = serializers.CharField()
     durationMs = serializers.IntegerField(source='duration_ms')
+    errorMsg = serializers.CharField(source='error_msg', required=False, allow_blank=True)
 
     class Meta:
         model = QueryLog
-        fields = ['logId', 'dataSourceName', 'userName', 'sqlText', 'status', 'durationMs', 'createTime']
+        fields = ['logId', 'dataSourceName', 'userName', 'sqlText', 'status', 'durationMs', 'errorMsg', 'createTime']

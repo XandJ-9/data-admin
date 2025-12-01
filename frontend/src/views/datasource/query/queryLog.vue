@@ -33,6 +33,14 @@
           </el-tooltip>
         </template>
       </el-table-column>
+      <el-table-column prop="errorMsg" label="错误信息">
+        <template #default="scope">
+          <el-tooltip :content="scope.row.errorMsg" placement="top" v-if="scope.row.errorMsg">
+            <span class="ellipsis">{{ scope.row.errorMsg }}</span>
+          </el-tooltip>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
     </el-table>
     <pagination v-show="total>0" :total="total" v-model:page="query.pageNum" v-model:limit="query.pageSize" @pagination="getList" />
   </div>
