@@ -19,7 +19,14 @@
     <!--
     <el-input v-model="innerSql" type="textarea" :rows="8" placeholder="输入 SQL (支持 {{ var }} / {% if %} / {% for %} )" />
     -->
-    <CodeEditor v-model="innerSql" language="sql" placeholder="输入 SQL (支持 {{ var }} / {% if %} / {% for %} )" theme="monokai" />
+    <VAceEditor
+      :value="innerSql"
+      @update:value="val => innerSql = val"
+      lang="sql"
+      theme="xcode"
+      :options="aceOptions"
+      style="height:240px;border:1px solid var(--el-border-color);border-radius:4px;"
+    />
     
     <el-dialog v-model="showTpl" title="模板参数" width="500px">
       <div>
@@ -39,7 +46,26 @@
 </template>
 
 <script setup>
-import CodeEditor from '@/components/CodeEditor'
+import { VAceEditor } from 'vue3-ace-editor'
+import ace from 'ace-builds/src-noconflict/ace'
+import 'ace-builds/src-noconflict/ext-language_tools'
+// sql语法支持
+import 'ace-builds/src-noconflict/mode-sql'
+import 'ace-builds/src-noconflict/snippets/sql'
+// 主题
+import 'ace-builds/src-noconflict/theme-github'
+import 'ace-builds/src-noconflict/theme-xcode'
+// 如需动态加载其他资源，可设置 basePath；当前已本地预加载，无需设置
+// ace.config.set('basePath', '/node_modules/ace-builds/src-noconflict')
+
+const aceOptions = {
+  fontSize: 14,
+  showPrintMargin: false,
+  wrap: true,
+  enableBasicAutocompletion: true,
+  enableLiveAutocompletion: true,
+  enableSnippets: true,
+}
 
 const props = defineProps({
   dsList: { type: Array, default: () => [] },
