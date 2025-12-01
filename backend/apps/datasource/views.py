@@ -117,9 +117,9 @@ class DataSourceViewSet(BaseViewSet):
         status_flag = 'success'
         error_msg = ''
         sql_raw = vd['sql']
-        params_map = vd.get('params') or {}
+        params_map = vd.get('params', None)
         try:
-            rendered_sql = Template(sql_raw).render(Context(params_map))
+            rendered_sql = Template(sql_raw).render(Context(params_map)) if params_map else sql_raw
         except Exception as e:
             status_flag = 'fail'
             error_msg = str(e)
