@@ -28,9 +28,10 @@ const addKey = '__add__'
 
 function addTab() {
   const key = 'new-' + Date.now()
-  tabs.value.push({ key, title: '未命名查询', dataSourceId: undefined, sqlText: '', templateParams: {}, pageSize: 20, offset: 0, next: null, columns: [], rows: [], running: false })
+  tabs.value.push({ key, title: '查询页', dataSourceId: undefined, sqlText: '', templateParams: {}, pageSize: 20, offset: 0, next: null, columns: [], rows: [], running: false })
   active.value = key
 }
+
 
 function removeTab(name) {
   if (tabs.value.length <= 1) {
