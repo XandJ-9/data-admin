@@ -138,7 +138,10 @@ class DataSourceViewSet(BaseViewSet):
             ex.close()
             return self.error(error_msg)
         try:
-            res = ex.execute_query(rendered_sql)
+            res = ex.execute_query(sql = rendered_sql,
+                                   page_size = vd.get('pageSize', 100),
+                                   offset = vd.get('offset', 1),
+                                   )
             return self.data(res)
         except Exception as e:
             status_flag = 'fail'
