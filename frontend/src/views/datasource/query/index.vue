@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <el-tabs v-model="active" type="card" @tab-click="onTabClick" @tab-remove="removeTab">
+    <el-tabs v-model="active" type="card" @tab-click="onTabClick" @tab-remove="removeTab" :before-leave="beforeLeave">
       <el-tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.title" :closable="tabs.length > 1">
         <query-view v-model:dataSourceId="t.dataSourceId" v-model:sqlText="t.sqlText" v-model:pageSize="t.pageSize" v-model:offset="t.offset" v-model:templateParams="t.templateParams" :next="t.next" :ds-list="dsList" :running="t.running" @run="(p) => runQuery(t, p)" />
         <query-result :columns="t.columns" :rows="t.rows" />
@@ -83,6 +83,18 @@ function onTabClick(tab) {
     addTab()
   }
 }
+
+function beforeLeave(activeName, oldActiveName) {
+  return new Promise((resolve, reject) => {
+    if (activeName === addKey) {
+      resolve(false);
+    } else {
+      resolve(true);
+    }
+  });
+}
+
+
 
 onMounted(() => {
   getDsList()
