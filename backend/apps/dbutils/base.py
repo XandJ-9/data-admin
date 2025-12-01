@@ -86,8 +86,10 @@ class DataSourceExecutor:
         if not s_raw:
             raise ValueError('SQL不能为空')
         # 移除注释并转换为小写
-        s = '\n'.join([line for line in s_raw.split('\n') if not line.strip().startswith('--')]).strip().lower() or ''
+        s = '\n'.join([line for line in s_raw.split('\n') if not line.strip().startswith('--')]).strip().lower()
         allowed_prefixes = ('select', 'with', 'show', 'describe', 'explain')
+        if s == '':
+            raise ValueError('SQL不能为空')
         if not s.startswith(allowed_prefixes):
             raise ValueError('仅允许执行查询语句（SELECT/WITH/SHOW/DESCRIBE/EXPLAIN），禁止执行其他语句')
         return s
