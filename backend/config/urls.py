@@ -24,6 +24,7 @@ urlpatterns = [
     # path('admin/', admin.site.urls),
     path('system/', include('apps.system.urls')),
     path('datasource/', include('apps.datasource.urls')),
+    path('datameta/', include('apps.datameta.urls')),
     path('captcha/', include('captcha.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

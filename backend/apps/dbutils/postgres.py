@@ -26,15 +26,49 @@ class PostgresExecutor(DataSourceExecutor):
         finally:
             cur.close()
 
+    def list_tables_info(self):
+        self.connect()
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT c.relname,
+                       current_database() AS dbname,
+                       obj_description(c.oid, 'pg_class') AS comment
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relkind IN ('r','p') AND n.nspname NOT IN ('pg_catalog','information_schema')
+                ORDER BY c.relname
+                """
+            )
+            rows = []
+            for tname, dbname, comment in cur.fetchall():
+                rows.append({
+                    'tableName': tname,
+                    'databaseName': dbname,
+                    'comment': comment or '',
+                    'createTime': '',
+                    'updateTime': ''
+                })
+            return rows
+        finally:
+            cur.close()
+
+    def get_databases(self):
+        # Postgres 在连接上下文使用单库，跨库需新连接；此处返回 None 表示无数据库选择
+        return None
+
     def get_table_schema(self, table):
         self.connect()
         cur = self.conn.cursor()
         try:
             cur.execute(
                 """
-                SELECT a.attname, t.typname, a.attnotnull, a.attnum IN (
-                    SELECT i.indkey[0] FROM pg_index i WHERE i.indrelid = a.attrelid AND i.indisprimary
-                ) AS is_primary
+                SELECT a.attname, t.typname, a.attnotnull,
+                       a.attnum IN (
+                           SELECT i.indkey[0] FROM pg_index i WHERE i.indrelid = a.attrelid AND i.indisprimary
+                       ) AS is_primary,
+                       col_description(c.oid, a.attnum) AS comment
                 FROM pg_attribute a
                 JOIN pg_class c ON a.attrelid = c.oid
                 JOIN pg_type t ON a.atttypid = t.oid
@@ -44,15 +78,49 @@ class PostgresExecutor(DataSourceExecutor):
                 (table,)
             )
             cols = []
-            for name, typ, notnull, primary in cur.fetchall():
+            for name, typ, notnull, primary, comment in cur.fetchall():
                 cols.append({
                     'name': name,
                     'type': typ,
                     'notnull': bool(notnull),
                     'default': None,
                     'primary': bool(primary),
+                    'comment': comment or '',
                 })
             return cols
         finally:
             cur.close()
 
+    def get_table_info(self, table):
+        self.connect()
+        cur = self.conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT c.relname,
+                       current_database() AS dbname,
+                       obj_description(c.oid, 'pg_class') AS comment
+                FROM pg_class c
+                WHERE c.relkind IN ('r','p') AND c.relname = %s
+                """,
+                (table,)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {
+                    'tableName': table,
+                    'databaseName': self.info.get('database') or '',
+                    'comment': '',
+                    'createTime': '',
+                    'updateTime': ''
+                }
+            tname, dbname, comment = row
+            return {
+                'tableName': tname,
+                'databaseName': dbname,
+                'comment': comment or '',
+                'createTime': '',
+                'updateTime': ''
+            }
+        finally:
+            cur.close()

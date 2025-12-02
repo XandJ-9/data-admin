@@ -32,3 +32,34 @@ def test_connection(info):
     finally:
         ex.close()
 
+
+def get_table_info(info, table):
+    ex = get_executor(info)
+    try:
+        return ex.get_table_info(table)
+    finally:
+        ex.close()
+
+
+def list_tables_info(info):
+    ex = get_executor(info)
+    try:
+        return ex.list_tables_info()
+    finally:
+        ex.close()
+
+
+def get_databases(info):
+    ex = get_executor(info)
+    try:
+        return ex.get_databases()
+    finally:
+        ex.close()
+
+
+def list_tables_info(info):
+    ex = get_executor(info)
+    try:
+        return ex.list_tables_info()
+    finally:
+        ex.close()

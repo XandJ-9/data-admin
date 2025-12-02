@@ -424,6 +424,10 @@ function submitForm() {
         // 如果routeName为空，则自动生成
         if (!form.value.routeName) {
           form.value.routeName = form.value.menuName.replace('-', '').replace('_', '')
+          }
+        // 如果是父级菜单id为0，判断路径是否以‘/’开头
+        if (form.value.parentId == 0 && !form.value.path.startsWith('/')) {
+          form.value.path = '/' + form.value.path
         }
       if (form.value.menuId != undefined) {
         updateMenu(form.value).then(response => {

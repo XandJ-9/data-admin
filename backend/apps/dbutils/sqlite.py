@@ -20,6 +20,29 @@ class SqliteExecutor(DataSourceExecutor):
         finally:
             cur.close()
 
+    def list_tables_info(self):
+        self.connect()
+        cur = self.conn.cursor()
+        try:
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            rows = []
+            dbname = self.info.get('database') or self.info.get('path') or ''
+            for (tname,) in cur.fetchall():
+                rows.append({
+                    'tableName': tname,
+                    'databaseName': dbname,
+                    'comment': '',
+                    'createTime': '',
+                    'updateTime': ''
+                })
+            return rows
+        finally:
+            cur.close()
+
+    def get_databases(self):
+        # SQLite 无数据库列表概念
+        return None
+
     def get_table_schema(self, table):
         self.connect()
         cur = self.conn.cursor()
@@ -33,8 +56,19 @@ class SqliteExecutor(DataSourceExecutor):
                     'notnull': bool(notnull),
                     'default': dflt_value,
                     'primary': bool(pk),
+                    'comment': '',
                 })
             return cols
         finally:
             cur.close()
 
+    def get_table_info(self, table):
+        # SQLite 不提供表级创建/修改时间与注释，尽量返回基本信息
+        dbname = self.info.get('database') or self.info.get('path') or ''
+        return {
+            'tableName': table,
+            'databaseName': dbname,
+            'comment': '',
+            'createTime': '',
+            'updateTime': ''
+        }

@@ -32,7 +32,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'captcha',
     'apps.system',
-    'apps.datasource'
+    'apps.datasource',
+    'apps.datameta'
 ]
 
 MIDDLEWARE = [

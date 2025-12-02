@@ -68,6 +68,15 @@ class DataSourceExecutor:
     def get_table_schema(self, table):
         raise NotImplementedError
 
+    def get_table_info(self, table):
+        raise NotImplementedError
+
+    def list_tables_info(self):
+        raise NotImplementedError
+
+    def get_databases(self):
+        return None
+
     def _format_cell(self, v):
         # 统一时间戳/日期/时间格式化为字符串；数值保留原样，Decimal 转为 float
         if isinstance(v, datetime):
