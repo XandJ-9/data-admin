@@ -162,22 +162,7 @@ class GetRoutersView(generics.GenericAPIView):
         return Response({"code": 200, "msg": "操作成功", "data": routers})
 
 
-class BaseViewSet(viewsets.ModelViewSet):
-    required_roles = None
-    # 兼容前端 PUT /xxx（集合更新）通用支持
-    update_body_serializer_class = None  # 子类设置：用于校验请求体
-    update_body_id_field = 'id'          # 子类设置：请求体中的主键字段名，如 menuId/deptId/roleId/configId
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        model = qs.model
-        if hasattr(model, 'del_flag'):
-            try:
-                qs = qs.filter(del_flag='0')
-            except Exception:
-                pass
-        return qs
-
+class BaseViewMixin:
     # 通用响应封装
     def ok(self, msg='操作成功'):
         return Response({'code': 200, 'msg': msg})
@@ -193,6 +178,23 @@ class BaseViewSet(viewsets.ModelViewSet):
     
     def raw_response(self, data):
         return Response(data)
+
+
+class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
+    required_roles = None
+    # 兼容前端 PUT /xxx（集合更新）通用支持
+    update_body_serializer_class = None  # 子类设置：用于校验请求体
+    update_body_id_field = 'id'          # 子类设置：请求体中的主键字段名，如 menuId/deptId/roleId/configId
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        model = qs.model
+        if hasattr(model, 'del_flag'):
+            try:
+                qs = qs.filter(del_flag='0')
+            except Exception:
+                pass
+        return qs
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()

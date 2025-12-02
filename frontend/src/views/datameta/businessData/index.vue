@@ -12,8 +12,8 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :disabled="!dsId || collecting" @click="handleCollect">采集元数据</el-button>
         <el-button type="success" :disabled="!dsId" @click="getTables">加载业务表</el-button>
+        <el-button type="primary" :disabled="!dsId || collecting" @click="handleCollect">采集元数据</el-button>
       </el-form-item>
     </el-form>
     <el-form-item label="筛选">
@@ -53,7 +53,7 @@
 
 <script setup name="BusinessData">
 import { listDatasource } from '@/api/datasource'
-import { listBusinessTables, listBusinessColumns, collectMeta, collectMetaTable, listDatabases } from '@/api/datameta'
+import { listBusinessTables, listBusinessColumns, collectMeta, collectMetaTable, listBusinessDatabases } from '@/api/datameta'
 const { proxy } = getCurrentInstance()
 
 const dsId = ref()
@@ -101,7 +101,9 @@ function loadColumns(t) {
 function handleCollect() {
   if (!dsId.value) return
   collecting.value = true
-  collectMeta(dsId.value).then(() => {
+  const payload = { dataSourceId: dsId.value }
+  if (databaseName.value) payload.databaseName = databaseName.value
+  collectMeta(payload).then(() => {
     proxy.$modal.msgSuccess('采集完成')
     getTables()
   }).finally(() => (collecting.value = false))
@@ -110,9 +112,10 @@ function handleCollect() {
 function handleCollectTable(t) {
   if (!dsId.value) return
   collecting.value = true
-  collectMetaTable(dsId.value, t).then(() => {
+  const payload = { dataSourceId: dsId.value, databaseName: databaseName.value, tableName: t }
+  collectMetaTable(payload).then(() => {
     proxy.$modal.msgSuccess('采集完成')
-    loadColumns(t)
+    // loadColumns(t)
   }).finally(() => (collecting.value = false))
 }
 
@@ -124,7 +127,7 @@ watch(dsId, v => {
   dbList.value = []
   databaseName.value = ''
   if (!v) return
-  listDatabases({ dataSourceId: v }).then(res => {
+  listBusinessDatabases({ dataSourceId: v }).then(res => {
     const dbs = res.data
     if (Array.isArray(dbs)) dbList.value = dbs
   })

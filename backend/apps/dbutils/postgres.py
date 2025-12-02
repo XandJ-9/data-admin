@@ -78,8 +78,10 @@ class PostgresExecutor(DataSourceExecutor):
                 (table,)
             )
             cols = []
-            for name, typ, notnull, primary, comment in cur.fetchall():
+            rows = cur.fetchall()
+            for idx, (name, typ, notnull, primary, comment) in enumerate(rows, start=1):
                 cols.append({
+                    'order': idx,
                     'name': name,
                     'type': typ,
                     'notnull': bool(notnull),

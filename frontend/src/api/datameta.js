@@ -16,42 +16,69 @@ export function listMetaColumns(query) {
   })
 }
 
-export function collectMeta(dataSourceId) {
+// 新增元数据表
+export function addMetaTable(data) {
   return request({
-    url: '/datameta/meta-table/collect',
+    url: '/datameta/meta-table',
     method: 'post',
-    data: { dataSourceId }
+    data: data
   })
 }
 
-export function listBusinessTables(query) {
+// 修改元数据表
+export function updateMetaTable(data) {
   return request({
-    url: '/datameta/business/tables',
-    method: 'get',
-    params: query
+    url: '/datameta/meta-table/' + data.id,
+    method: 'put',
+    data: data
   })
 }
 
-export function listBusinessColumns(query) {
+// 删除元数据表（支持批量以逗号分隔 ID）
+export function delMetaTable(idOrIds) {
   return request({
-    url: '/datameta/business/columns',
-    method: 'get',
-    params: query
+    url: '/datameta/meta-table/' + idOrIds,
+    method: 'delete'
   })
 }
 
-export function collectMetaTable(dataSourceId, tableName) {
-  return request({
-    url: '/datameta/meta-table/collect-table',
-    method: 'post',
-    data: { dataSourceId, tableName }
-  })
-}
-
-export function listDatabases(query) {
+export function listBusinessDatabases(data) {
   return request({
     url: '/datameta/business/databases',
-    method: 'get',
-    params: query
+    method: 'post',
+    data: data
   })
 }
+
+export function listBusinessTables(data) {
+  return request({
+    url: '/datameta/business/tables',
+    method: 'post',
+    data: data
+  })
+}
+
+export function listBusinessColumns(data) {
+  return request({
+    url: '/datameta/business/columns',
+    method: 'post',
+    data: data
+  })
+}
+export function collectMeta(data) {
+  return request({
+    url: '/datameta/business/collect',
+    method: 'post',
+    data: data
+  })
+}
+
+export function collectMetaTable(data) {
+  return request({
+    url: '/datameta/business/collect-table',
+    method: 'post',
+    data: data
+  })
+}
+
+

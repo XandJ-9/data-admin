@@ -49,8 +49,10 @@ class SqliteExecutor(DataSourceExecutor):
         try:
             cur.execute(f"PRAGMA table_info({table})")
             cols = []
-            for cid, name, ctype, notnull, dflt_value, pk in cur.fetchall():
+            rows = cur.fetchall()
+            for idx, (cid, name, ctype, notnull, dflt_value, pk) in enumerate(rows, start=1):
                 cols.append({
+                    'order': idx,
                     'name': name,
                     'type': ctype,
                     'notnull': bool(notnull),

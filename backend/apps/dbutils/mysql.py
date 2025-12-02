@@ -78,8 +78,10 @@ class MysqlExecutor(DataSourceExecutor):
                 (table,)
             )
             cols = []
-            for name, ctype, is_nullable, default, key, comment in cur.fetchall():
+            rows = cur.fetchall()
+            for idx, (name, ctype, is_nullable, default, key, comment) in enumerate(rows, start=1):
                 cols.append({
+                    'order': idx,
                     'name': name,
                     'type': ctype,
                     'notnull': (is_nullable == 'NO'),
