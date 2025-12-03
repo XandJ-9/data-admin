@@ -47,7 +47,6 @@
 
 <script setup>
 import { VAceEditor } from 'vue3-ace-editor'
-import ace from 'ace-builds/src-noconflict/ace'
 import 'ace-builds/src-noconflict/ext-language_tools'
 // sql语法支持
 import 'ace-builds/src-noconflict/mode-sql'

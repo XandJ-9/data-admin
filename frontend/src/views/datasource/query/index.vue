@@ -2,7 +2,28 @@
   <div class="app-container">
     <el-tabs v-model="active" type="card" @tab-click="onTabClick" @tab-remove="removeTab" :before-leave="beforeLeave">
       <el-tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.title" :closable="tabs.length > 1">
-        <query-view v-model:dataSourceId="t.dataSourceId" v-model:sqlText="t.sqlText" v-model:pageSize="t.pageSize" v-model:offset="t.offset" v-model:templateParams="t.templateParams" :next="t.next" :ds-list="dsList" :running="t.running" @run="(p) => runQuery(t, p)" />
+        <query-view
+          :dataSourceId="t.dataSourceId"
+          :sqlText="t.sqlText"
+          :pageSize="t.pageSize"
+          :offset="t.offset"
+          :templateParams="t.templateParams"
+          :next="t.next"
+          :ds-list="dsList"
+          :running="t.running"
+          @update:dataSourceId="v => (t.dataSourceId = v)"
+          @update:sqlText="v => (t.sqlText = v)"
+          @update:pageSize="v => (t.pageSize = v)"
+          @update:offset="v => (t.offset = v)"
+          @update:templateParams="v => (t.templateParams = v)"
+          @run="(p) => runQuery(t, p)"
+        />
+        <div v-if="t.templateParams && Object.keys(t.templateParams).length > 0" class="param-preview">
+          <span style="margin-right:6px;color:#909399;font-size:12px;">模板参数:</span>
+          <el-tag v-for="(val, key) in t.templateParams" :key="key" type="info" effect="plain" size="small" style="margin:2px;">
+            {{ key }} = {{ val }}
+          </el-tag>
+        </div>
         <query-result :columns="t.columns" :rows="t.rows" />
       </el-tab-pane>
       <el-tab-pane :name="addKey" label="新增查询">
@@ -101,3 +122,8 @@ onMounted(() => {
   addTab()
 })
 </script>
+<style scoped>
+.param-preview {
+  margin: 8px 0 4px 0;
+}
+</style>
