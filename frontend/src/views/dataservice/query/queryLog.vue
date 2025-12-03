@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <el-form :inline="true" label-width="80px" style="margin-bottom: 12px">
+    <el-form :inline="true">
       <el-form-item label="用户">
         <el-input v-model="query.userName" placeholder="用户名" style="width: 200px" />
       </el-form-item>
@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { listQueryLog } from '@/api/datasource'
+import { listQueryLog } from '@/api/dataservice'
 const list = ref([])
 const total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10, userName: '', status: '' })

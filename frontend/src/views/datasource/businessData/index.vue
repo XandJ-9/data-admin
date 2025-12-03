@@ -53,7 +53,7 @@
 
 <script setup name="BusinessData">
 import { listDatasource } from '@/api/datasource'
-import { listBusinessTables, listBusinessColumns, collectMeta, collectMetaTable, listBusinessDatabases } from '@/api/datameta'
+import { listBusinessTables, listBusinessColumns, collectMeta, collectMetaTable, listBusinessDatabases } from '@/api/datasource'
 const { proxy } = getCurrentInstance()
 
 const dsId = ref()

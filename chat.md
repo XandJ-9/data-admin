@@ -197,3 +197,39 @@
 - 前后端都需要根据order字段进行排序
 
 
+
+# 数据服务模块
+*背景*
+- 数据服务模块是数据资产管理平台的一个子模块，负责提供数据查询服务。
+  
+*需求*
+- 现有代码中将数据查询放到了数据源模块中，导致数据源模块的功能过于复杂。因此，需要将数据查询功能从数据源模块中分离出来，放到数据服务模块中。
+- 目前数据服务模块的前端目录尚未创建，需要创建目录后，将数据查询相关的代码放置在该目录下。
+- 数据服务模块的前端目录结构如下：
+    - frontend/src/views/dataservice/index.vue
+    - frontend/src/views/dataservice/query/index.vue
+    - frontend/src/views/dataservice/query/queryView.vue
+    - frontend/src/views/dataservice/query/queryResult.vue
+- 后端代码暂时请不要修改
+
+
+### 数据服务模块后端更新
+*背景*
+  原有数据查询的后端接口是放在datasource应用下，为了将数据查询功能从数据源模块中分离出来，放到数据服务模块中，需要将数据查询相关的后端代码从datasource应用中迁移到dataservice应用中。
+
+*需求*
+- 新增一个数据服务模块的后端应用dataservice，将数据查询相关的后端代码迁移到dataservice应用中。
+- 数据查询相关的后端借口url修改 例如：/dataservice/query/
+- 数据查询日志相关的后端接口url修改 例如：/dataservice/query-log/
+- 前端请求的api放置在新的js文件中，命名为dataservice.js, 位置为：frontend/src/api/dataservice.js
+
+
+
+### 数据接口管理
+*背景*
+- 数据接口管理模块是数据服务对外提供数据的功能实现，负责管理数据接口的定义，包括新增，编辑，删除数据接口。
+
+*需求*
+- 新增一个数据接口管理页面，用户可以在该页面查看所有的数据接口。
+- 数据接口管理页面展示数据接口的名称，描述，接口地址，请求方法，请求参数，响应参数，响应示例等信息。
+- 用户可以在数据接口管理页面中添加新的数据接口，编辑已有的数据接口，删除数据接口。

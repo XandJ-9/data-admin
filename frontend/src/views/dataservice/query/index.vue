@@ -35,9 +35,10 @@
   </div>
 </template>
 
-<script setup name="DatasourceQuery">
+<script setup name="DataServiceQuery">
 import { Plus } from '@element-plus/icons-vue';
-import { listDatasource, executeQueryById } from '@/api/datasource'
+import { listDatasource } from '@/api/datasource'
+import { executeQuery } from '@/api/dataservice'
 import QueryView from './queryView.vue'
 import QueryResult from './queryResult.vue'
 const { proxy } = getCurrentInstance()
@@ -72,10 +73,10 @@ function runQuery(t, p) {
     return
   }
   t.running = true
-  const payload = { sql: t.sqlText, params: t.templateParams || {} }
+  const payload = { dataSourceId: t.dataSourceId, sql: t.sqlText, params: t.templateParams || {} }
   if (p && typeof p.pageSize !== 'undefined') payload.pageSize = p.pageSize
   if (p && typeof p.offset !== 'undefined') payload.offset = p.offset
-  executeQueryById(t.dataSourceId, payload).then(res => {
+  executeQuery(payload).then(res => {
     applyResult(t, res.data)
   }).finally(() => (t.running = false))
 }

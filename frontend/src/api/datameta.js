@@ -42,43 +42,4 @@ export function delMetaTable(idOrIds) {
   })
 }
 
-export function listBusinessDatabases(data) {
-  return request({
-    url: '/datameta/business/databases',
-    method: 'post',
-    data: data
-  })
-}
-
-export function listBusinessTables(data) {
-  return request({
-    url: '/datameta/business/tables',
-    method: 'post',
-    data: data
-  })
-}
-
-export function listBusinessColumns(data) {
-  return request({
-    url: '/datameta/business/columns',
-    method: 'post',
-    data: data
-  })
-}
-export function collectMeta(data) {
-  return request({
-    url: '/datameta/business/collect',
-    method: 'post',
-    data: data
-  })
-}
-
-export function collectMetaTable(data) {
-  return request({
-    url: '/datameta/business/collect-table',
-    method: 'post',
-    data: data
-  })
-}
-
 

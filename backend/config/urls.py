@@ -28,6 +28,7 @@ urlpatterns = [
     re_path(r'^data-admin/.*$', TemplateView.as_view(template_name='index.html')),
     path('data-api/', include('apps.system.urls')),
     path('data-api/datasource/', include('apps.datasource.urls')),
+    path('data-api/dataservice/', include('apps.dataservice.urls')),
     path('data-api/datameta/', include('apps.datameta.urls')),
     path('data-api/captcha/', include('captcha.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

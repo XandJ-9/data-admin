@@ -16,9 +16,6 @@
         <el-input-number v-model="innerPageSize" :min="1" :max="1000" />
       </el-form-item>
     </el-form>
-    <!--
-    <el-input v-model="innerSql" type="textarea" :rows="8" placeholder="输入 SQL (支持 {{ var }} / {% if %} / {% for %} )" />
-    -->
     <VAceEditor
       :value="innerSql"
       @update:value="val => innerSql = val"
@@ -30,7 +27,7 @@
     
     <el-dialog v-model="showTpl" title="模板参数" width="500px">
       <div>
-        <el-button size="small" @click="addParam">新增参数</el-button>
+        <el-button size="小" @click="addParam">新增参数</el-button>
         <div v-for="(p, idx) in tplParams" :key="idx" style="display:flex;gap:8px;margin-top:8px">
           <el-input v-model="p.key" placeholder="变量名" style="width: 180px" />
           <el-input v-model="p.value" placeholder="变量值" style="width: 260px" />
@@ -48,14 +45,10 @@
 <script setup>
 import { VAceEditor } from 'vue3-ace-editor'
 import 'ace-builds/src-noconflict/ext-language_tools'
-// sql语法支持
 import 'ace-builds/src-noconflict/mode-sql'
 import 'ace-builds/src-noconflict/snippets/sql'
-// 主题
 import 'ace-builds/src-noconflict/theme-github'
 import 'ace-builds/src-noconflict/theme-xcode'
-// 如需动态加载其他资源，可设置 basePath；当前已本地预加载，无需设置
-// ace.config.set('basePath', '/node_modules/ace-builds/src-noconflict')
 
 const aceOptions = {
   fontSize: 14,

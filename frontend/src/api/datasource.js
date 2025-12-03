@@ -60,18 +60,42 @@ export function testDatasourceByBody(data) {
   })
 }
 
-export function executeQueryById(dataSourceId, payload) {
+
+export function listBusinessDatabases(data) {
   return request({
-    url: '/datasource/' + dataSourceId + '/query',
+    url: '/datasource/business/databases',
     method: 'post',
-    data: payload
+    data: data
   })
 }
 
-export function listQueryLog(query) {
+export function listBusinessTables(data) {
   return request({
-    url: '/datasource/query-log',
-    method: 'get',
-    params: query
+    url: '/datasource/business/tables',
+    method: 'post',
+    data: data
+  })
+}
+
+export function listBusinessColumns(data) {
+  return request({
+    url: '/datasource/business/columns',
+    method: 'post',
+    data: data
+  })
+}
+export function collectMeta(data) {
+  return request({
+    url: '/datasource/business/collect',
+    method: 'post',
+    data: data
+  })
+}
+
+export function collectMetaTable(data) {
+  return request({
+    url: '/datasource/business/collect-table',
+    method: 'post',
+    data: data
   })
 }

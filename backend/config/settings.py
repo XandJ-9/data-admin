@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'captcha',
     'apps.system',
     'apps.datasource',
+    'apps.dataservice',
     'apps.datameta'
 ]
 
