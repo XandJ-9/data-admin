@@ -84,20 +84,6 @@ export const constantRoutes = [
       }
     ]
   },
-  // 数据源管理（隐藏入口，独立功能路径）
-  {
-    path: '/datasource',
-    component: Layout,
-    hidden: true,
-    children: [
-      {
-        path: 'index',
-        component: () => import('@/views/datasource/index.vue'),
-        name: 'Datasource',
-        meta: { title: '数据源管理', activeMenu: '/datasource' }
-      }
-    ]
-  }
 ]
 
 // 动态路由，基于用户权限动态去加载
@@ -155,19 +141,6 @@ export const dynamicRoutes = [
         component: () => import('@/views/monitor/job/log'),
         name: 'JobLog',
         meta: { title: '调度日志', activeMenu: '/monitor/job' }
-      }
-    ]
-  },
-  {
-    path: '/datasource/query',
-    component: Layout,
-    hidden: true,
-    children: [
-      {
-        path: 'index/:id(\\d+)?',
-        component: () => import('@/views/datasource/query'),
-        name: 'DatasourceQuery',
-        meta: { title: '数据查询' }
       }
     ]
   },
