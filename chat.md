@@ -225,11 +225,256 @@
 
 
 
-### 数据接口管理
+### 数据报表接口管理
 *背景*
-- 数据接口管理模块是数据服务对外提供数据的功能实现，负责管理数据接口的定义，包括新增，编辑，删除数据接口。
+- 数据报表接口管理模块是数据服务对外提供数据的功能实现，负责管理数据接口的定义，包括新增，编辑，删除数据接口。这个报表接口是一个http接口，用户可以通过该接口查询数据。
 
 *需求*
 - 新增一个数据接口管理页面，用户可以在该页面查看所有的数据接口。
 - 数据接口管理页面展示数据接口的名称，描述，接口地址，请求方法，请求参数，响应参数，响应示例等信息。
 - 用户可以在数据接口管理页面中添加新的数据接口，编辑已有的数据接口，删除数据接口。
+
+报表接口定义：
+- 接口编码： 每个报表接口都有一个唯一的编码，用于标识该接口。
+- 接口名称： 报表接口的名称，用于描述该接口的功能。
+- 接口描述： 对报表接口的详细描述，包括功能、输入参数、输出参数等。
+- 接口地址： 报表接口的http地址，用户通过该地址访问接口。
+- 请求方法： 报表接口的http请求方法，通常为GET或POST。
+- 请求参数： 报表接口的http请求参数，包括路径参数、查询参数、请求体参数等。
+- 响应参数： 报表接口的http响应参数，包括状态码、响应头、响应体等。
+- 响应示例： 报表接口的http响应示例，用于展示接口返回的数据格式。
+  
+
+#### 设计规范（数据报表接口管理）
+
+目标
+- 提供统一的报表接口注册、维护、发布与调用机制。
+- 通过唯一编码稳定访问报表接口，支撑版本与变更管理。
+- 规范请求参数、响应格式、错误码与安全策略，提升可维护性与可测试性。
+- 支持前端管理页面进行新增、编辑、删除、查询、试运行等操作。
+
+核心概念
+- `接口编码(code)`：全局唯一标识，稳定引用，建议不可更改。
+- `接口定义`：接口元信息、参数、数据源、查询模板、响应结构与示例的综合描述。
+- `接口地址(path)`：对外访问路径，建议与编码保持映射关系。
+- `数据源与查询模板`：数据来源及查询逻辑（SQL/DSL/聚合/存储过程等）。
+- `版本与状态`：接口版本管理与启用/停用/废弃等生命周期。
+
+接口定义模型
+- 基本信息
+  - `code`：接口编码，string，示例：`sales_daily_summary`
+  - `name`：接口名称，string
+  - `description`：接口描述，string
+  - `version`：版本号，string，语义化版本如 `1.0.0`
+  - `status`：状态，enum：`draft|active|disabled|deprecated`
+  - `tags`：标签，string[]，如业务域、系统模块
+  - `owner`：负责人或团队，string
+  - `visibility`：可见性，enum：`internal|partner|public`
+- 路由与调用
+  - `path`：接口地址，string，建议统一：`/data-api/{code}`
+  - `method`：请求方法，enum：`GET|POST`
+  - `auth_required`：是否鉴权，boolean
+  - `rate_limit`：限流配置，object，如 `{"rps": 50, "burst": 200}`
+  - `ip_whitelist`：IP白名单或网段列表，string[]
+  - `cors`：跨域策略，object，如 `{"allowed_origins": ["..."]}`
+- 参数规范（parameters：数组）
+  - `name`：参数名，string
+  - `in`：位置，enum：`path|query|header|body`
+  - `type`：类型，enum：`string|number|integer|boolean|date|datetime|array|object`
+  - `required`：是否必填，boolean
+  - `default`：默认值，可选
+  - `enum`：枚举范围，array，可选
+  - `format`：格式提示（如 `yyyy-MM-dd`），可选
+  - `description`：参数说明
+  - `example`：示例值
+  - `max_length|min_length|maximum|minimum|pattern`：校验规则，可选
+- 数据源与查询
+  - `datasource_id`：数据源标识，string
+  - `query_type`：查询类型，enum：`sql|dsl|aggregation|stored_proc`
+  - `query_template`：查询模板，string，支持命名参数绑定（如 `:startDate`）
+  - `param_binding`：参数与模板绑定映射，object（如 `{"startDate": "$.parameters.startDate"}`）
+  - `timeout_ms`：查询超时，number
+  - `safe_mode`：启用安全模式（防注入、防全表扫描），boolean
+- 响应定义
+  - `response_schema`：响应结构（可用 JSON Schema）
+  - `pagination`：分页支持，object（如 `{"enabled": true, "max_page_size": 1000}`）
+  - `transform`：后置字段映射或聚合规则，object，可选
+  - `example`：响应示例，object
+- 运营与治理
+  - `cache`：缓存策略，object（如 `{"enabled": true, "ttl_seconds": 60}`）
+  - `audit`：审计记录开关，boolean
+  - `metrics`：埋点配置，object（是否记录时延、错误率等）
+- 元数据
+  - `created_at|updated_at`：时间戳
+  - `created_by|updated_by`：创建/更新人
+
+对外访问路由规范
+- 统一访问：`GET|POST /data-api/{code}`
+  - 按 `code` 查找启用中的接口定义，进行鉴权、限流、参数校验；执行查询模板；返回统一响应结构。
+- 管理接口（受鉴权保护，供前端管理页面使用）：
+  - `GET /api/dataservice/interfaces`：分页查询接口定义
+  - `GET /api/dataservice/interfaces/{code}`：获取单个定义
+  - `POST /api/dataservice/interfaces`：新增接口定义
+  - `PUT /api/dataservice/interfaces/{code}`：编辑接口定义
+  - `DELETE /api/dataservice/interfaces/{code}`：删除接口定义
+  - `POST /api/dataservice/interfaces/{code}/test`：试运行（传入参数进行一次查询，返回结果或错误）
+
+请求与响应统一约定
+- 请求参数
+  - GET 请求优先使用 `query`；复杂结构使用 POST 的 `body`。
+  - `path|query|header|body` 四类参数位置明确，不混用。
+- 成功响应（统一外层）：
+  - `code`：业务码，string（如 `OK`）
+  - `message`：提示，string
+  - `success`：是否成功，boolean
+  - `data`：数据主体，object|array
+  - `meta`：元信息（分页：`page|pageSize|total|hasNext`）
+- 失败响应（统一外层）：
+  - `code`：错误码，string（`INVALID_PARAM|UNAUTHORIZED|NOT_FOUND|RATE_LIMITED|INTERNAL_ERROR` 等）
+  - `message`：错误描述，string
+  - `success`：false
+  - `details`：错误详情（字段校验失败列表等），array|object
+- HTTP 状态码：`200|400|401|403|404|429|500`
+
+权限与安全
+- 鉴权策略
+  - `auth_required=true` 的接口需校验 `JWT` 或 `API Key`；可按 `visibility` 区分策略。
+  - 可配置角色/资源级权限控制（如按角色限制可访问的 `code`）。
+- 防护策略
+  - 参数校验与类型强制；查询层严格使用参数化绑定，拒绝拼接式模板。
+  - 限流与 IP 白名单；CORS 严格限制来源。
+  - 查询安全：限制 `timeout_ms`、行数上限、禁止无条件全表扫描。
+- 审计与合规
+  - 开启 `audit` 时记录：接口编码、调用人、时间、入参、响应概要（不含敏感数据）、时延、状态。
+
+版本与生命周期
+- 状态流转：`draft -> active -> deprecated -> disabled`
+- 变更策略
+  - 破坏性变更需升级 `version`，保留旧版本并置为 `deprecated` 一段时间。
+  - 管理页面展示版本与状态，支持切换默认生效版本。
+- 兼容策略
+  - 同一 `code` 可支持 `version` 路由（可选），如：`GET /data-api/{code}?version=1.1.0`
+
+前端管理页面规范
+- 列表页展示字段：
+  - `接口编码(code)`、`名称(name)`、`描述(description)`、`接口地址(path)`、`请求方法(method)`、`状态(status)`、`版本(version)`、`数据源(datasource_id)`、`更新时间(updated_at)`
+- 操作：
+  - 新增、编辑、删除、查看详情、试运行、启用/停用、复制定义
+- 详情/编辑页分区：
+  - 基本信息、路由与调用、参数定义（增删改并校验）、数据源与查询模板、响应定义与示例、缓存与限流、权限与安全、版本与变更记录
+- 试运行：
+  - 表单自动生成入参；展示响应数据与耗时；可保存成功示例用于回归测试。
+
+缓存与性能
+- 缓存策略：
+  - 基于 `code + normalized(params)` 构建缓存键；`ttl_seconds` 控制时效。
+  - 对实时性强的接口禁用缓存。
+- 性能指标：
+  - 记录 `qps`、`p95_latency`、`error_rate`；在管理页可视化展示。
+
+错误码建议
+- `OK`：成功
+- `INVALID_PARAM`：参数校验失败
+- `UNAUTHORIZED`：未授权
+- `FORBIDDEN`：无权限
+- `NOT_FOUND`：接口或资源不存在
+- `RATE_LIMITED`：触发限流
+- `INTERNAL_ERROR`：服务器内部错误
+- `DATASOURCE_ERROR`：数据源访问错误
+- `TIMEOUT`：查询超时
+- `SCHEMA_MISMATCH`：响应数据不符合定义
+
+示例：新增报表接口定义请求体（用于 `POST /api/dataservice/interfaces`）
+```
+{
+  "code": "sales_daily_summary",
+  "name": "每日销售汇总",
+  "description": "按日期和门店维度汇总销售额与订单量。",
+  "version": "1.0.0",
+  "status": "active",
+  "tags": ["sales", "report"],
+  "owner": "BI-Team",
+  "visibility": "internal",
+  "path": "/data-api/sales_daily_summary",
+  "method": "GET",
+  "auth_required": true,
+  "rate_limit": {"rps": 20, "burst": 100},
+  "parameters": [
+    {"name": "startDate", "in": "query", "type": "date", "required": true, "format": "yyyy-MM-dd", "description": "开始日期", "example": "2025-01-01"},
+    {"name": "endDate", "in": "query", "type": "date", "required": true, "format": "yyyy-MM-dd", "description": "结束日期", "example": "2025-01-31"},
+    {"name": "storeId", "in": "query", "type": "string", "required": false, "description": "门店ID"},
+    {"name": "page", "in": "query", "type": "integer", "required": false, "default": 1, "minimum": 1},
+    {"name": "pageSize", "in": "query", "type": "integer", "required": false, "default": 50, "maximum": 1000}
+  ],
+  "datasource_id": "dw_readonly",
+  "query_type": "sql",
+  "query_template": "SELECT date, store_id, SUM(amount) AS total_amount, COUNT(order_id) AS order_count FROM fact_sales WHERE date BETWEEN :startDate AND :endDate AND (:storeId IS NULL OR store_id = :storeId) GROUP BY date, store_id ORDER BY date LIMIT :pageSize OFFSET (:page - 1) * :pageSize",
+  "param_binding": {
+    "startDate": "$.parameters.startDate",
+    "endDate": "$.parameters.endDate",
+    "storeId": "$.parameters.storeId",
+    "page": "$.parameters.page",
+    "pageSize": "$.parameters.pageSize"
+  },
+  "timeout_ms": 20000,
+  "safe_mode": true,
+  "response_schema": {
+    "type": "object",
+    "properties": {
+      "code": {"type": "string"},
+      "message": {"type": "string"},
+      "success": {"type": "boolean"},
+      "data": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "date": {"type": "string", "format": "date"},
+            "store_id": {"type": "string"},
+            "total_amount": {"type": "number"},
+            "order_count": {"type": "integer"}
+          },
+          "required": ["date", "store_id", "total_amount", "order_count"]
+        }
+      },
+      "meta": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"},
+          "hasNext": {"type": "boolean"}
+        }
+      }
+    },
+    "required": ["code", "message", "success", "data", "meta"]
+  },
+  "example": {
+    "code": "OK",
+    "message": "成功",
+    "success": true,
+    "data": [
+      {"date": "2025-01-01", "store_id": "S001", "total_amount": 12345.67, "order_count": 321}
+    ],
+    "meta": {"page": 1, "pageSize": 50, "total": 1234, "hasNext": true}
+  },
+  "cache": {"enabled": true, "ttl_seconds": 60},
+  "audit": true,
+  "metrics": {"latency": true, "errorRate": true}
+}
+```
+
+示例：统一错误响应
+```
+{
+  "code": "INVALID_PARAM",
+  "message": "参数 startDate 必须为 yyyy-MM-dd 格式",
+  "success": false,
+  "details": [{"field": "startDate", "error": "format"}]
+}
+```
+
+实现建议
+- 后端：在 `backend/apps/dataservice` 下实现接口定义模型、CRUD API、执行路由 `/data-api/{code}`。参数校验可用 Pydantic 或基于 JSON Schema；查询层使用参数化绑定避免注入；统一中间件处理鉴权、限流、审计、CORS；响应封装统一结构。
+- 前端：在 `frontend/src/views` 新增“数据报表接口管理”页面，列表 + 详情/编辑弹窗；参数定义采用动态表单；提供“试运行”并展示响应与耗时；支持定义的导入/导出（JSON）。
+  
