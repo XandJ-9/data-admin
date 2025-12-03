@@ -9,6 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
+# Deployment files
+deploy/
 deploy.py
 deploy.ini
 bootstrap.sh

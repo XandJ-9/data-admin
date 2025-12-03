@@ -15,22 +15,22 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from django.urls import path, include, re_path
+from django.views.generic import TemplateView
 
-from apps.system.views import LoginView, CaptchaView, GetInfoView, LogoutView, GetRoutersView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
     # path('admin/', admin.site.urls),
-    path('system/', include('apps.system.urls')),
-    path('datasource/', include('apps.datasource.urls')),
-    path('datameta/', include('apps.datameta.urls')),
-    path('captcha/', include('captcha.urls')),
+    # 1. 前端入口页面：访问根路径时返回 Vue 的 index.html
+    path('data-admin/', TemplateView.as_view(template_name='index.html')),
+    # # 2. 处理 Vue 路由的 History 模式（可选，若 Vue 用了 History 模式）
+    re_path(r'^data-admin/.*$', TemplateView.as_view(template_name='index.html')),
+    path('data-api/', include('apps.system.urls')),
+    path('data-api/datasource/', include('apps.datasource.urls')),
+    path('data-api/datameta/', include('apps.datameta.urls')),
+    path('data-api/captcha/', include('captcha.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('login', LoginView.as_view(), name='login'),
-    path('captchaImage/', CaptchaView.as_view(), name='captcha-image'),
-    path('getInfo', GetInfoView.as_view(), name='get-info'),
-    path('logout', LogoutView.as_view(), name='logout'),
-    path('getRouters', GetRoutersView.as_view(), name='get-routers'),
+
 ]
