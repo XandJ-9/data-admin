@@ -75,6 +75,28 @@ class PrestoExecutor(DataSourceExecutor):
                 schema=schema,
             )
 
+    def test_connection(self):
+        # 覆盖基础实现：Presto/Trino 连接通常在第一次执行查询时才真正握手
+        # 因此仅创建连接对象不足以判断可用性，这里执行一个轻量查询进行校验
+        self.connect()
+        cur = None
+        try:
+            cur = self.conn.cursor()
+            # 不依赖具体表，仅验证 catalog/schema 与认证/网络是否正常
+            cur.execute("SELECT 1")
+            cur.fetchone()
+            return True
+        except Exception as e:
+            # 出错时关闭连接，便于后续重试，并抛出明确错误信息
+            self.close()
+            raise RuntimeError(f"Presto/Trino 连接失败: {e}")
+        finally:
+            if cur:
+                try:
+                    cur.close()
+                except Exception:
+                    pass
+
     def list_tables(self):
         self.connect()
         cur = self.conn.cursor()
