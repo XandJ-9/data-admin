@@ -31,16 +31,31 @@ class PrestoExecutor(DataSourceExecutor):
         self.catalog = catalog
         self.schema = schema
 
+        # 先判断驱动是否安装；未安装直接抛异常
+        use_trino = False
+        trino_mod = None
+        pyhive_presto_mod = None
         try:
-            import trino
+            import trino as _trino
+            trino_mod = _trino
+            use_trino = True
+        except Exception:
+            try:
+                from pyhive import presto as _presto
+                pyhive_presto_mod = _presto
+            except Exception:
+                raise RuntimeError('presto/trino driver not installed')
+
+        if use_trino and trino_mod is not None:
             auth = None
             if password:
                 try:
-                    from trino.auth import BasicAuthentication
-                    auth = BasicAuthentication(user, password)
+                    BasicAuthentication = getattr(getattr(trino_mod, 'auth', None), 'BasicAuthentication', None)
+                    if BasicAuthentication is not None:
+                        auth = BasicAuthentication(user, password)
                 except Exception:
                     auth = None
-            self.conn = trino.dbapi.connect(
+            self.conn = trino_mod.dbapi.connect(
                 host=host,
                 port=port,
                 user=user,
@@ -50,20 +65,15 @@ class PrestoExecutor(DataSourceExecutor):
                 auth=auth,
             )
             return
-        except Exception:
-            pass
-
-        try:
-            from pyhive import presto
-            self.conn = presto.connect(
+        else:
+            # 使用 PyHive 的 Presto 连接
+            self.conn = pyhive_presto_mod.connect(
                 host=host,
                 port=port,
                 username=user,
                 catalog=catalog,
                 schema=schema,
             )
-        except Exception:
-            raise RuntimeError('presto/trino driver not installed')
 
     def list_tables(self):
         self.connect()

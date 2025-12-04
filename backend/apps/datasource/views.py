@@ -15,6 +15,8 @@ from apps.dbutils.factory import get_executor
 from django.template import Template, Context
 from django.db import transaction
 
+from apps.common.encrypt import decrypt_password
+
 class DataSourceViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DataSource.objects.all().order_by('name')
@@ -44,10 +46,15 @@ class DataSourceViewSet(BaseViewSet):
         # obj = DataSource.objects.create(**vd)
         return self.ok(msg='创建成功')
 
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         s = DataSourceUpdateSerializer(instance, data=request.data)
         s.is_valid(raise_exception=True)
+        _password = s.validated_data.get('password',None)
+        if _password and decrypt_password(_password) == instance.password:
+            # 新密码与旧密码相同，不更新
+            s.validated_data.pop('password', None)
         s.save()
         return self.ok(msg='更新成功')
 
@@ -76,12 +83,18 @@ class DataSourceViewSet(BaseViewSet):
     def test_by_body(self, request):
         if 'dataSourceId' in request.data:
             instance = DataSource.objects.get(id=request.data['dataSourceId'])
-            if not request.data.get('passwordIsUpdated'):
-                request.data['password'] = instance.password
-
-        s = DataSourceCreateSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        vd = s.validated_data
+            s = DataSourceUpdateSerializer(instance, request.data)
+            s.is_valid(raise_exception=True)
+            vd = s.validated_data
+            _password = vd.get('password',None)
+            if _password and decrypt_password(_password) == instance.password:
+                # 新密码与旧密码相同，不更新
+                vd['password'] = instance.password
+        else:
+            s = DataSourceCreateSerializer(data=request.data)
+            s.is_valid(raise_exception=True)
+            vd = s.validated_data
+        # print(f'vd:{vd}')
         db_info = {
             'type': vd['db_type'],
             'host': vd['host'],

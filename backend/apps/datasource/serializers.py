@@ -5,7 +5,7 @@ from .models import DataSource
 from apps.common.encrypt import encrypt_password, decrypt_password
 
 class DataSourceSerializer(BaseModelSerializer):
-    dataSourceId = serializers.IntegerField(source='id')
+    dataSourceId = serializers.IntegerField(source='id', read_only=True)
     dataSourceName = serializers.CharField(source='name')
     dbType = serializers.CharField(source='db_type')
     host = serializers.CharField()
@@ -35,4 +35,5 @@ class DataSourceCreateSerializer(DataSourceSerializer):
     password = serializers.CharField(required=False, allow_blank=True)
 
 class DataSourceUpdateSerializer(DataSourceSerializer):
+    dataSourceId = serializers.IntegerField(source='id', required=True)
     password = serializers.CharField(required=False, allow_blank=True)

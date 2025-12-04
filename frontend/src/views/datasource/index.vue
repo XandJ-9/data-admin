@@ -299,13 +299,6 @@ function testFormConnection() {
   proxy.$refs['formRef'].validate(valid => {
       if (!valid) return
     proxy.$modal.loading('正在测试连通性...')
-    console.log(form.value)
-    // 如果密码发生改变，则将新密码传参，否则密码为空
-    if (form.value.password !== form.value.oldPassword) {
-      form.value.passwordIsUpdated = true
-    } else {
-      form.value.passwordIsUpdated = false
-    }
     testDatasourceByBody(form.value).then((res) => {
       proxy.$modal.closeLoading()
       const msg = res?.message || '测试成功'

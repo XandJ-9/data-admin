@@ -7,7 +7,12 @@ from apps.system.views.core import BaseViewSet, BaseViewMixin
 from apps.system.permission import HasRolePermission
 from apps.datasource.models import DataSource
 from .models import QueryLog
-from .serializers import DataServiceQuerySerializer, DataServiceQueryLogSerializer
+from .serializers import (
+    DataServiceQuerySerializer, DataServiceQueryLogSerializer,
+    InterfaceInfoSerializer, InterfaceInfoCreateSerializer, InterfaceInfoUpdateSerializer,
+    InterfaceFieldSerializer, InterfaceFieldUpdateSerializer,
+)
+from .models import InterfaceInfo, InterfaceField
 
 from apps.dbutils.factory import get_executor
 from django.template import Template, Context
@@ -108,4 +113,73 @@ class QueryLogViewSet(BaseViewSet):
             qs = qs.filter(username__icontains=user_name)
         if status_value in ('success', 'fail'):
             qs = qs.filter(status=status_value)
+        return qs.order_by('-create_time')
+
+
+class InterfaceInfoViewSet(BaseViewSet):
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    queryset = InterfaceInfo.objects.filter(del_flag='0').order_by('-create_time')
+    serializer_class = InterfaceInfoSerializer
+    update_body_serializer_class = InterfaceInfoUpdateSerializer
+    update_body_id_field = 'interfaceId'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        name = self.request.query_params.get('interfaceName', '')
+        code = self.request.query_params.get('interfaceCode', '')
+        db_type = self.request.query_params.get('interfaceDbType', '')
+        if name:
+            qs = qs.filter(interface_name__icontains=name)
+        if code:
+            qs = qs.filter(interface_code__icontains=code)
+        if db_type:
+            qs = qs.filter(interface_db_type=db_type)
+        return qs.order_by('-create_time')
+
+    def create(self, request, *args, **kwargs):
+        v = InterfaceInfoCreateSerializer(data=request.data)
+        v.is_valid(raise_exception=True)
+        vd = v.validated_data
+        inst = InterfaceInfo(
+            report_id=vd.get('report_id'),
+            interface_name=vd.get('interface_name'),
+            interface_code=vd.get('interface_code'),
+            interface_desc=vd.get('interface_desc') or '',
+            interface_db_type=vd.get('interface_db_type'),
+            interface_db_name=vd.get('interface_db_name'),
+            interface_sql=vd.get('interface_sql') or '',
+            is_total=vd.get('is_total', '0'),
+            total_sql=vd.get('total_sql') or '',
+            is_paging=vd.get('is_paging', '0'),
+            is_date_option=vd.get('is_date_option', '0'),
+            is_second_table=vd.get('is_second_table', '0'),
+            is_login_visit=vd.get('is_login_visit', '0'),
+            alarm_type=vd.get('alarm_type', '0'),
+            user_name=vd.get('user_name') or '',
+            interface_datasource=vd.get('interface_datasource'),
+        )
+        user = getattr(self.request, 'user', None)
+        if user and getattr(user, 'username', None):
+            inst.create_by = user.username
+            inst.update_by = user.username
+        inst.save()
+        return self.ok()
+
+
+class InterfaceFieldViewSet(BaseViewSet):
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    queryset = InterfaceField.objects.filter(del_flag='0').order_by('-create_time')
+    serializer_class = InterfaceFieldSerializer
+    update_body_serializer_class = InterfaceFieldUpdateSerializer
+    update_body_id_field = 'fieldId'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        interface_id = self.request.query_params.get('interfaceId')
+        try:
+            interface_id = int(interface_id) if interface_id is not None else None
+        except Exception:
+            interface_id = None
+        if interface_id:
+            qs = qs.filter(interface_id=interface_id)
         return qs.order_by('-create_time')
