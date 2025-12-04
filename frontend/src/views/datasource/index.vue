@@ -107,7 +107,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="数据库名" prop="dbName">
-              <el-input v-model="form.dbName" placeholder="请输入数据库名" />
+              <el-input v-model="form.dbName" :placeholder="dbNamePlaceholder" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -129,7 +129,7 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="连接参数" prop="params">
-              <el-input v-model="form.params" type="textarea" :rows="3" placeholder="可选：JSON 或 key=value&..." />
+              <el-input v-model="form.params" type="textarea" :rows="3" :placeholder="paramsPlaceholder" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -170,9 +170,12 @@ const title = ref('')
 const dbTypeOptions = ref([
   { value: 'mysql', label: 'MySQL' },
   { value: 'postgres', label: 'PostgreSQL' },
+  { value: 'sqlite', label: 'SQLite' },
+  { value: 'presto', label: 'Presto' },
+  { value: 'trino', label: 'Trino' },
+  { value: 'starrocks', label: 'StarRocks' },
   { value: 'sqlserver', label: 'SQL Server' },
-  { value: 'oracle', label: 'Oracle' },
-  { value: 'sqlite', label: 'SQLite' }
+  { value: 'oracle', label: 'Oracle' }
 ])
 
 const data = reactive({
@@ -192,6 +195,9 @@ const data = reactive({
 })
 
 const { form, queryParams, rules } = toRefs(data)
+const isPresto = computed(() => ['presto', 'trino'].includes(form.value.dbType))
+const dbNamePlaceholder = computed(() => isPresto.value ? '可填 catalog.schema 或 schema' : '请输入数据库名')
+const paramsPlaceholder = computed(() => isPresto.value ? '可选：如 {"catalog":"hive","schema":"default","http_scheme":"http"}' : '可选：JSON 或 key=value&...')
 
 function getList() {
   loading.value = true

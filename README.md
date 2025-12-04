@@ -40,24 +40,24 @@
 - 后端：Django、Django REST Framework
 - 前端：Vue 3、Element Plus、Vite、Pinia（RuoYi 适配）
 - 数据库：SQLite / MySQL / PostgreSQL（可扩展）
-- 其他：Axios（API 封装）、ESLint 配置、RuoYi 脚手架结构
+- 其他：Axios（API 封装）、RuoYi 脚手架结构
 
 
 
 ## 目录结构
 
 ```
-ruoyi-django/
-├── README.md                 # 根 README（项目概述与启动）
-├── 说明文档.md               # 本文档（统一说明）
+data-admin/
+├── README.md                 # 本文档（统一说明）
 ├── chat.md                   # 模块协作与需求讨论
 ├── backend/                  # 后端工程（Django）
 │   ├── README.md             # 后端说明与启动指引
-│   ├── 开发规范.md           # 后端开发规范（约束与约定）
+│   ├── dev.md                # 后端开发规范（约束与约定）
 │   ├── apps/                 # 业务应用模块
 │   │   ├── system/           # 系统管理（用户/角色/权限/日志）
 │   │   ├── datasource/       # 数据源（模型/序列化/视图）
 │   │   ├── datameta/         # 元数据（表/列采集与维护）
+│   │   ├── dataservice/      # 数据服务（数据查询，数据接口，报表等）
 │   │   └── dbutils/          # 数据库执行器与统一接口
 │   ├── config/               # Django 配置（settings/urls）
 │   ├── manage.py             # Django 管理入口
@@ -74,6 +74,28 @@ ruoyi-django/
     ├── .env.*                # 环境变量配置
     ├── index.html            # 入口模板
     └── vite.config.js        # Vite 配置
+```
+
+### 自动生成目录结构（Python）
+
+```
+import os
+
+def tree(root, ignore=None):
+    if ignore is None:
+        ignore = {'.git', '.venv', 'node_modules', 'dist', '__pycache__'}
+    for dirpath, dirnames, filenames in os.walk(root):
+        rel = os.path.relpath(dirpath, root)
+        parts = [] if rel == '.' else rel.split(os.sep)
+        if any(p in ignore for p in parts):
+            continue
+        depth = len(parts)
+        print(('│   ' * max(depth - 1, 0)) + ('├── ' if depth > 0 else '') + os.path.basename(dirpath) + '/')
+        for f in sorted(filenames):
+            print('│   ' * depth + f)
+
+if __name__ == '__main__':
+    tree('.')
 ```
 
 
@@ -154,7 +176,7 @@ ruoyi-django/
 
 - 1）安装依赖：`cd frontend && npm i`
 - 2）启动开发服务：`npm run dev`
-- 3）默认访问：`http://localhost:80/`（端口占用时自动切换，如 `http://localhost:81/`）
+- 3）在终端打开 Vite 输出的本地地址（示例：`http://localhost:5173/`）
 - 4）环境变量：`.env.development/.env.staging/.env.production` 可配置后端 API 基础路径、应用上下文等
 
 

@@ -33,6 +33,16 @@
 - 适配现有的代码风格
 
 
+## 数据源管理-支持presto,starrocks等数据库
+*需求*
+    支持presto,starrocks等数据库
+
+*注意*
+- 基于现有的数据库查询执行器来修改 
+- 不要添加重复功能的代码
+- 参考：backend/apps/dbutil/目录下的代码结构
+
+
 ## 数据查询支持django模板语法
 *目标：在数据查询语句中支持django模板语法，用户可以在查询语句中使用django模板语法，例如：{{ var }}，{% if %}，{% for %}等*
 *实现：*
@@ -478,3 +488,5 @@
 - 后端：在 `backend/apps/dataservice` 下实现接口定义模型、CRUD API、执行路由 `/data-api/{code}`。参数校验可用 Pydantic 或基于 JSON Schema；查询层使用参数化绑定避免注入；统一中间件处理鉴权、限流、审计、CORS；响应封装统一结构。
 - 前端：在 `frontend/src/views` 新增“数据报表接口管理”页面，列表 + 详情/编辑弹窗；参数定义采用动态表单；提供“试运行”并展示响应与耗时；支持定义的导入/导出（JSON）。
   
+
+
