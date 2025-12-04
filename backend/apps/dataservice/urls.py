@@ -13,5 +13,6 @@ router.register(r'interface-field', InterfaceFieldViewSet, basename='dataservice
 
 urlpatterns = [
     path('query', QueryServiceView.as_view({'post': 'query'}), name='dataservice-query'),
+    path('export', QueryServiceView.as_view({'post': 'export'}), name='dataservice-export'),
     path('', include(router.urls)),
 ]

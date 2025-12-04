@@ -9,6 +9,16 @@ export function executeQuery(data) {
   })
 }
 
+// 导出数据查询结果（CSV，固定导出前10000行）
+export function exportQuery(data) {
+  return request({
+    url: '/dataservice/export',
+    method: 'post',
+    data: data,
+    responseType: 'blob'
+  })
+}
+
 // 查询数据查询日志
 export function listQueryLog(query) {
   return request({
@@ -101,5 +111,43 @@ export function delInterfaceField(fieldId) {
   return request({
     url: '/dataservice/interface-field/' + fieldId,
     method: 'delete'
+  })
+}
+
+// 接口：测试连接（按ID）
+export function testInterfaceById(interfaceId) {
+  return request({
+    url: '/dataservice/interface-info/' + interfaceId + '/test',
+    method: 'post'
+  })
+}
+
+
+// 接口：执行查询（按ID）
+export function executeInterfaceById(interfaceId, data) {
+  return request({
+    url: '/dataservice/interface-info/' + interfaceId + '/execute',
+    method: 'post',
+    data: data
+  })
+}
+
+// 接口：导出数据（按ID）
+export function exportInterfaceById(interfaceId, data) {
+  return request({
+    url: '/dataservice/interface-info/' + interfaceId + '/export',
+    method: 'post',
+    data: data,
+    responseType: 'blob'
+  })
+}
+
+// 接口：导出数据（按请求体）
+export function exportInterfaceByBody(data) {
+  return request({
+    url: '/dataservice/interface-info/export',
+    method: 'post',
+    data: data,
+    responseType: 'blob'
   })
 }

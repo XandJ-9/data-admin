@@ -71,11 +71,17 @@
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="260" fixed="right">
+      <el-table-column label="操作" align="center" width="250" fixed="right">
         <template #default="scope">
           <el-button link type="primary" icon="View" @click="openDetail(scope.row)">查看明细</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['dataservice:interface:edit']">修改</el-button>
           <el-button link type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
+          <!-- <el-divider direction="vertical" /> -->
+          <!-- 换行 -->
+          <br />
+          <el-button link type="success" icon="Link" @click="handleTest(scope.row)" v-hasPermi="['dataservice:interface:test']">测试连接</el-button>
+          <el-button link type="primary" icon="Coin" @click="openExecute(scope.row)" v-hasPermi="['dataservice:interface:execute']">执行查询</el-button>
+          <el-button link type="warning" icon="Download" @click="handleExport(scope.row)" v-hasPermi="['dataservice:interface:export']">导出数据</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -192,7 +198,7 @@
     </el-dialog>
 
     <!-- 明细抽屉：接口信息 + 字段列表 -->
-    <el-drawer v-model="detailOpen" title="接口明细" size="60%" append-to-body>
+    <el-drawer v-model="detailOpen" title="接口明细" size="80%" append-to-body>
       <div style="margin-bottom: 12px;">
         <el-descriptions title="基本信息" :column="2" border>
           <el-descriptions-item label="接口名称">{{ detail.interfaceName }}</el-descriptions-item>
@@ -333,13 +339,47 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 执行查询弹窗 -->
+    <el-dialog :title="execTitle" v-model="execOpen" width="900px" append-to-body>
+      <el-form label-width="120px">
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-form-item label="参数(JSON)">
+              <el-input v-model="execForm.paramsJson" type="textarea" :rows="5" placeholder='例如: {&#10;  "startDate": "2024-01-01",&#10;  "endDate": "2024-12-31"&#10;}' />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="每页条数">
+              <el-input-number v-model="execForm.pageSize" :min="1" :max="5000" controls-position="right" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="偏移量">
+              <el-input-number v-model="execForm.offset" :min="0" controls-position="right" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <el-divider />
+      <el-table v-loading="execLoading" :data="execRows" height="300px" style="width: 100%">
+        <el-table-column v-for="col in execColumns" :key="col" :prop="col" :label="col" :show-overflow-tooltip="true" />
+      </el-table>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="runExecute">执行查询</el-button>
+          <el-button type="warning" @click="exportFromDialog">导出数据</el-button>
+          <el-button @click="execOpen = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
   
 </template>
 
 <script setup name="Interface">
 /* eslint-disable vue/no-v-model-argument */
-import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField } from '@/api/dataservice'
+import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, testInterfaceById, executeInterfaceById, exportInterfaceById } from '@/api/dataservice'
 import { listDatasource } from '@/api/datasource'
 
 const { proxy } = getCurrentInstance()
@@ -376,6 +416,14 @@ const fieldList = ref([])
 const fieldOpen = ref(false)
 const fieldTitle = ref('')
 const datasourceOptions = ref([])
+
+// 执行查询弹窗与结果
+const execOpen = ref(false)
+const execTitle = ref('执行查询')
+const execLoading = ref(false)
+const execForm = ref({ interfaceId: undefined, paramsJson:undefined, pageSize: 50, offset: 0 })
+const execRows = ref([])
+const execColumns = ref([])
 
 const dbTypeOptions = ref([
   { value: 'mysql', label: 'MySQL' },
@@ -599,6 +647,104 @@ function resetFieldForm() {
 function loadDatasourceOptions() {
   listDatasource({ pageNum: 1, pageSize: 100 }).then(res => {
     datasourceOptions.value = res.rows || []
+  })
+}
+
+function handleTest(row) {
+  const id = row?.interfaceId
+  if (!id) return
+  testInterfaceById(id).then(() => {
+    proxy.$modal.msgSuccess('连接成功')
+  }).catch(err => {
+    proxy.$modal.msgError(err?.msg || '连接失败')
+  })
+}
+
+function openExecute(row) {
+  execRows.value = []
+  execColumns.value = []
+  execForm.value.interfaceId = row?.interfaceId
+  execOpen.value = true
+  execTitle.value = `执行查询 - ${row?.interfaceName || ''}`
+}
+
+function runExecute() {
+  const id = execForm.value.interfaceId
+  if (!id) return
+  let paramsObj = null
+  if (execForm.value.paramsJson && execForm.value.paramsJson.trim()) {
+    try {
+      paramsObj = JSON.parse(execForm.value.paramsJson)
+    } catch (e) {
+      proxy.$modal.msgError('参数JSON格式错误')
+      return
+    }
+  }
+  execLoading.value = true
+  executeInterfaceById(id, { params: paramsObj || {}, pageSize: execForm.value.pageSize, offset: execForm.value.offset }).then(res => {
+    const rows = res.data?.rows || []
+    execRows.value = rows
+    execColumns.value = rows.length ? Object.keys(rows[0]) : []
+  }).catch(err => {
+    proxy.$modal.msgError(err?.msg || '执行失败')
+  }).finally(() => {
+    execLoading.value = false
+  })
+}
+
+function handleExport(row) {
+  const id = row?.interfaceId
+  if (!id) return
+  let paramsObj = null
+  if (execForm.value.paramsJson && execForm.value.paramsJson.trim()) {
+    try {
+      paramsObj = JSON.parse(execForm.value.paramsJson)
+    } catch (e) {
+      // 不阻塞导出，使用空参数
+      paramsObj = null
+    }
+  }
+  exportInterfaceById(id, { params: paramsObj || {}, pageSize: 1000, offset: 0 }).then(res => {
+    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `interface_${id}_export.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    proxy.$modal.msgSuccess('导出成功')
+  }).catch(err => {
+    proxy.$modal.msgError(err?.msg || '导出失败')
+  })
+}
+
+function exportFromDialog() {
+  const id = execForm.value.interfaceId
+  if (!id) return
+  let paramsObj = null
+  if (execForm.value.paramsJson && execForm.value.paramsJson.trim()) {
+    try {
+      paramsObj = JSON.parse(execForm.value.paramsJson)
+    } catch (e) {
+      // 使用空参数
+      paramsObj = null
+    }
+  }
+  exportInterfaceById(id, { params: paramsObj || {}, pageSize: execForm.value.pageSize || 1000, offset: execForm.value.offset || 0 }).then(res => {
+    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `interface_${id}_export.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    proxy.$modal.msgSuccess('导出成功')
+  }).catch(err => {
+    proxy.$modal.msgError(err?.msg || '导出失败')
   })
 }
 

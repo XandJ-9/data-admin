@@ -17,6 +17,7 @@
           @update:offset="v => (t.offset = v)"
           @update:templateParams="v => (t.templateParams = v)"
           @run="(p) => runQuery(t, p)"
+          @export="(p) => exportRows(t, p)"
         />
         <div v-if="t.templateParams && Object.keys(t.templateParams).length > 0" class="param-preview">
           <span style="margin-right:6px;color:#909399;font-size:12px;">模板参数:</span>
@@ -38,7 +39,7 @@
 <script setup name="DataServiceQuery">
 import { Plus } from '@element-plus/icons-vue';
 import { listDatasource } from '@/api/datasource'
-import { executeQuery } from '@/api/dataservice'
+import { executeQuery, exportQuery } from '@/api/dataservice'
 import QueryView from './queryView.vue'
 import QueryResult from './queryResult.vue'
 const { proxy } = getCurrentInstance()
@@ -79,6 +80,30 @@ function runQuery(t, p) {
   executeQuery(payload).then(res => {
     applyResult(t, res.data)
   }).finally(() => (t.running = false))
+}
+
+function exportRows(t, p) {
+  if (!t.dataSourceId || !t.sqlText) {
+    proxy.$modal.msgError('请选择数据源并输入SQL')
+    return
+  }
+  const payload = { dataSourceId: t.dataSourceId, sql: t.sqlText, params: (p && p.params) || t.templateParams || {} }
+  payload.pageSize = 10000
+  payload.offset = 0
+  exportQuery(payload).then(res => {
+    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `query_export.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    proxy.$modal.msgSuccess('导出成功')
+  }).catch(err => {
+    proxy.$modal.msgError(err?.msg || '导出失败')
+  })
 }
 
 function applyResult(t, data) {

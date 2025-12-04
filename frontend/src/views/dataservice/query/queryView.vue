@@ -10,6 +10,7 @@
         <el-button type="primary" @click="emitRun" :disabled="!innerDsId || !innerSql || running">执行</el-button>
         <el-button type="info" @click="emitPrev" :disabled="(innerOffset <= 0) || running">上一页</el-button>
         <el-button type="success" @click="emitNext" :disabled="(!next || running)">下一页</el-button>
+        <el-button type="warning" @click="emitExport" :disabled="!innerDsId || !innerSql || running">导出CSV</el-button>
         <el-button type="warning" @click="showTpl = true">模板参数</el-button>
       </el-form-item>
       <el-form-item label="每页行数">
@@ -69,7 +70,7 @@ const props = defineProps({
   next: { type: Object, default: null },
   templateParams: { type: Object, default: () => ({}) }
 })
-const emit = defineEmits(['update:dataSourceId', 'update:sqlText', 'update:pageSize', 'update:offset', 'update:templateParams', 'run'])
+const emit = defineEmits(['update:dataSourceId', 'update:sqlText', 'update:pageSize', 'update:offset', 'update:templateParams', 'run', 'export'])
 const innerDsId = ref(props.dataSourceId)
 const innerSql = ref(props.sqlText)
 const innerPageSize = ref(props.pageSize)
@@ -89,6 +90,7 @@ watch(() => props.templateParams, v => {
   tplParams.value = Object.entries(v || {}).map(([k, val]) => ({ key: k, value: String(val) }))
 })
 function emitRun() { emit('run', { pageSize: innerPageSize.value, offset: innerOffset.value, params: toParams() }) }
+function emitExport() { emit('export', { params: toParams() }) }
 function emitPrev() {
   const newOffset = Number(innerOffset.value) - Number(innerPageSize.value)
   innerOffset.value = newOffset > 0 ? newOffset : 0
