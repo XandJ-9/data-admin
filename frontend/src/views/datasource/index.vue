@@ -174,8 +174,8 @@ const dbTypeOptions = ref([
   { value: 'presto', label: 'Presto' },
   { value: 'trino', label: 'Trino' },
   { value: 'starrocks', label: 'StarRocks' },
-  { value: 'sqlserver', label: 'SQL Server' },
-  { value: 'oracle', label: 'Oracle' }
+//   { value: 'sqlserver', label: 'SQL Server' },
+//   { value: 'oracle', label: 'Oracle' }
 ])
 
 const data = reactive({
