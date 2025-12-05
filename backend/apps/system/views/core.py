@@ -179,6 +179,22 @@ class BaseViewMixin:
     def raw_response(self, data):
         return Response(data)
 
+    def csv_response(self, columns, rows, filename, bom=False):
+        import csv, io
+        from django.http import HttpResponse
+        output = io.StringIO()
+        if bom:
+            output.write('\ufeff')
+        if columns:
+            headers = columns
+            writer = csv.DictWriter(output, fieldnames=headers)
+            writer.writeheader()
+            for r in rows:
+                row = {k: v for k, v in zip(headers, r)}
+                writer.writerow(row)
+        resp = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
+        resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return resp
 
 class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
     required_roles = None

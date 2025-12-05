@@ -128,6 +128,7 @@
 *背景*
 - 数据服务模块是数据资产管理平台的一个子模块，负责提供数据查询服务。
   
+
 *需求*
 - 现有代码中将数据查询放到了数据源模块中，导致数据源模块的功能过于复杂。因此，需要将数据查询功能从数据源模块中分离出来，放到数据服务模块中。
 - 目前数据服务模块的前端目录尚未创建，需要创建目录后，将数据查询相关的代码放置在该目录下。
@@ -606,4 +607,25 @@ class InterfaceField(BaseModel):
 - 数据接口管理页面新增“导出数据”按钮，点击可将查询结果导出为CSV文件
 
 
+## 数据接口调用日志
+*需求*
+    数据接口调用日志记录，用于记录数据接口调用情况，方便后续分析和优化
+
+*数据结构*
+```python
+class InterfaceQueryLog(BaseModel):
+    interface_code = models.CharField(max_length=255, verbose_name='接口编码')
+    interface_sql  = models.TextField(verbose_name='接口sql', null=True)
+    interface_total_sql = models.TextField(verbose_name='接口总sql', null=True)
+    execute_start_time = models.DateTimeField(verbose_name='开始时间', auto_now_add=True, null=True)
+    execute_end_time = models.DateTimeField(verbose_name='结束时间', auto_now_add=True, null=True)
+    execute_time = models.IntegerField(verbose_name='执行时间', default=0)
+    execute_status = models.CharField(max_length=255, verbose_name='执行状态', null=True)
+    error_message = models.TextField(verbose_name='错误信息', null=True)
+    query_params = models.TextField(verbose_name='查询参数', null=True, blank=True)
+    execute_type = models.ChoicesField(verbose_name='执行类型', choices=(('1', '查询'),('2', '导出')))
+    execute_ip = models.CharField(max_length=255, verbose_name='调用方IP', null=True, blank=True)
+
+
+```
 

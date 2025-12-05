@@ -35,10 +35,10 @@
     </el-row>
 
     <!-- 列表 -->
-    <el-table v-loading="loading" :data="dataList" @selection-change="handleSelectionChange">
+    <el-table v-loading="loading" :data="dataList" @selection-change="handleSelectionChange" border>
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="接口名称" prop="interfaceName" :show-overflow-tooltip="true" />
-      <el-table-column label="接口编码" prop="interfaceCode" :show-overflow-tooltip="true" />
+      <el-table-column label="接口名称" prop="interfaceName" width="200" :show-overflow-tooltip="true" />
+      <el-table-column label="接口编码" prop="interfaceCode" width="200" :show-overflow-tooltip="true" />
       <el-table-column label="数据库类型" prop="interfaceDbType" width="120" />
       <el-table-column label="数据库名称" prop="interfaceDbName" :show-overflow-tooltip="true" />
       <el-table-column label="分页" prop="isPaging" width="80">
@@ -71,17 +71,13 @@
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="250" fixed="right">
+      <el-table-column label="操作" align="center" width="200" fixed="right">
         <template #default="scope">
-          <el-button link type="primary" icon="View" @click="openDetail(scope.row)">查看明细</el-button>
-          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['dataservice:interface:edit']">修改</el-button>
-          <el-button link type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
-          <!-- <el-divider direction="vertical" /> -->
-          <!-- 换行 -->
-          <br />
-          <el-button link type="success" icon="Link" @click="handleTest(scope.row)" v-hasPermi="['dataservice:interface:test']">测试连接</el-button>
-          <el-button link type="primary" icon="Coin" @click="openExecute(scope.row)" v-hasPermi="['dataservice:interface:execute']">执行查询</el-button>
-          <el-button link type="warning" icon="Download" @click="handleExport(scope.row)" v-hasPermi="['dataservice:interface:export']">导出数据</el-button>
+          <el-button link size="small" type="primary" icon="View" @click="openDetail(scope.row)">查看明细</el-button>
+          <el-button link size="small" type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['dataservice:interface:edit']">修改</el-button>
+          <el-button link size="small" type="primary" icon="Coin" @click="openExecute(scope.row)" v-hasPermi="['dataservice:interface:execute']">执行查询</el-button>
+          <el-button link size="small" type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
+          <!-- <el-button link size="small" type="warning" icon="Download" @click="handleExport(scope.row)" v-hasPermi="['dataservice:interface:export']">导出数据</el-button> -->
         </template>
       </el-table-column>
     </el-table>
@@ -379,7 +375,7 @@
 
 <script setup name="Interface">
 /* eslint-disable vue/no-v-model-argument */
-import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, testInterfaceById, executeInterfaceById, exportInterfaceById } from '@/api/dataservice'
+import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, executeInterfaceById, exportInterfaceById } from '@/api/dataservice'
 import { listDatasource } from '@/api/datasource'
 
 const { proxy } = getCurrentInstance()
@@ -649,16 +645,6 @@ function loadDatasourceOptions() {
   })
 }
 
-function handleTest(row) {
-  const id = row?.interfaceId
-  if (!id) return
-  testInterfaceById(id).then(() => {
-    proxy.$modal.msgSuccess('连接成功')
-  }).catch(err => {
-    proxy.$modal.msgError(err?.msg || '连接失败')
-  })
-}
-
 function openExecute(row) {
   execRows.value = []
   execColumns.value = []
@@ -681,7 +667,7 @@ function runExecute() {
   }
   execLoading.value = true
   executeInterfaceById(id, { params: paramsObj || {}, pageSize: execForm.value.pageSize, offset: execForm.value.offset }).then(res => {
-    const rows = res.data?.rows || []
+    const rows = res.data?.rows
     execRows.value = rows
     execColumns.value = rows.length ? Object.keys(rows[0]) : []
   }).catch(err => {
