@@ -629,3 +629,20 @@ class InterfaceQueryLog(BaseModel):
 
 ```
 
+
+
+
+# 管理监控monitor模块
+*需求*
+- 系统运行过程中，需要能够实时知道系统相关的信息，请参考现有的前端代码完后后端的功能实现
+
+*代码位置*
+- 前端：frontend/src/views/monitor/
+
+*开发要求*
+- 后端新建应用monitor,负责对应前端的功能
+- 只需要实现指定的对应功能即可，不要多做
+- 功能实现要求循序渐进，按如下顺序
+  - 服务器信息（server）
+  - 在线用户（online）
+  - 操作日志（log）

@@ -10,9 +10,10 @@ export function list(query) {
 }
 
 // 强退用户
-export function forceLogout(tokenId) {
+export function forceLogout(data) {
   return request({
-    url: '/monitor/online/' + tokenId,
-    method: 'delete'
+    url: '/monitor/online/force-logout',
+    method: 'delete',
+    data: data
   })
 }
