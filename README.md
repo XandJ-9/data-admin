@@ -78,7 +78,7 @@ data-admin/
 
 ### 自动生成目录结构（Python）
 
-```
+```python
 import os
 
 def tree(root, ignore=None):
@@ -108,6 +108,7 @@ if __name__ == '__main__':
   - 所有视图继承 `BaseViewSet / BaseViewMixin`，统一 `ok / error / not_found / raw_response` 输出风格
   - 模型继承 `BaseModel`，提供通用审计字段（`create_by/update_by/create_time/update_time`）、软删除 `del_flag` 等
 - 权限与认证
+  
   - DRF `IsAuthenticated` + 自研 `HasRolePermission`，与前端 RuoYi 菜单/角色联动
 - 数据库执行器（统一抽象）
   - 抽象基类：`apps/dbutils/base.py`

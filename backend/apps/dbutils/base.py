@@ -33,13 +33,10 @@ class DataSourceExecutor:
         self.connect()
         # 基础校验：仅允许查询类语句，禁止执行非查询（如 INSERT/UPDATE/DELETE/DDL）
         _sql = self._check_sql(sql)
-
-        # 自动在 SELECT 语句后追加 LIMIT/OFFSET 以实现简单分页
         paginated = False
         if isinstance(page_size, int) and page_size > 0 and isinstance(offset, int) and offset >= 0:
             if not _sql.lower().startswith(('show', 'describe', 'explain')):
-                _sql = f"{_sql} LIMIT {int(page_size)} OFFSET {int(offset)}"
-                paginated = True
+                _sql, paginated = self.build_pagination_sql(_sql, int(page_size), int(offset))
         cur = self.conn.cursor()
         try:
             cur.execute(_sql, params or [])
@@ -61,6 +58,9 @@ class DataSourceExecutor:
                 return {"columns": [], "rows": []}
         finally:
             cur.close()
+
+    def build_pagination_sql(self, sql, page_size, offset):
+        return sql, False
 
     def list_tables(self):
         raise NotImplementedError

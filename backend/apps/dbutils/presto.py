@@ -13,6 +13,12 @@ class PrestoExecutor(DataSourceExecutor):
         password = self.info.get('password')
         database = str(self.info.get('database') or '')
         params = self.info.get('params') or {}
+        if isinstance(params, str):
+            import json
+            try:
+                params = json.loads(params)
+            except Exception:
+                raise ValueError('Invalid params format, must be a valid JSON string')
         catalog = params.get('catalog')
         schema = params.get('schema')
 
@@ -31,49 +37,45 @@ class PrestoExecutor(DataSourceExecutor):
         self.catalog = catalog
         self.schema = schema
 
-        # 先判断驱动是否安装；未安装直接抛异常
-        use_trino = False
-        trino_mod = None
-        pyhive_presto_mod = None
         try:
-            import trino as _trino
-            trino_mod = _trino
-            use_trino = True
+            self.connect_trino(host, port, user, password, catalog, schema, params)
+            return
         except Exception:
             try:
-                from pyhive import presto as _presto
-                pyhive_presto_mod = _presto
+                self.connect_pyhive(host, port, user, catalog, schema)
+                return
             except Exception:
                 raise RuntimeError('presto/trino driver not installed')
 
-        if use_trino and trino_mod is not None:
-            auth = None
-            if password:
-                try:
-                    BasicAuthentication = getattr(getattr(trino_mod, 'auth', None), 'BasicAuthentication', None)
-                    if BasicAuthentication is not None:
-                        auth = BasicAuthentication(user, password)
-                except Exception:
-                    auth = None
-            self.conn = trino_mod.dbapi.connect(
-                host=host,
-                port=port,
-                user=user,
-                catalog=catalog,
-                schema=schema,
-                http_scheme=params.get('http_scheme', 'http'),
-                auth=auth,
-            )
-            return
-        else:
-            # 使用 PyHive 的 Presto 连接
-            self.conn = pyhive_presto_mod.connect(
-                host=host,
-                port=port,
-                username=user,
-                catalog=catalog,
-                schema=schema,
-            )
+    def connect_trino(self, host, port, user, password, catalog, schema, params):
+        import trino
+        auth = None
+        if password:
+            BasicAuthentication = getattr(getattr(trino, 'auth', None), 'BasicAuthentication', None)
+            if BasicAuthentication is not None:
+                auth = BasicAuthentication(user, password)
+        self.conn = trino.dbapi.connect(
+            host=host,
+            port=port,
+            user=user,
+            catalog=catalog,
+            schema=schema,
+            http_scheme=params.get('http_scheme', 'http'),
+            auth=auth,
+        )
+
+    def connect_pyhive(self, host, port, user, catalog, schema):
+        from pyhive import presto as _presto
+        self.conn = _presto.connect(
+            host=host,
+            port=port,
+            username=user,
+            catalog=catalog,
+            schema=schema,
+        )
+
+    def build_pagination_sql(self, sql, page_size, offset):
+        return f"{sql} LIMIT {int(page_size)} OFFSET {int(offset)}", True
 
     def test_connection(self):
         # 覆盖基础实现：Presto/Trino 连接通常在第一次执行查询时才真正握手

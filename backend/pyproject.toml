@@ -26,7 +26,8 @@ dependencies = [
   "cryptography==43.0.1",
   "pymysql>=1.1.2",
   "psycopg2>=2.9.11",
-  "trino"
+  "trino",
+  "pyhive>=0.7.0",
 ]
 
 [tool.uv]

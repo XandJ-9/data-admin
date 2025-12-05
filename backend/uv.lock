@@ -190,6 +190,7 @@ dependencies = [
     { name = "jsonschema-specifications" },
     { name = "pillow" },
     { name = "psycopg2" },
+    { name = "pyhive" },
     { name = "pyjwt" },
     { name = "pymysql" },
     { name = "pyyaml" },
@@ -217,6 +218,7 @@ requires-dist = [
     { name = "jsonschema-specifications", specifier = "==2025.9.1" },
     { name = "pillow", specifier = "==12.0.0" },
     { name = "psycopg2", specifier = ">=2.9.11" },
+    { name = "pyhive", specifier = ">=0.7.0" },
     { name = "pyjwt", specifier = "==2.10.1" },
     { name = "pymysql", specifier = ">=1.1.2" },
     { name = "pyyaml", specifier = "==6.0.3" },
@@ -310,6 +312,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3e/85/f143316a3762bc3c3d99a81d1999aff637bd849326e7cf3eeec762adb23d/drf-spectacular-0.27.1.tar.gz", hash = "sha256:452e0cff3c12ee057b897508a077562967b9e62717992eeec10e62dbbc7b5a33", size = 232871, upload-time = "2024-01-18T19:58:35.284Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4b/13/c2b24ed6757b83c9263fc8d4e563b375d6da22bd54a2d22e8898273a2ef9/drf_spectacular-0.27.1-py3-none-any.whl", hash = "sha256:0a4cada4b7136a0bf17233476c066c511a048bc6a485ae2140326ac7ba4003b2", size = 102073, upload-time = "2024-01-18T19:58:32.629Z" },
+]
+
+[[package]]
+name = "future"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a7/b2/4140c69c6a66432916b26158687e821ba631a4c9273c474343badf84d3ba/future-1.0.0.tar.gz", hash = "sha256:bd2968309307861edae1458a4f8a4f3598c03be43b97521076aebf5d94c07b05", size = 1228490, upload-time = "2024-02-21T11:52:38.461Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/71/ae30dadffc90b9006d77af76b393cb9dfbfc9629f339fc1574a1c52e6806/future-1.0.0-py3-none-any.whl", hash = "sha256:929292d34f5872e70396626ef385ec22355a1fae8ad29e1a734c3e43f9fbc216", size = 491326, upload-time = "2024-02-21T11:52:35.956Z" },
 ]
 
 [[package]]
@@ -538,6 +549,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/fe/cf/d2d3b9f5699fb1e46
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/e3/59cd50310fc9b59512193629e1984c1f95e5c8ae6e5d8c69532ccc65a7fe/pycparser-2.23-py3-none-any.whl", hash = "sha256:e5c6e8d3fbad53479cab09ac03729e0a9faf2bee3db8208a550daf5af81a5934", size = 118140, upload-time = "2025-09-09T13:23:46.651Z" },
 ]
+
+[[package]]
+name = "pyhive"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "future" },
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f6/ec/5c658b3a4d99a6d9145030cc8e003c3f7efc668d866e88544812ab0af310/PyHive-0.7.0.tar.gz", hash = "sha256:585beff9578a61b99aed47140fec97e26323e8c685a5b5d0c8550a8ebf8a24e0", size = 46479, upload-time = "2023-08-17T23:29:25.26Z" }
 
 [[package]]
 name = "pyjwt"
