@@ -1,120 +1,116 @@
-# 项目结构说明
+# RuoYi Django 全栈项目介绍
 
-## 一、总体概览
-该仓库是一个前后端分离的 Web 应用，包含两个主要子项目：
-- `backend/`：后端（Django）项目
-- `frontend/`：前端（Vue 3 + Vite）应用（RuoYi 前端）
+## 概览
+- 前后端分离的管理系统：后端 `Django + DRF + SimpleJWT`，前端 `Vue 3 + Vite + Element Plus`。
+- 根目录包含两个子项目：`backend/` 与 `frontend/`，均可独立开发与运行。
+- 提供统一的接口返回格式，内置分页、异常包装、角色权限与菜单路由生成，兼容 RuoYi 前端。
 
-仓库根目录还包含一些全局或辅助文件，如数据库文件、顶层 README、虚拟环境目录等。
+## 目录结构（关键项）
+- `backend/`：后端 Django 项目
+  - `config/`：项目配置（`settings.py`、`urls.py`、`wsgi.py`、`asgi.py`）
+  - `apps/system/`：系统业务模块（用户、角色、部门、菜单、字典、配置）
+  - `manage.py`：管理命令入口
+  - `requirements.txt`、`pyproject.toml`：依赖与元信息
+- `frontend/`：前端应用（RuoYi Vue 3）
+  - `src/`：业务源码（`views/`、`components/`、`api/`、`store/`、`utils/`）
+  - `.env.*`：环境变量（`VITE_APP_BASE_API` 等）
+  - `package.json`：脚本与依赖
+- `README.md`：当前说明文档
 
-根目录（部分）
-- `.git/`, `.gitignore`
-- `.python-version`, `.venv/`（存在）
-- `db.sqlite3`（SQLite 数据库文件，位于根或 backend 下）
-- `backend/`（后端 Django 项目）
-- `frontend/`（前端 Vue + Vite 项目）
-- 以及若干顶级配置或文档文件（如根 README）
+## 后端说明[backend/README.md]
+- 框架与配置
+  - 认证：`JWT`（`rest_framework_simplejwt`），见 `backend/config/settings.py`。
+  - 异常处理：统一包装为 `{code, message}`，见 `backend/apps/system/exceptions.py`。
+  - 分页：页码 `pageNum`，大小 `pageSize`，见 `backend/apps/system/pagination.py`。
+  - 用户模型：自定义 `AUTH_USER_MODEL = 'system.User'`，见 `backend/config/settings.py`。
+- URL 与文档
+  - 根 URL 配置见 `backend/config/urls.py`：接口前缀为 `/api/`；内置 `OpenAPI` 与 `Swagger` 文档：`/api/schema/`、`/api/docs/`。
+- 认证与会话
+  - 登录：`POST /api/login`（返回 `token`），逻辑在 `LoginView`，见 `backend/apps/system/views/core.py`。
+  - 验证码：`GET /api/captchaImage/`，见 `backend/apps/system/views/core.py`。
+  - 当前用户信息：`GET /api/getInfo`（含 `roles`/`permissions`），见 `backend/apps/system/views/core.py`。
+  - 登出：`POST /api/logout`，见 `backend/apps/system/views/core.py`。
+  - 菜单路由：`GET /api/getRouters`，后端按 `Menu` 构建树并输出路由，见 `backend/apps/system/views/core.py`。
+- 权限控制
+  - 角色权限类 `HasRolePermission` 支持在视图设置 `required_roles`，并自动放行拥有 `admin` 的用户，见 `backend/apps/system/permission.py`。
+- 通用视图基类
+  - `BaseViewSet` 封装列表、详情、创建、更新、软删除、集合更新（PUT 无主键），统一返回格式，见 `backend/apps/system/views/core.py`。
 
-## 二、后端（backend）
-路径：`backend/`
+## 业务模型（apps/system/models.py）
+- 用户 `User`：扩展 `AbstractUser`，含 `nick_name`、`phonenumber`、`sex`、`avatar`、`status`、`dept_id` 等，见 `backend/apps/system/models.py`。
+- 部门 `Dept`：树形结构，字段 `parent_id`、`order_num`、`status` 等，见 `backend/apps/system/models.py`。
+- 角色 `Role`：`role_key`、`data_scope`、`status` 等，见 `backend/apps/system/models.py`。
+- 用户-角色 `UserRole`：用户与角色绑定，见 `backend/apps/system/models.py`。
+- 菜单 `Menu`：用于前端路由与权限标识，见 `backend/apps/system/models.py`。
+- 角色-菜单 `RoleMenu`：角色与菜单绑定，见 `backend/apps/system/models.py`。
+- 字典类型 `DictType` 与字典数据 `DictData`：配置枚举与选项，见 `backend/apps/system/models.py`、`backend/apps/system/models.py`。
+- 参数配置 `Config`：系统配置键值，见 `backend/apps/system/models.py`。
 
-主要内容（已观察到）
-- `manage.py`、`main.py`
-- `pyproject.toml`：项目元信息（显示 name = "backend", Python >= 3.12）
-- `requirements.txt`：列出后端运行时依赖（包括 Django 5.2.8、djangorestframework、asgiref、sqlparse、tzdata 等）
-- `db.sqlite3`（位于 backend 根或仓库根）
-- `config/`：Django 应用或项目目录（包含 `settings.py`, `urls.py`, `wsgi.py`, `asgi.py` 等）
-- `system/`：Django app（包含 `models.py`, `views.py`, `serializers.py`, `urls.py` 等）
-- `migrations/`：数据库迁移文件
+## API 资源与路由（`/api/system/`）
+- 路由注册见 `backend/apps/system/urls.py`：`user`、`menu`、`role`、`dept`、`dict/type`、`dict/data`、`config`。
+- 用户 `UserViewSet`，见 `backend/apps/system/views/user.py`
+  - 列表/详情/增删改，支持条件过滤（用户名、手机号、状态、部门、时间范围）。
+  - 操作：`PUT /user/resetPwd`、`PUT /user/changeStatus`、`GET /user/deptTree`、`GET /user/profile`、`PUT /user/updateProfile`、`PUT /user/updatePwd`、`POST /user/avatar`、`GET /user/authRole/{userId}`、`PUT /user/authRole`。
+- 角色 `RoleViewSet`，见 `backend/apps/system/views/role.py`
+  - 列表/详情/增删改，支持条件过滤（角色名、权限键、状态、时间范围）。
+  - 操作：`PUT /role/changeStatus`、`PUT /role/dataScope`、`GET /role/deptTree/{roleId}`、`GET /role/authUser/allocatedList`、`GET /role/authUser/unallocatedList`、`PUT /role/authUser/cancel`、`PUT /role/authUser/cancelAll`、`PUT /role/authUser/selectAll`。
+- 菜单 `MenuViewSet`，见 `backend/apps/system/views/menu.py`
+  - 列表/详情/增删改，支持条件过滤（菜单名、状态）。
+  - 操作：`GET /menu/treeselect`、`GET /menu/roleMenuTreeselect/{roleId}`。
+- 部门 `DeptViewSet`，见 `backend/apps/system/views/dept.py`
+  - 列表/详情/增删改，支持条件过滤（部门名、状态）。
+  - 操作：`GET /dept/list/exclude/{deptId}`。
+- 字典类型 `DictTypeViewSet` 与字典数据 `DictDataViewSet`，见 `backend/apps/system/views/dict.py`、`backend/apps/system/views/dict.py`
+  - 列表/详情/增删改，带缓存：`GET /dict/type/optionselect`、`DELETE /dict/type/refreshCache`、`GET /dict/data/type/{dictType}`。
+- 参数配置 `ConfigViewSet`，见 `backend/apps/system/views/config.py`
+  - 列表/详情/增删改，缓存 `config:{configKey}`，`GET /config/configKey/{configKey}`、`DELETE /config/refreshCache`。
+- 集合更新（前端兼容 PUT 无主键）：如 `PUT /system/menu` 等已在 `backend/apps/system/urls.py` 显式兼容。
 
-技术栈 & 要点
-- Python（pyproject 标明 requires-python >= 3.12）
-- Django 5.x（通过 `requirements.txt`）
-- Django REST framework 用于 API
-- SQLite 数据库（开发/示例用）
+## 初始化数据（推荐）
+- 提供管理命令一键初始化菜单、角色、用户与绑定，见 `backend/apps/system/management/commands/init_system.py`。
+- 运行：
+  ```powershell
+  cd backend
+  python manage.py migrate
+  python manage.py init_system
+  ```
+- 默认账号：`admin/admin123`、`test/test123`（如首次初始化），见 `backend/apps/system/management/commands/init_system.py`。
 
-常用运行/开发命令（在 `cmd.exe` 环境下）
-1. 创建或激活虚拟环境（示例）
-   - python -m venv .venv
-   - .venv\Scripts\activate
-2. 安装依赖
-   - pip install -r backend\requirements.txt
-3. 运行数据库迁移
-   - python backend\manage.py migrate
-4. 启动开发服务器
-   - python backend\manage.py runserver 0.0.0.0:8000
+## 前端说明[frontend/README.md]
+- 环境变量：`
+  frontend/.env.development` 使用 `VITE_APP_BASE_API='/dev-api'`（见 `frontend/.env.development`）。构建产物可通过后端静态目录提供或独立部署。
+- 启动开发：
+  ```powershell
+  cd frontend
+  npm install
+  npm run dev
+  ```
+- 前端请求基址读取 `VITE_APP_BASE_API`，统一在 `axios` 实例中设置，见 `frontend/src/utils/request.js`。
 
-备注
-- `backend/README.md` 文件存在但为空（没有启动或配置说明）。
-- `pyproject.toml` 中仅有基本信息，依赖主要由 `requirements.txt` 管理。
+## 本地运行（建议顺序）
+- 后端（8000）
+  ```powershell
+  cd backend
+  python -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt
+  python manage.py migrate
+  python manage.py init_system  # 可选，初始化数据
+  python manage.py runserver 0.0.0.0:8000
+  ```
+- 前端（默认 5173）
+  ```powershell
+  cd frontend
+  npm install
+  npm run dev
+  ```
+- 接口文档：浏览器访问 `http://localhost:8000/api/docs/` 查看接口与模型。
 
-## 三、前端（frontend）
-路径：`frontend/`
+## 设计要点与约定
+- 统一返回：`{ code, msg, data | rows, total }`，前端在 `frontend/src/utils/request.js` 处按 `code` 处理。
+- 软删除：所有业务模型包含 `del_flag` 字段，删除走软删除，见 `backend/apps/system/models.py` 与 `BaseViewSet.destroy`。
+- 路由生成：菜单 `Menu` 的树形结构映射为前端路由，见 `backend/apps/system/views/core.py`。
+- 权限模型：基于角色 `role_key` 与菜单 `perms`，视图可指定 `required_roles` 做粗粒度控制。
 
-主要内容（已观察到）
-- `index.html`：入口 HTML（加载 `/src/main.js`）
-- `package.json`：项目元数据与依赖（该前端基于 RuoYi）
-  - 依赖（部分）：Vue 3, Element Plus, axios, pinia, vue-router, echarts 等
-  - 开发依赖：vite, @vitejs/plugin-vue, unplugin-auto-import 等
-  - 脚本（部分）：`dev`（vite）、`build:prod`、`build:stage`、`preview`
-- `src/`：前端源码（包含 `App.vue`, `main.js`, `views/`, `components/`, `api/`, `utils/` 等）
-- `public/`, `html/`, `bin/`（包含构建、运行脚本：`bin\\run-web.bat`, `bin\\build.bat` 等）
-- `vite/`：Vite 插件或配置片段
-- `LICENSE`、`README.md`（README 非空，包含大量 RuoYi 文档）
-
-技术栈 & 要点
-- Vue 3 + Vite + Element Plus
-- Pinia 用于状态管理
-- 项目显然是基于开源 RuoYi 前端模版（RuoYi v3.9.0）
-- 构建工具：Vite
-
-常用运行/开发命令（在 `cmd.exe` 环境下）
-1. 安装依赖
-   - npm install
-   或（如果你偏好 yarn）
-   - yarn
-2. 启动开发服务器
-   - npm run dev
-   或
-   - yarn dev
-3. 构建（生产/测试）
-   - npm run build:prod
-   - npm run build:stage
-
-备注
-- `frontend/README.md` 包含 RuoYi 使用与启动说明（建议参照其中步骤）。
-- `bin\\run-web.bat` 可用于在 Windows 环境下快速启动前端（检查该脚本以确认具体 command）。
-
-## 四、关键文件与作用（快速索引）
-- `backend/manage.py`：Django 管理命令入口（运行服务器、迁移等）
-- `backend/pyproject.toml`：项目元信息（Python 版本等）
-- `backend/requirements.txt`：后端依赖
-- `backend/config/`：Django 项目配置（settings, urls）
-- `backend/system/`：业务 app（models/serializers/views）
-- `frontend/package.json`：前端依赖与脚本
-- `frontend/index.html`：前端入口 HTML（Vite dev server 会提供）
-- `bin/*.bat`：项目提供的 Windows 批处理脚本（构建/运行等）
-
-## 五、本地运行
-在 Windows（cmd.exe）上
-1. 后端（Python/Django）
-   - cd backend
-   - python -m venv .venv
-   - .venv\Scripts\activate
-   - pip install -r requirements.txt
-   - python manage.py migrate
-   - python manage.py runserver 0.0.0.0:8000
-2. 前端（Vite）
-   - cd frontend
-   - npm install
-   - npm run dev
-3. 在开发阶段，前端通常会在默认端口（如 5173）运行，后端在 8000。根据前端配置，可能需要调整代理或环境变量以正确调用后端 API。
-
-## 六、注意事项与建议
-- 后端 `pyproject.toml` 声明 Python >=3.12，请使用匹配版本的 Python 环境。
-- 前端基于 RuoYi，建议参考其官方文档以了解更多功能与配置选项。
-- `backend/pyproject.toml`：项目名 backend，requires-python = ">=3.12"
-- `backend/requirements.txt`：asgiref==3.10.0, Django==5.2.8, djangorestframework==3.16.1, sqlparse==0.5.3, tzdata==2025.2
-- `frontend/package.json`：Vue 3、Element Plus、Vite 等依赖；脚本：`dev`, `build:prod`, `build:stage`, `preview`
-- `frontend/index.html`：Vite + SPA 入口，加载 `/src/main.js`，标题 “若依管理系统”
+如需扩展业务模块，可在 `apps/` 下新增应用，并在 `config/urls.py` 注册路由；保持统一返回格式与异常处理，前端即可无缝对接。
 
