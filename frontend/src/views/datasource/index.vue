@@ -170,7 +170,7 @@ const title = ref('')
 const dbTypeOptions = ref([
   { value: 'mysql', label: 'MySQL' },
   { value: 'postgres', label: 'PostgreSQL' },
-  { value: 'sqlite', label: 'SQLite' },
+//   { value: 'sqlite', label: 'SQLite' },
   { value: 'presto', label: 'Presto' },
   { value: 'trino', label: 'Trino' },
   { value: 'starrocks', label: 'StarRocks' },
