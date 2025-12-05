@@ -45,7 +45,8 @@ class User(AbstractUser, BaseModel):
     status = models.CharField(max_length=1, choices=(('0', 'Active'), ('1', 'Inactive')), default='0', verbose_name="Status")
     remark = models.CharField(max_length=500, blank=True, null=True, verbose_name="Remark")
     dept_id = models.IntegerField(null=True, blank=True, verbose_name="Department ID")
-    
+    first_name = None
+    last_name = None
 
     class Meta:
         db_table = 'sys_user'
@@ -104,6 +105,7 @@ class Menu(BaseModel):
     order_num = models.IntegerField(default=0, verbose_name='显示顺序')
     path = models.CharField(max_length=200, blank=True, default='', verbose_name='路由地址')
     component = models.CharField(max_length=200, blank=True, default='', verbose_name='组件路径')
+    route_name = models.CharField(max_length=200, blank=True, default='', verbose_name='路由名称')
     query = models.CharField(max_length=255, blank=True, default='', verbose_name='路由参数')
     is_frame = models.CharField(max_length=1, choices=[('0', '是'), ('1', '否')], default='1', verbose_name='是否外链')
     is_cache = models.CharField(max_length=1, choices=[('0', '缓存'), ('1', '不缓存')], default='0', verbose_name='是否缓存')

@@ -31,7 +31,7 @@
 
 ## REST 与返回规范
 
-- 统一响应格式（基于 BaseViewSet 封装）
+- 统一响应格式
   ```python
       # 通用响应封装
     def ok(self, msg='操作成功'):

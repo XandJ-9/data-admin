@@ -1,3 +1,4 @@
+from typing_extensions import Required
 from rest_framework import serializers
 from .models import User, Dept, Role, UserRole, Menu, DictType, DictData, Config
 from .common import snake_to_camel
@@ -239,6 +240,7 @@ class MenuCreateSerializer(serializers.Serializer):
     orderNum = serializers.IntegerField(required=False, default=0)
     path = serializers.CharField(required=False, allow_blank=True, default='')
     component = serializers.CharField(required=False, allow_blank=True, default='')
+    routeName = serializers.CharField(required=False, allow_blank=True, default='')
     query = serializers.CharField(required=False, allow_blank=True, default='')
     isFrame = serializers.ChoiceField(choices=['0','1'], default='1')
     isCache = serializers.ChoiceField(choices=['0','1'], default='0')
@@ -257,19 +259,20 @@ class MenuSerializer(BaseModelSerializer):
     parentId = serializers.IntegerField(source='parent_id')
     menuName = serializers.CharField(source='menu_name')
     orderNum = serializers.IntegerField(source='order_num')
-    path = serializers.CharField()
+    path = serializers.CharField(required=False, allow_blank=True, default='')
     component = serializers.CharField(allow_blank=True)
+    routeName = serializers.CharField(source='route_name', allow_blank=True)
     query = serializers.CharField(allow_blank=True)
     isFrame = serializers.CharField(source='is_frame')
     isCache = serializers.CharField(source='is_cache')
     menuType = serializers.CharField(source='menu_type')
-    visible = serializers.CharField()
+    visible = serializers.CharField(required=False, default='0')
     perms = serializers.CharField(allow_blank=True)
     icon = serializers.CharField(allow_blank=True)
 
     class Meta:
         model = Menu
-        fields = ['menuId', 'parentId', 'menuName', 'orderNum', 'path', 'component', 'query', 'isFrame',
+        fields = ['menuId', 'parentId', 'menuName', 'orderNum', 'path', 'component', 'routeName', 'query', 'isFrame',
                   'isCache', 'menuType', 'visible', 'perms', 'icon']
 
 # DictType related

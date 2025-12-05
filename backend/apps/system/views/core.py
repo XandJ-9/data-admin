@@ -44,8 +44,8 @@ class LoginView(TokenObtainPairView):
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
-        except Exception:
-            return Response({'msg': '用户名或密码错误'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'msg': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'token': serializer.validated_data.get('access')})
 
 
@@ -99,9 +99,9 @@ class GetRoutersView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cached = cache.get('routers')
-        if cached is not None:
-            return Response({"code": 200, "msg": "操作成功", "data": cached})
+        # cached = cache.get('routers')
+        # if cached is not None:
+        #     return Response({"code": 200, "msg": "操作成功", "data": cached})
         menus = list(Menu.objects.filter(status='0', del_flag='0').order_by('parent_id', 'order_num'))
 
         def build_tree(items, pid=0):
@@ -132,7 +132,7 @@ class GetRoutersView(generics.GenericAPIView):
                     "component": "Layout" if m.parent_id == 0 else "ParentView",
                     "hidden": hidden,
                     "alwaysShow": True,
-                    "name": m.menu_name.replace('-', '').replace('_', ''),
+                    "name": m.route_name or None,
                     "meta": meta
                 }
                 route["children"] = [r for r in [to_router(c) for c in children] if r is not None]
@@ -143,14 +143,14 @@ class GetRoutersView(generics.GenericAPIView):
                         "path": m.path,
                         "component": "InnerLink",
                         "hidden": hidden,
-                        "name": m.menu_name.replace('-', '').replace('_', ''),
+                        "name": m.route_name or None,
                         "meta": meta
                     }
                 return {
                     "path": m.path or ("/" + str(m.menu_id)),
                     "component": m.component or "Layout",
                     "hidden": hidden,
-                    "name": m.menu_name.replace('-', '').replace('_', ''),
+                    "name": m.route_name or None,
                     "meta": meta
                 }
             else:
@@ -158,11 +158,29 @@ class GetRoutersView(generics.GenericAPIView):
 
         tree = build_tree(menus, 0)
         routers = [r for r in [to_router(n) for n in tree] if r is not None]
-        cache.set('routers', routers, timeout=3600)
+        # cache.set('routers', routers, timeout=3600)
         return Response({"code": 200, "msg": "操作成功", "data": routers})
 
 
-class BaseViewSet(viewsets.ModelViewSet):
+class BaseViewMixin:
+    # 通用响应封装
+    def ok(self, msg='操作成功'):
+        return Response({'code': 200, 'msg': msg})
+
+    def error(self, msg='操作失败'):
+        return Response({'code': 400, 'msg': msg})
+    
+    def data(self, data, msg='操作成功'):
+        return Response({'code': 200, 'msg': msg, 'data': data})
+
+    def not_found(self, msg='未找到'):
+        return Response({'code': 404, 'msg': msg})
+    
+    def raw_response(self, data):
+        return Response(data)
+
+
+class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
     required_roles = None
     # 兼容前端 PUT /xxx（集合更新）通用支持
     update_body_serializer_class = None  # 子类设置：用于校验请求体
@@ -177,22 +195,6 @@ class BaseViewSet(viewsets.ModelViewSet):
             except Exception:
                 pass
         return qs
-
-    # 通用响应封装
-    def ok(self, msg='操作成功'):
-        return Response({'code': 200, 'msg': msg})
-
-    def error(self, msg='操作失败'):
-        return Response({'code': 400, 'msg': msg}, status=status.HTTP_400_BAD_REQUEST)
-    
-    def data(self, data, msg='操作成功'):
-        return Response({'code': 200, 'msg': msg, 'data': data})
-
-    def not_found(self, msg='未找到'):
-        return Response({'code': 404, 'msg': msg}, status=status.HTTP_404_NOT_FOUND)
-    
-    def raw_response(self, data):
-        return Response(data)
     
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -243,11 +245,38 @@ class BaseViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = getattr(self.request, 'user', None)
         kwargs = {}
-        if hasattr(serializer.Meta.model, 'create_by') and user and getattr(user, 'username', None):
+        Model = getattr(serializer.Meta, 'model', None)
+        if hasattr(Model, 'create_by') and user and getattr(user, 'username', None):
             kwargs['create_by'] = user.username
-        if hasattr(serializer.Meta.model, 'update_by') and user and getattr(user, 'username', None):
+        if hasattr(Model, 'update_by') and user and getattr(user, 'username', None):
             kwargs['update_by'] = user.username
-        serializer.save(**kwargs)
+
+        instance = None
+        try:
+            data = getattr(serializer, 'validated_data', {})
+            if Model is not None:
+                pk_name = Model._meta.pk.attname
+                lookup = {}
+                if pk_name in data:
+                    lookup[pk_name] = data.get(pk_name)
+                else:
+                    # 尝试使用唯一字段匹配
+                    for f in Model._meta.fields:
+                        if getattr(f, 'unique', False) and f.attname in data:
+                            lookup[f.attname] = data.get(f.attname)
+                            break
+                if lookup:
+                    instance = Model.objects.filter(**lookup).first()
+        except Exception:
+            instance = None
+
+        if instance is not None:
+            serializer.instance = instance
+            if hasattr(Model, 'del_flag'):
+                kwargs['del_flag'] = '0'
+            serializer.save(**kwargs)
+        else:
+            serializer.save(**kwargs)
 
     def perform_update(self, serializer):
         user = getattr(self.request, 'user', None)
@@ -268,7 +297,6 @@ class BaseViewSet(viewsets.ModelViewSet):
             return Response({'code': 404, 'msg': '未实现集合更新'}, status=status.HTTP_404_NOT_FOUND)
         v = vcls(data=request.data)
         v.is_valid(raise_exception=True)
-        print(v.validated_data)
         obj_id = v.validated_data.get(id_field)
         Model = self.get_queryset().model
         try:
