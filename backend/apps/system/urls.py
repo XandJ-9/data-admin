@@ -26,9 +26,9 @@ urlpatterns = [
     path('system/user', UserViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='user-update-body'),
     path('system/role', RoleViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='role-update-body'),
     path('system/dept', DeptViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='dept-update-body'),
-    path('system/config', ConfigViewSet.as_view({'put': 'update_by_body'}), name='config-update-body'),
-    path('system/dict/type', DictTypeViewSet.as_view({'put': 'update_by_body'}), name='dict-type-update-body'),
-    path('system/dict/data', DictDataViewSet.as_view({'put': 'update_by_body'}), name='dict-data-update-body'),
+    path('system/config', ConfigViewSet.as_view({'put': 'update_by_body','post': 'create'}), name='config-update-body'),
+    path('system/dict/type', DictTypeViewSet.as_view({'put': 'update_by_body', 'post': 'create'}), name='dict-type-update-body'),
+    path('system/dict/data', DictDataViewSet.as_view({'put': 'update_by_body', 'post': 'create'}), name='dict-data-update-body'),
 
     # 其余 REST 路由
     path('system/', include(router.urls)),

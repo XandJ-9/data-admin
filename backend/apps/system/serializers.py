@@ -282,7 +282,7 @@ class DictTypeQuerySerializer(PaginationQuerySerializer):
     status = serializers.ChoiceField(required=False, choices=['0','1'])
 
 class DictTypeSerializer(BaseModelSerializer):
-    dictId = serializers.IntegerField(source='dict_id')
+    dictId = serializers.IntegerField(source='dict_id', required=False)
     dictName = serializers.CharField(source='dict_name')
     dictType = serializers.CharField(source='dict_type')
 
@@ -297,7 +297,7 @@ class DictDataQuerySerializer(PaginationQuerySerializer):
     status = serializers.ChoiceField(required=False, choices=['0','1'])
 
 class DictDataSerializer(BaseModelSerializer):
-    dictCode = serializers.IntegerField(source='dict_code')
+    dictCode = serializers.IntegerField(source='dict_code', required=False)
     dictSort = serializers.IntegerField(source='dict_sort')
     dictLabel = serializers.CharField(source='dict_label')
     dictValue = serializers.CharField(source='dict_value')
