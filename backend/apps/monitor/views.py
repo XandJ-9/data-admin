@@ -291,10 +291,11 @@ class OperLogViewSet(BaseViewSet):
     def clean(self, request, *args, **kwargs):
         try:
             Model = self.get_queryset().model
-            if hasattr(Model, 'del_flag'):
-                Model.objects.update(del_flag='1')
-            else:
-                Model.objects.all().delete()
+            Model.objects.all().delete()  # 直接删除所有数据，不考虑软删除
+            # if hasattr(Model, 'del_flag'):
+            #     Model.objects.update(del_flag='1')
+            # else:
+            #     Model.objects.all().delete()
             return self.ok('操作成功')
         except Exception:
             return self.error('清空失败')

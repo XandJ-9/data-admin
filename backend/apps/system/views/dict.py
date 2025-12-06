@@ -46,7 +46,7 @@ class DictTypeViewSet(BaseViewSet):
         qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
         data = self.get_serializer(qs, many=True).data
         cache.set(cache_key, data, timeout=3600)
-        return Response({'code': 200, 'msg': '操作成功'})
+        return self.ok()
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -62,7 +62,8 @@ class DictTypeViewSet(BaseViewSet):
             qs = DictData.objects.filter(dict_type=t, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
             data = DictDataSerializer(qs, many=True).data
             cache.set(cache_key, data, timeout=3600)
-        return Response({'code': 200, 'msg': '操作成功'})
+        return self.ok()
+
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -74,22 +75,22 @@ class DictTypeViewSet(BaseViewSet):
         qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
         data = self.get_serializer(qs, many=True).data
         cache.set(cache_key, data, timeout=3600)
-        return Response({'code': 200, 'msg': '操作成功'})
+        return self.ok()
 
     @action(detail=False, methods=['delete'], url_path='refreshCache')
     def refreshCache(self, request):
         cache.delete('dict_optionselect')
-        return Response({'code': 200, 'msg': '操作成功'})
+        return self.ok()
 
     @action(detail=False, methods=['get'], url_path='optionselect')
     def optionselect(self, request):
         cached = cache.get('dict_optionselect')
         if cached is not None:
-            return Response({'code': 200, 'msg': '操作成功', 'data': cached})
+            return self.data(data=cached)
         qs = DictType.objects.filter(status='0', del_flag='0').order_by('dict_name')
         data = [{'dictId': d.dict_id, 'dictName': d.dict_name, 'dictType': d.dict_type} for d in qs]
         cache.set('dict_optionselect', data, timeout=300)
-        return Response({'code': 200, 'msg': '操作成功', 'data': data})
+        return self.data(data=data)
 
 
 class DictDataViewSet(BaseViewSet):
@@ -122,18 +123,24 @@ class DictDataViewSet(BaseViewSet):
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(qs, many=True)
-        return Response({'code': 200, 'msg': '操作成功', 'rows': serializer.data, 'total': len(serializer.data)})
+        return self.raw_response({'code': 200, 'msg': '操作成功', 'rows': serializer.data, 'total': len(serializer.data)})
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         data = self.get_serializer(instance).data
-        return Response({'code': 200, 'msg': '操作成功', 'data': data})
+        return self.data(data=data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({'code': 200, 'msg': '操作成功'})
+        # 刷新对应类型缓存
+        dict_type = serializer.validated_data["dict_type"]
+        cache_key = f'dict_data_by_type:{dict_type}'
+        qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
+        data = self.get_serializer(qs, many=True).data
+        cache.set(cache_key, data, timeout=3600)
+        return self.ok()
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
@@ -141,13 +148,19 @@ class DictDataViewSet(BaseViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({'code': 200, 'msg': '操作成功'})
+        return self.ok()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         instance.del_flag = '1'
         instance.save(update_fields=['del_flag'])
-        return Response({'code': 200, 'msg': '操作成功'})
+        # 刷新对应类型缓存
+        dict_type = instance.dict_type
+        cache_key = f'dict_data_by_type:{dict_type}'
+        qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
+        data = self.get_serializer(qs, many=True).data
+        cache.set(cache_key, data, timeout=3600)
+        return self.ok()
 
     @action(detail=False, methods=['get'], url_path='list')
     def list_action(self, request):
@@ -158,9 +171,10 @@ class DictDataViewSet(BaseViewSet):
     def by_type(self, request, dict_type=None):
         cache_key = f'dict_data_by_type:{dict_type}'
         cached = cache.get(cache_key)
+        print(f'cache_key: {cache_key}, cached: {cached}')
         if cached is not None:
-            return Response({'code': 200, 'msg': '操作成功', 'data': cached})
+            return self.data(data=cached)
         qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')
         serializer = self.get_serializer(qs, many=True)
         cache.set(cache_key, serializer.data, timeout=3600)
-        return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
+        return self.data(data=serializer.data)
