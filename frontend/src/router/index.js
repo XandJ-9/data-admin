@@ -84,6 +84,33 @@ export const constantRoutes = [
       }
     ]
   },
+  {
+    path: '/dataintegration',
+    component: Layout,
+    redirect: '/dataintegration/home',
+    meta: { title: '数据集成', icon: 'link' },
+    children: [
+      {
+        path: 'home',
+        name: 'DataIntegrationHome',
+        component: () => import('@/views/dataintegration/index.vue'),
+        meta: { title: '数据集成首页', icon: 'guide' }
+      },
+      {
+        path: 'tasks',
+        name: 'DataIntegrationTasks',
+        component: () => import('@/views/dataintegration/taskList.vue'),
+        meta: { title: '同步任务列表', icon: 'list' }
+      },
+      {
+        path: 'task/:id',
+        name: 'DataIntegrationTaskDetail',
+        component: () => import('@/views/dataintegration/taskDetail.vue'),
+        meta: { title: '任务详情', icon: 'edit' },
+        hidden: true
+      }
+    ]
+  },
 ]
 
 // 动态路由，基于用户权限动态去加载

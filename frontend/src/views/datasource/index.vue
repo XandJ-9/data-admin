@@ -2,7 +2,7 @@
 <template>
   <div class="app-container">
     <!-- 搜索栏 -->
-    <el-form :model="queryParams" ref="queryRef" :inline="true">
+    <el-form :model="queryParams" ref="queryRef" :inline="true" v-if="showSearch">
       <el-form-item label="数据源名称" prop="dataSourceName">
         <el-input v-model="queryParams.dataSourceName" placeholder="请输入数据源名称" clearable style="width: 200px" @keyup.enter="handleQuery" />
       </el-form-item>
@@ -35,7 +35,7 @@
       </el-col>
       <right-toolbar
         :showSearch="showSearch"
-        @update:showSearch="val => (showSearch = val)"
+        @update:showSearch="val => showSearch = val"
         @queryTable="getList"
       ></right-toolbar>
     </el-row>

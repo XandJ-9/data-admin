@@ -2,7 +2,7 @@
 <template>
   <div class="app-container">
     <!-- 搜索栏 -->
-    <el-form :model="queryParams" ref="queryRef" :inline="true">
+    <el-form v-if="showSearch" :model="queryParams" ref="queryRef" :inline="true">
       <el-form-item label="接口名称" prop="interfaceName">
         <el-input v-model="queryParams.interfaceName" placeholder="请输入接口名称" clearable style="width: 200px" @keyup.enter="handleQuery" />
       </el-form-item>
