@@ -14,6 +14,7 @@ from .serializers import (
     InterfaceFieldSerializer, InterfaceFieldUpdateSerializer,
 )
 from .models import InterfaceInfo, InterfaceField
+from .custom import make_interface_workbook
 
 from apps.dbutils.factory import get_executor
 from django.template import Template, Context
@@ -195,6 +196,7 @@ class InterfaceInfoViewSet(BaseViewSet):
         if db_type:
             qs = qs.filter(interface_db_type=db_type)
         return qs.order_by('-create_time')
+
     @action(detail=True, methods=['post'], url_path='execute')
     def execute_by_id(self, request, pk=None, execute_type='1'):
         try:
@@ -253,6 +255,22 @@ class InterfaceInfoViewSet(BaseViewSet):
         filename = f"interface_{pk}_export.csv"
         resp = self.csv_response(columns, rows, filename, bom=False)
         return resp
+
+    @action(detail=True, methods=['get'], url_path='export-meta')
+    def export_meta(self, request, pk=None):
+        # 使用样式化 Excel 生成器导出接口定义（基本信息 + 字段列表）
+        try:
+            interface = InterfaceInfo.objects.get(id=pk, del_flag='0')
+        except InterfaceInfo.DoesNotExist:
+            return self.not_found('接口不存在')
+
+        fields = InterfaceField.objects.filter(interface=interface, del_flag='0').order_by('interface_para_position')
+
+        wb = make_interface_workbook(interface, list(fields))
+
+        import datetime
+        filename = f"interface_meta_{pk}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return self.excel_response(filename, wb)
 
 
 class InterfaceFieldViewSet(BaseViewSet):

@@ -44,7 +44,9 @@
                @click="toggleExpandAll"
             >展开/折叠</el-button>
          </el-col>
-         <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
+         <right-toolbar :showSearch="showSearch" 
+         @update:showSearch="(val) => showSearch = val"
+         @queryTable="getList"></right-toolbar>
       </el-row>
 
       <el-table

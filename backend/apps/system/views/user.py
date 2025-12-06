@@ -131,7 +131,7 @@ class UserViewSet(BaseViewSet):
         serializer.save()
         return self.ok('个人信息修改成功')
     
-    @action(detail=False, methods=['put'])
+    @action(detail=False, methods=['put'], url_path=r'profile/updatePwd')
     @audit_log
     def updatePwd(self, request):
         v = UpdatePwdSerializer(data=request.data)

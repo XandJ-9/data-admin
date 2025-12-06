@@ -151,3 +151,12 @@ export function exportInterfaceByBody(data) {
     responseType: 'blob'
   })
 }
+
+// 接口：导出接口定义（Excel）
+export function exportInterfaceMeta(interfaceId) {
+  return request({
+    url: '/dataservice/interface-info/' + interfaceId + '/export-meta',
+    method: 'get',
+    responseType: 'blob'
+  })
+}

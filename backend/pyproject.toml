@@ -28,6 +28,7 @@ dependencies = [
   "psycopg2>=2.9.11",
   "trino",
   "pyhive>=0.7.0",
+  "openpyxl>=3.1.5",
 ]
 
 [tool.uv]

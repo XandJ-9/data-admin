@@ -34,7 +34,8 @@ INSTALLED_APPS = [
     'apps.system',
     'apps.datasource',
     'apps.dataservice',
-    'apps.datameta'
+    'apps.datameta',
+    'apps.monitor'
 ]
 
 MIDDLEWARE = [

@@ -196,17 +196,20 @@
     <!-- 明细抽屉：接口信息 + 字段列表 -->
     <el-drawer v-model="detailOpen" title="接口明细" size="80%" append-to-body>
       <div style="margin-bottom: 12px;">
-        <el-descriptions title="基本信息" :column="2" border>
-          <el-descriptions-item label="接口名称">{{ detail.interfaceName }}</el-descriptions-item>
-          <el-descriptions-item label="接口编码">{{ detail.interfaceCode }}</el-descriptions-item>
-          <el-descriptions-item label="数据库类型">{{ detail.interfaceDbType }}</el-descriptions-item>
-          <el-descriptions-item label="数据库名称">{{ detail.interfaceDbName }}</el-descriptions-item>
-          <el-descriptions-item label="分页"><dict-tag :options="yes_no_options" :value="detail.isPaging" /></el-descriptions-item>
-          <el-descriptions-item label="日期查询"><dict-tag :options="yes_no_options" :value="detail.isDateOption" /></el-descriptions-item>
-          <el-descriptions-item label="合计"><dict-tag :options="yes_no_options" :value="detail.isTotal" /></el-descriptions-item>
-          <el-descriptions-item label="登录验证"><dict-tag :options="yes_no_options" :value="detail.isLoginVisit" /></el-descriptions-item>
-          <el-descriptions-item label="报警类型"><dict-tag :options="alarm_type_options" :value="detail.alarmType" /></el-descriptions-item>
-        </el-descriptions>
+          <el-descriptions title="基本信息" :column="2" border>
+            <el-descriptions-item label="接口名称">{{ detail.interfaceName }}</el-descriptions-item>
+            <el-descriptions-item label="接口编码">{{ detail.interfaceCode }}</el-descriptions-item>
+            <el-descriptions-item label="数据库类型">{{ detail.interfaceDbType }}</el-descriptions-item>
+            <el-descriptions-item label="数据库名称">{{ detail.interfaceDbName }}</el-descriptions-item>
+            <el-descriptions-item label="分页"><dict-tag :options="yes_no_options" :value="detail.isPaging" /></el-descriptions-item>
+            <el-descriptions-item label="日期查询"><dict-tag :options="yes_no_options" :value="detail.isDateOption" /></el-descriptions-item>
+            <el-descriptions-item label="合计"><dict-tag :options="yes_no_options" :value="detail.isTotal" /></el-descriptions-item>
+            <el-descriptions-item label="登录验证"><dict-tag :options="yes_no_options" :value="detail.isLoginVisit" /></el-descriptions-item>
+            <el-descriptions-item label="报警类型"><dict-tag :options="alarm_type_options" :value="detail.alarmType" /></el-descriptions-item>
+          </el-descriptions>
+          <div style="margin-top: 8px;">
+            <el-button type="warning" icon="Download" @click="handleExportMeta" v-hasPermi="['dataservice:interface:export']">导出接口定义</el-button>
+          </div>
       </div>
       <div style="margin-bottom: 12px;">
         <h4 class="form-header h4">接口 SQL</h4>
@@ -375,7 +378,7 @@
 
 <script setup name="Interface">
 /* eslint-disable vue/no-v-model-argument */
-import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, executeInterfaceById, exportInterfaceById } from '@/api/dataservice'
+import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, executeInterfaceById, exportInterfaceById, exportInterfaceMeta } from '@/api/dataservice'
 import { listDatasource } from '@/api/datasource'
 
 const { proxy } = getCurrentInstance()
@@ -723,6 +726,25 @@ function exportFromDialog() {
     const a = document.createElement('a')
     a.href = url
     a.download = `interface_${id}_export.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    proxy.$modal.msgSuccess('导出成功')
+  }).catch(err => {
+    proxy.$modal.msgError(err?.msg || '导出失败')
+  })
+}
+
+function handleExportMeta() {
+  const id = detail.value.interfaceId
+  if (!id) return
+  exportInterfaceMeta(id).then(res => {
+    const blob = new Blob([res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `interface_${id}_meta.xlsx`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

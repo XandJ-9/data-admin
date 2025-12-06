@@ -196,6 +196,19 @@ class BaseViewMixin:
         resp['Content-Disposition'] = f'attachment; filename="{filename}"'
         return resp
 
+    def excel_response(self, filename, workbook):
+        # 使用传入的 openpyxl.Workbook 生成 xlsx 响应
+        import io
+        from django.http import HttpResponse
+        try:
+            output = io.BytesIO()
+            workbook.save(output)
+        except Exception as e:
+            return self.error(f'导出 Excel 失败：{e}')
+        resp = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return resp
+
 class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
     required_roles = None
     # 兼容前端 PUT /xxx（集合更新）通用支持
