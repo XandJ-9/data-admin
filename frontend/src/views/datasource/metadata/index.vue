@@ -51,9 +51,9 @@
   </div>
 </template>
 
-<script setup name="BusinessData">
+<script setup name="DataSourceMetadata">
 import { listDatasource } from '@/api/datasource'
-import { listBusinessTables, listBusinessColumns, collectMeta, collectMetaTable, listBusinessDatabases } from '@/api/datasource'
+import { listTables, listColumns, collectMeta, collectMetaTable, listDatabases } from '@/api/datasource'
 const { proxy } = getCurrentInstance()
 
 const dsId = ref()
@@ -83,7 +83,7 @@ function getTables() {
   loading.value = true
   const params = { dataSourceId: dsId.value }
   if (databaseName.value) params.databaseName = databaseName.value
-  listBusinessTables(params).then(res => {
+  listTables(params).then(res => {
     tables.value = res.rows || []
   }).finally(() => (loading.value = false))
 }
@@ -93,7 +93,7 @@ function loadColumns(t) {
   currentTable.value = t
   const params = { dataSourceId: dsId.value, tableName: t }
   if (databaseName.value) params.databaseName = databaseName.value
-  listBusinessColumns(params).then(res => {
+  listColumns(params).then(res => {
     columns.value = res.rows || []
   })
 }
@@ -127,7 +127,7 @@ watch(dsId, v => {
   dbList.value = []
   databaseName.value = ''
   if (!v) return
-  listBusinessDatabases({ dataSourceId: v }).then(res => {
+  listDatabases({ dataSourceId: v }).then(res => {
     const dbs = res.data
     if (Array.isArray(dbs)) dbList.value = dbs
   })

@@ -61,32 +61,32 @@ export function testDatasourceByBody(data) {
 }
 
 
-export function listBusinessDatabases(data) {
+export function listDatabases(data) {
   return request({
-    url: '/datasource/business/databases',
+    url: '/datasource/databases',
     method: 'post',
     data: data
   })
 }
 
-export function listBusinessTables(data) {
+export function listTables(data) {
   return request({
-    url: '/datasource/business/tables',
+    url: '/datasource/tables',
     method: 'post',
     data: data
   })
 }
 
-export function listBusinessColumns(data) {
+export function listColumns(data) {
   return request({
-    url: '/datasource/business/columns',
+    url: '/datasource/columns',
     method: 'post',
     data: data
   })
 }
 export function collectMeta(data) {
   return request({
-    url: '/datasource/business/collect',
+    url: '/datasource/collect',
     method: 'post',
     data: data
   })
@@ -94,7 +94,7 @@ export function collectMeta(data) {
 
 export function collectMetaTable(data) {
   return request({
-    url: '/datasource/business/collect-table',
+    url: '/datasource/collect-table',
     method: 'post',
     data: data
   })

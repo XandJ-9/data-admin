@@ -17,7 +17,74 @@ from django.db import transaction
 
 from apps.common.encrypt import decrypt_password
 
-class DataSourceViewSet(BaseViewSet):
+class DatametaMixin:
+    def _load_ds(self, ds_id):
+        try:
+            return DataSource.objects.get(pk=int(ds_id), del_flag='0')
+        except Exception:
+            return None
+
+    def _build_info(self, ds):
+        return {
+            'type': ds.db_type,
+            'host': ds.host,
+            'port': ds.port,
+            'username': ds.username,
+            'password': ds.password,
+            'database': ds.db_name,
+            'params': ds.params or {},
+        }
+
+    def _collect_table(self, info, ds_id, table):
+        # 获取表级详细信息（数据库名、表注释、创建/更新时间等）
+        tinfo = get_table_info(info, table) or {}
+        comment = tinfo.get('comment') or ''
+        database_name = tinfo.get('databaseName') or ''
+        # 更新或创建表元数据
+        obj, created = MetaTable.objects.update_or_create(
+            data_source_id=ds_id,
+            table_name=table,
+            database=database_name,
+            defaults={'comment': comment, 'del_flag': '0'}
+        )
+        # 记录采集/更新者
+        user = getattr(getattr(self, 'request', None), 'user', None)
+        if user and getattr(user, 'username', None):
+            if created:
+                obj.create_by = user.username
+                obj.save(update_fields=['create_by'])
+            else:
+                obj.update_by = user.username
+                obj.save(update_fields=['update_by', 'update_time'])
+        # 删除数据表对应的列
+        MetaColumn.objects.filter(data_source_id=ds_id, table=obj).delete()
+
+        cols = get_table_schema(info, table)
+        for c in cols:
+            col, c_created = MetaColumn.objects.update_or_create(
+                data_source_id=ds_id,
+                table=obj,
+                name=c.get('name'),
+                defaults={
+                    'order': c.get('order') or 0,
+                    'type': c.get('type') or '',
+                    'notnull': bool(c.get('notnull')),
+                    'default': str(c.get('default') or ''),
+                    'primary': bool(c.get('primary')),
+                    'comment': c.get('comment') or '',
+                    'del_flag': '0'
+                }
+            )
+            if user and getattr(user, 'username', None):
+                if c_created:
+                    col.create_by = user.username
+                    col.save(update_fields=['create_by'])
+                else:
+                    col.update_by = user.username
+                    col.save(update_fields=['update_by', 'update_time'])
+
+
+class DataSourceViewSet(DatametaMixin,BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DataSource.objects.all().order_by('name')
     serializer_class = DataSourceSerializer
@@ -112,75 +179,6 @@ class DataSourceViewSet(BaseViewSet):
         finally:
             ex.close()
         return self.ok('连接成功')
-
-class DatametaMixin:
-    def _load_ds(self, ds_id):
-        try:
-            return DataSource.objects.get(pk=int(ds_id), del_flag='0')
-        except Exception:
-            return None
-
-    def _build_info(self, ds):
-        return {
-            'type': ds.db_type,
-            'host': ds.host,
-            'port': ds.port,
-            'username': ds.username,
-            'password': ds.password,
-            'database': ds.db_name,
-            'params': ds.params or {},
-        }
-
-    def _collect_table(self, info, ds_id, table):
-        # 获取表级详细信息（数据库名、表注释、创建/更新时间等）
-        tinfo = get_table_info(info, table) or {}
-        comment = tinfo.get('comment') or ''
-        database_name = tinfo.get('databaseName') or ''
-        # 更新或创建表元数据
-        obj, created = MetaTable.objects.update_or_create(
-            data_source_id=ds_id,
-            table_name=table,
-            database=database_name,
-            defaults={'comment': comment, 'del_flag': '0'}
-        )
-        # 记录采集/更新者
-        user = getattr(getattr(self, 'request', None), 'user', None)
-        if user and getattr(user, 'username', None):
-            if created:
-                obj.create_by = user.username
-                obj.save(update_fields=['create_by'])
-            else:
-                obj.update_by = user.username
-                obj.save(update_fields=['update_by', 'update_time'])
-        # 删除数据表对应的列
-        MetaColumn.objects.filter(data_source_id=ds_id, table=obj).delete()
-
-        cols = get_table_schema(info, table)
-        for c in cols:
-            col, c_created = MetaColumn.objects.update_or_create(
-                data_source_id=ds_id,
-                table=obj,
-                name=c.get('name'),
-                defaults={
-                    'order': c.get('order') or 0,
-                    'type': c.get('type') or '',
-                    'notnull': bool(c.get('notnull')),
-                    'default': str(c.get('default') or ''),
-                    'primary': bool(c.get('primary')),
-                    'comment': c.get('comment') or '',
-                    'del_flag': '0'
-                }
-            )
-            if user and getattr(user, 'username', None):
-                if c_created:
-                    col.create_by = user.username
-                    col.save(update_fields=['create_by'])
-                else:
-                    col.update_by = user.username
-                    col.save(update_fields=['update_by', 'update_time'])
-
-class BusinessDataView(DatametaMixin,BaseViewMixin,ViewSet):
-    permission_classes = [IsAuthenticated, HasRolePermission]
 
     @action(detail=False, methods=['post'], url_path='tables')
     def tables(self, request):
