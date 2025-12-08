@@ -44,8 +44,8 @@ class LoginView(TokenObtainPairView):
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
-        except Exception:
-            return Response({'msg': '用户名或密码错误'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'msg': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'token': serializer.validated_data.get('access')})
 
 

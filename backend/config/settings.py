@@ -132,6 +132,9 @@ USE_TZ = False
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
+# 静态文件路径的前缀对应前端项目指定的baseUrl,即VITE_APP_BASE_URL
+# STATIC_URL = VITE_APP_BASE_URL + 'static/'
+STATIC_URL = '/static/'
 
 STATIC_URL = '/data-admin/static/'
 
