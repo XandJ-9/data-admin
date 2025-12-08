@@ -712,3 +712,9 @@ class InterfaceQueryLog(BaseModel):
   - singleTableSyncDetail.vue
   - multiTableSyncDetail.vue
   - 组件中包含数据源，数据库，数据表的选择器，以及同步任务公共配置的表单
+
+## 单表离线同步详情同步配置更新
+*代码更新*
+  更新单表同步配置选择定时策略时，使用组件CronTab来选择定时策略
+  - 组件位置：frontend/src/components/Crontab.vue
+  - 前端代码更新位置：frontend/src/views/dataintegration/offline/components/singleTableSyncDetail.vue第99行

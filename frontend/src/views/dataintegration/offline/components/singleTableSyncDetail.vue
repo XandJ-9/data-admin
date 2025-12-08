@@ -96,7 +96,10 @@
             <el-radio label="manual">手动</el-radio>
             <el-radio label="cron">定时</el-radio>
           </el-radio-group>
-          <el-input v-if="form.schedule.type==='cron'" v-model="form.schedule.cronExpr" placeholder="cron表达式" style="width: 240px; margin-left: 12px" />
+          <div v-if="form.schedule.type==='cron'" style="display: inline-flex; align-items: center; margin-left: 12px">
+            <el-input v-model="form.schedule.cronExpr" placeholder="cron表达式" style="width: 240px" />
+            <el-button style="margin-left: 8px" @click="handleShowCron">生成</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="同步方式">
           <el-radio-group v-model="form.mode.type">
@@ -116,10 +119,20 @@
         </el-form-item>
       </el-form>
     </el-card>
+    <!-- CronTab 选择器弹窗 -->
+    <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
+      <crontab @hide="openCron=false" @fill="crontabFill" :expression="expression" />
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="openCron=false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
+import Crontab from '@/components/Crontab'
 import { listDatasource, listDatabases, listTables, listColumns } from '@/api/datasource'
 const { proxy } = getCurrentInstance()
 
@@ -140,6 +153,9 @@ const form = reactive({
   schedule: { type: 'manual', cronExpr: '' },
   mode: { type: 'full', incrementField: '', incrementType: 'id' }
 })
+
+const openCron = ref(false)
+const expression = ref('')
 
 function getForm() {
   return JSON.parse(JSON.stringify(form))
@@ -166,6 +182,15 @@ function applyDefaultMapping() {
   const srcNames = new Set((sourceColumns.value || []).map(c => c.name || c.columnName))
   const tgtNames = (targetColumns.value || []).map(c => c.name || c.columnName)
   form.mappings = tgtNames.filter(n => srcNames.has(n)).map(n => ({ targetField: n ,sourceExpr: n}))
+}
+
+function handleShowCron() {
+  expression.value = form.schedule.cronExpr
+  openCron.value = true
+}
+
+function crontabFill(value) {
+  form.schedule.cronExpr = value
 }
 
 watch(() => form.source.dataSourceId, v => {
@@ -255,4 +280,6 @@ onMounted(() => {
 
 <style scoped>
 </style>
+
+
 
