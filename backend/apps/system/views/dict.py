@@ -171,7 +171,6 @@ class DictDataViewSet(BaseViewSet):
     def by_type(self, request, dict_type=None):
         cache_key = f'dict_data_by_type:{dict_type}'
         cached = cache.get(cache_key)
-        print(f'cache_key: {cache_key}, cached: {cached}')
         if cached is not None:
             return self.data(data=cached)
         qs = DictData.objects.filter(dict_type=dict_type, status='0', del_flag='0').order_by('dict_sort', 'dict_label')

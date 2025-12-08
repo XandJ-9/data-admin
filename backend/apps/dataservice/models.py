@@ -14,7 +14,7 @@ class QueryLog(BaseModel):
     error_msg = models.CharField(max_length=500, blank=True, default='', verbose_name='错误信息')
 
     class Meta:
-        db_table = 'datasource_query_log'
+        db_table = 'dataservice_query_log'
         verbose_name = '数据查询日志'
         verbose_name_plural = '数据查询日志'
         indexes = [
