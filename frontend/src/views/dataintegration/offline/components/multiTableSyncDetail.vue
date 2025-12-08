@@ -15,7 +15,7 @@
             <el-option v-for="db in displayDbList" :key="db" :label="db" :value="db" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="dbList.length" label="名称正则">
+        <el-form-item v-if="dbList.length" label="数据库名称正则">
           <el-input v-model="form.source.databasePattern" placeholder="示例：^tenant_" style="width: 240px" />
           <el-button size="small" style="margin-left: 8px" @click="applyDbPattern">匹配</el-button>
         </el-form-item>
@@ -24,7 +24,7 @@
             <el-option v-for="t in displayTableList" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
-        <el-form-item label="名称正则">
+        <el-form-item label="数据表名称正则">
           <el-input v-model="form.source.tablePattern" placeholder="示例：^order_|_log$" style="width: 240px" />
           <el-button size="small" style="margin-left: 8px" @click="applyTablePattern">匹配</el-button>
         </el-form-item>
@@ -190,7 +190,15 @@ watch(() => form.source.dataSourceId, v => {
   if (!v) return
   listDatabases({ dataSourceId: v }).then(res => {
     const dbs = res.data
-    if (Array.isArray(dbs)) { dbList.value = dbs; displayDbList.value = [...dbs] }
+    if (Array.isArray(dbs)) { dbList.value = dbs; displayDbList.value = dbs }
+  })
+  if (dbList.length) return
+  listTables({ dataSourceId: v }).then(res => {
+    const tableNames = (res.rows || []).map(t => t.tableName || t)
+    if (Array.isArray(tableNames)) {
+      tableList.value = tableNames;
+      displayTableList.value = tableNames
+    }
   })
 })
 
@@ -206,11 +214,11 @@ watch(() => form.source.databaseNames.slice().join(','), () => {
   Promise.all(promises).then(list => {
     const names = []
     list.forEach(res => {
-      (res.rows || []).forEach(r => names.push(r.tableName || r))
+      (res.rows || []).forEach(r => names.push(r.tableName))
     })
     const uniq = Array.from(new Set(names))
     tableList.value = uniq
-    displayTableList.value = [...uniq]
+    displayTableList.value = uniq
   })
 })
 
