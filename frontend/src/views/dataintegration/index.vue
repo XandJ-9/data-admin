@@ -8,9 +8,10 @@
           <template #header>数据库 → 数据库</template>
           <div>支持单表、整库、分库分表同步；用于不同数据库之间的数据迁移与集成。</div>
           <div style="margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap;">
-            <el-button type="primary" @click="createTask('dbToDb','single')">新建单表任务</el-button>
+            <el-button type="primary" @click="createTask('dbToDb')">创建任务</el-button>
+            <!-- <el-button type="primary" @click="createTask('dbToDb','single')">新建单表任务</el-button>
             <el-button type="primary" @click="createTask('dbToDb','full')">新建整库任务</el-button>
-            <el-button type="primary" @click="createTask('dbToDb','sharded')">新建分库分表任务</el-button>
+            <el-button type="primary" @click="createTask('dbToDb','sharded')">新建分库分表任务</el-button> -->
           </div>
         </el-card>
       </el-col>
@@ -19,8 +20,9 @@
           <template #header>数据库 → 集群</template>
           <div>将数据库数据同步到 Hive 等分布式存储，便于数据湖或数仓建设。</div>
           <div style="margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap;">
-            <el-button type="primary" @click="createTask('dbToCluster','single')">新建单表任务</el-button>
-            <el-button type="primary" @click="createTask('dbToCluster','full')">新建整库任务</el-button>
+            <el-button type="primary" @click="createTask('dbToCluster')">创建任务</el-button>
+            <!-- <el-button type="primary" @click="createTask('dbToCluster','single')">新建单表任务</el-button>
+            <el-button type="primary" @click="createTask('dbToCluster','full')">新建整库任务</el-button> -->
           </div>
         </el-card>
       </el-col>
@@ -29,8 +31,9 @@
           <template #header>集群 → 数据库</template>
           <div>将 Hive 等集群数据同步到数据库（如 MySQL），用于数据回流与应用查询。</div>
           <div style="margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap;">
-            <el-button type="primary" @click="createTask('clusterToDb','single')">新建单表任务</el-button>
-            <el-button type="primary" @click="createTask('clusterToDb','full')">新建整库任务</el-button>
+            <el-button type="primary" @click="createTask('clusterToDb')">创建任务</el-button>
+            <!-- <el-button type="primary" @click="createTask('clusterToDb','single')">新建单表任务</el-button>
+            <el-button type="primary" @click="createTask('clusterToDb','full')">新建整库任务</el-button> -->
           </div>
         </el-card>
       </el-col>

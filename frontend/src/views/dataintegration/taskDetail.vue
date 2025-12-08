@@ -54,11 +54,11 @@
           <el-col :span="12">
             <el-form-item label="数据源">
               <el-select v-model="form.sourceDsId" filterable placeholder="选择数据源" @change="loadSourceDatabases">
-                <el-option v-for="ds in sourceOptions" :key="ds.id" :label="ds.name" :value="ds.id" />
+                <el-option v-for="ds in sourceOptions" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :span="24" v-if="sourceDbOptions && sourceDbOptions.length > 0">
             <el-form-item label="选择数据库(可多选)">
               <el-select v-model="form.sourceDatabases" multiple filterable placeholder="选择数据库">
                 <el-option v-for="db in sourceDbOptions" :key="db" :label="db" :value="db" />
@@ -82,11 +82,11 @@
           <el-col :span="12">
             <el-form-item label="数据源">
               <el-select v-model="form.targetDsId" filterable placeholder="选择数据源" @change="loadTargetDatabases">
-                <el-option v-for="ds in targetOptions" :key="ds.id" :label="ds.name" :value="ds.id" />
+                <el-option v-for="ds in targetOptions" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :span="24" v-if="targetDbOptions && targetDbOptions.length > 0">
             <el-form-item label="选择数据库">
               <el-select v-model="form.targetDatabase" filterable placeholder="选择数据库">
                 <el-option v-for="db in targetDbOptions" :key="db" :label="db" :value="db" />
@@ -172,23 +172,14 @@
 
 <script setup name="DataIntegrationTaskDetail">
 import { useRoute, useRouter } from 'vue-router'
+import { listDatasource, listDatabases, listTables } from '@/api/datasource'
 
 const route = useRoute()
 const router = useRouter()
 const formRef = ref(null)
 const incrementalFieldOptions = ref(['id', 'updated_at', 'create_time', 'ts'])
 
-// 样例数据源（模拟“数据源管理”中已创建的数据源）
-function ensureSampleDatasources() {
-  const raw = localStorage.getItem('di_datasources')
-  if (raw) return
-  const datasources = [
-    { id: 101, type: 'database', dbType: 'mysql', name: 'MySQL_A', host: '192.168.1.10', port: 3306, databases: ['sales', 'crm', 'logs'], tables: { sales: ['users','orders','order_items','products'], crm: ['customers','leads','activities'], logs: ['events','audit'] } },
-    { id: 102, type: 'database', dbType: 'postgres', name: 'Postgres_B', host: '192.168.1.20', port: 5432, databases: ['analytics','dwh'], tables: { analytics: ['sessions','pageviews','orders'], dwh: ['facts','dim_users'] } },
-    { id: 201, type: 'cluster', clusterType: 'hive', name: 'Hive_1', host: 'hive-server', port: 10000, databases: ['default','warehouse'], tables: { default: ['events','logs'], warehouse: ['ods_orders','ods_users'] } },
-  ]
-  localStorage.setItem('di_datasources', JSON.stringify(datasources))
-}
+const allDatasources = ref([])
 
 const form = reactive({
   id: null,
@@ -218,7 +209,7 @@ const tableOptions = ref([])
 function goList() { router.push('/dataintegration/tasks') }
 
 function loadTask() {
-  ensureSampleDatasources()
+  getDsList()
   const id = route.params.id
   const scope = route.query.scope
   const syncType = route.query.syncType
@@ -285,16 +276,19 @@ function presetName(t, s) {
   return `新建${tLabel}${sLabel}同步任务`
 }
 
-function getAllDatasources() {
-  try {
-    return JSON.parse(localStorage.getItem('di_datasources') || '[]')
-  } catch (e) { return [] }
+function getDsList() {
+  listDatasource({ pageNum: 1, pageSize: 100 }).then(res => {
+    allDatasources.value = res.rows || []
+    buildOptions()
+  })
 }
 
 function buildOptions() {
-  const all = getAllDatasources()
-  sourceOptions.value = all.filter(d => d.type === sourceType.value)
-  targetOptions.value = all.filter(d => d.type === targetType.value)
+  const all = allDatasources.value || []
+  const isDbType = (t) => ['mysql','postgres','sqlite','sqlserver','oracle'].includes(String(t || '').toLowerCase())
+  const isClusterType = (t) => ['presto','trino','starrocks','hive'].includes(String(t || '').toLowerCase())
+  sourceOptions.value = all.filter(d => sourceType.value === 'database' ? isDbType(d.dbType) : isClusterType(d.dbType))
+  targetOptions.value = all.filter(d => targetType.value === 'database' ? isDbType(d.dbType) : isClusterType(d.dbType))
   loadSourceDatabases()
   loadTargetDatabases()
 }
@@ -303,42 +297,66 @@ function onSourceTypeChange() { buildOptions() }
 function onTargetTypeChange() { buildOptions() }
 
 function loadSourceDatabases() {
-  const all = getAllDatasources()
-  const ds = all.find(d => d.id === form.sourceDsId)
-  sourceDbOptions.value = ds ? (ds.databases || []) : []
-  // 合并所选库的表名（简单聚合）
+  sourceDbOptions.value = []
   tableOptions.value = []
-  if (ds && ds.tables && form.sourceDatabases && form.sourceDatabases.length) {
-    const set = new Set()
-    form.sourceDatabases.forEach(db => {
-      (ds.tables[db] || []).forEach(t => set.add(t))
-    })
-    tableOptions.value = Array.from(set)
-  }
+  if (!form.sourceDsId) return
+  listDatabases({ dataSourceId: form.sourceDsId }).then(res => {
+    const dbs = res.data
+    sourceDbOptions.value = Array.isArray(dbs) ? dbs : []
+    if (form.range.type === 'tables') {
+      loadSourceTables()
+    }
+  }).catch(() => {
+    sourceDbOptions.value = []
+  })
 }
 
 function loadTargetDatabases() {
-  const all = getAllDatasources()
-  const ds = all.find(d => d.id === form.targetDsId)
-  targetDbOptions.value = ds ? (ds.databases || []) : []
+  targetDbOptions.value = []
+  if (!form.targetDsId) return
+  listDatabases({ dataSourceId: form.targetDsId }).then(res => {
+    const dbs = res.data
+    targetDbOptions.value = Array.isArray(dbs) ? dbs : []
+  }).catch(() => {
+    targetDbOptions.value = []
+  })
+}
+
+function loadSourceTables() {
+  tableOptions.value = []
+  if (!form.sourceDsId) return
+  const selections = Array.isArray(form.sourceDatabases) && form.sourceDatabases.length > 0 ? form.sourceDatabases : [undefined]
+  const reqs = selections.map(db => listTables({ dataSourceId: form.sourceDsId, databaseName: db }))
+  Promise.allSettled(reqs).then(results => {
+    const set = new Set()
+    results.forEach(r => {
+      if (r.status === 'fulfilled') {
+        const rows = (r.value && r.value.rows) || []
+        rows.forEach(it => set.add(it.tableName))
+      }
+    })
+    tableOptions.value = Array.from(set)
+  })
 }
 
 function sourceBrief() {
-  const all = getAllDatasources()
-  const ds = all.find(d => d.id === form.sourceDsId)
-  const dsName = ds ? ds.name : '未选择'
+  const all = allDatasources.value || []
+  const ds = all.find(d => d.dataSourceId === form.sourceDsId)
+  const dsName = ds ? ds.dataSourceName : '未选择'
   const dbs = form.sourceDatabases && form.sourceDatabases.length ? form.sourceDatabases.join(',') : '未选择库'
   return `${dsName}.${dbs}`
 }
 
 function targetBrief() {
-  const all = getAllDatasources()
-  const ds = all.find(d => d.id === form.targetDsId)
-  const dsName = ds ? ds.name : '未选择'
+  const all = allDatasources.value || []
+  const ds = all.find(d => d.dataSourceId === form.targetDsId)
+  const dsName = ds ? ds.dataSourceName : '未选择'
   const db = form.targetDatabase || '未选择库'
   return `${dsName}.${db}`
 }
 
+watch(() => form.sourceDatabases, () => { if (form.range.type === 'tables') loadSourceTables() })
+watch(() => form.range.type, (v) => { if (v === 'tables') loadSourceTables() })
 onMounted(loadTask)
 </script>
 
