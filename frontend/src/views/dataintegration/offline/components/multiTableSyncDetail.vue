@@ -13,7 +13,7 @@
             <el-form :inline="true" :model="form.source" label-width="100px" label-position="left">
               <el-row>
                 <el-form-item label="数据源">
-                  <el-select v-model="form.source.dataSourceIds" style="width: 200px" multiple filterable clearable
+                  <el-select v-model="form.source.dataSourceIds" style="width: 100%" multiple filterable clearable
                     collapse-tags placeholder="选择数据源">
                     <el-option v-for="ds in dsList" :key="ds.dataSourceId"
                       :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
@@ -24,27 +24,31 @@
               </el-row>
               <el-row>
                 <el-form-item v-if="dbList.length" label="数据库">
-                  <el-select v-model="form.source.databases" value-key="key" style="width: 200px" multiple filterable
+                  <el-select v-model="form.source.databases" value-key="key" style="width: 100%" multiple filterable
                     clearable collapse-tags placeholder="选择数据库">
                     <el-option v-for="db in displayDbList" :key="db.key" :label="db.label" :value="db" />
                   </el-select>
                 </el-form-item>
                 <el-form-item v-if="dbList.length" label="库名正则">
-                  <el-input v-model="form.source.databasePattern" style="width: 200px" placeholder="示例：^tenant_" />
+                  <el-input v-model="form.source.databasePattern" style="width: 100%" placeholder="示例：^tenant_" />
                   <el-button size="small" style="margin-left: 8px" @click="applyDbPattern">匹配</el-button>
                 </el-form-item>
               </el-row>
               <el-row>
-                <el-form-item label="数据表">
-                  <el-select v-model="form.source.tables" value-key="key" style="width: 200px" multiple filterable
-                    clearable collapse-tags placeholder="选择表">
-                    <el-option v-for="t in displayTableList" :key="t.key" :label="t.label" :value="t" />
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="表名正则">
-                  <el-input v-model="form.source.tablePattern" style="width: 200px" placeholder="示例：^order_|_log$" />
-                  <el-button size="small" style="margin-left: 8px" @click="applyTablePattern">匹配</el-button>
-                </el-form-item>
+                <el-col>
+                  <el-form-item label="数据表">
+                    <el-select v-model="form.source.tables" value-key="key" style="width: 100%" multiple filterable
+                      clearable collapse-tags placeholder="选择表">
+                      <el-option v-for="t in displayTableList" :key="t.key" :label="t.label" :value="t" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col>
+                  <el-form-item label="表名正则">
+                    <el-input v-model="form.source.tablePattern" style="width: 100%" placeholder="示例：^order_|_log$" />
+                    <el-button size="small" style="margin-left: 8px" @click="applyTablePattern">匹配</el-button>
+                  </el-form-item>
+                </el-col>
               </el-row>
             </el-form>
           </el-card>

@@ -5,7 +5,10 @@ export function listDatasource(query) {
   return request({
     url: '/datasource/',
     method: 'get',
-    params: query
+    params: query,
+    headers: {
+      'repeatSubmit': false
+    }
   })
 }
 
@@ -65,7 +68,10 @@ export function listDatabases(data) {
   return request({
     url: '/datasource/databases',
     method: 'post',
-    data: data
+    data: data,
+    headers: {
+      'repeatSubmit': false
+    }
   })
 }
 
@@ -73,7 +79,10 @@ export function listTables(data) {
   return request({
     url: '/datasource/tables',
     method: 'post',
-    data: data
+    data: data,
+    headers: {
+      'repeatSubmit': false
+    }
   })
 }
 
@@ -81,7 +90,10 @@ export function listColumns(data) {
   return request({
     url: '/datasource/columns',
     method: 'post',
-    data: data
+    data: data,
+    headers: {
+      'repeatSubmit': false
+    }
   })
 }
 export function collectMeta(data) {
