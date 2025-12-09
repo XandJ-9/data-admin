@@ -718,3 +718,20 @@ class InterfaceQueryLog(BaseModel):
   更新单表同步配置选择定时策略时，使用组件CronTab来选择定时策略
   - 组件位置：frontend/src/components/Crontab.vue
   - 前端代码更新位置：frontend/src/views/dataintegration/offline/components/singleTableSyncDetail.vue第99行
+
+
+## 分库分表同步任务详情页更新
+*需求描述*
+  在多租户分库分表场景下，不同数据源分别存放部分租户数据，每个数据源下又有多个数据库，每个数据库对应一个租户，需要将分散在这多个数据源租户库下的某个业务表数据同步到目标数据源下的一张表中。
+
+*功能描述*
+分库分表数据同步功能：
+- 选择数据源(支持多选)，
+- 如果所选数据源下存在数据库，则选择数据库(支持多选，过滤筛选)，如果所选数据源下不存在数据库，则选择表(支持多选)，
+- 数据库和数据表均支持填写自定义匹配（支持正则表达式），
+- 选择目标数据源，数据库（如果存在）
+- 目标数据数据源不能与来源数据源一致
+
+*注意*
+- 前端界面风格要求参考单表同步组件 singleTableSyncDetail.vue
+- 前端分库分表同步详情组件位置：/src/views/dataintegration/offline/components/multiTableSyncDetail.vue

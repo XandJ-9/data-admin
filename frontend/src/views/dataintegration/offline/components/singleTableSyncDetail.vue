@@ -2,51 +2,63 @@
   <div>
     <el-card>
       <template #header>
-        <span>来源</span>
+        <span>基本信息</span>
       </template>
-      <el-form :inline="true" :model="form.source" label-width="100px">
-        <el-form-item label="数据源">
-          <el-select v-model="form.source.dataSourceId" placeholder="选择数据源" style="width: 280px">
-            <el-option v-for="ds in dsList" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="sourceDbList.length" label="数据库">
-          <el-select v-model="form.source.databaseName" filterable clearable placeholder="选择数据库" style="width: 240px">
-            <el-option v-for="db in sourceDbList" :key="db" :label="db" :value="db" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="数据表">
-          <el-select v-model="form.source.tableName" filterable clearable placeholder="选择表" style="width: 280px">
-            <el-option v-for="t in sourceTableList" :key="t.tableName || t" :label="t.tableName || t" :value="t.tableName || t" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      <el-row :gutter="20">
+        <el-col :span="12">
+            <el-card>
+            <el-form :inline="true" :model="form.source" label-width="100px">
+                <el-form-item label="数据源">
+                <el-select v-model="form.source.dataSourceId" placeholder="选择数据源" style="width: 280px">
+                    <el-option v-for="ds in dsList" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
+                </el-select>
+                </el-form-item>
+                <el-form-item v-if="sourceDbList.length" label="数据库">
+                <el-select v-model="form.source.databaseName" filterable clearable placeholder="选择数据库" style="width: 240px">
+                    <el-option v-for="db in sourceDbList" :key="db" :label="db" :value="db" />
+                </el-select>
+                </el-form-item>
+                <el-form-item label="数据表">
+                <el-select v-model="form.source.tableName" filterable clearable placeholder="选择表" style="width: 280px">
+                    <el-option v-for="t in sourceTableList" :key="t.tableName || t" :label="t.tableName || t" :value="t.tableName || t" />
+                </el-select>
+                </el-form-item>
+            </el-form>
+            </el-card>
+        </el-col>
+        <el-col :span="12">
+            <el-card>
+                <el-form :inline="true" :model="form.target" label-width="100px">
+                    <el-row>
+                    <el-form-item label="数据源">
+                    <el-select v-model="form.target.dataSourceId" placeholder="选择数据源" style="width: 280px">
+                        <el-option v-for="ds in dsList" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
+                    </el-select>
+                    </el-form-item>
+                    </el-row>
+                    <el-row>
+                    <el-form-item v-if="targetDbList.length" label="数据库">
+                    <el-select v-model="form.target.databaseName" filterable clearable placeholder="选择数据库" style="width: 240px">
+                        <el-option v-for="db in targetDbList" :key="db" :label="db" :value="db" />
+                    </el-select>
+                    </el-form-item>
+                    </el-row>
+                    <el-row>
+                    <el-form-item label="数据表">
+                    <el-select v-model="form.target.tableName" allow-create default-first-option filterable clearable placeholder="选择或输入新表名" style="width: 280px">
+                        <el-option v-for="t in targetTableList" :key="t.tableName || t" :label="t.tableName || t" :value="t.tableName || t" />
+                    </el-select>
+                    <!-- <el-input v-else v-model="form.target.tableName" placeholder="输入表名" style="width: 280px" />
+                    <el-checkbox v-model="form.target.isNewTable" style="margin-right: 8px">创建新表</el-checkbox> -->
+                    </el-form-item>
+                    </el-row>
 
-    <el-card style="margin-top: 16px">
-      <template #header>
-        <span>目标</span>
-      </template>
-      <el-form :inline="true" :model="form.target" label-width="100px">
-        <el-form-item label="数据源">
-          <el-select v-model="form.target.dataSourceId" placeholder="选择数据源" style="width: 280px">
-            <el-option v-for="ds in dsList" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="targetDbList.length" label="数据库">
-          <el-select v-model="form.target.databaseName" filterable clearable placeholder="选择数据库" style="width: 240px">
-            <el-option v-for="db in targetDbList" :key="db" :label="db" :value="db" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="数据表">
-          <el-checkbox v-model="form.target.isNewTable" style="margin-right: 8px">创建新表</el-checkbox>
-          <el-select v-if="!form.target.isNewTable" v-model="form.target.tableName" filterable clearable placeholder="选择表" style="width: 280px">
-            <el-option v-for="t in targetTableList" :key="t.tableName || t" :label="t.tableName || t" :value="t.tableName || t" />
-          </el-select>
-          <el-input v-else v-model="form.target.tableName" placeholder="输入表名" style="width: 280px" />
-        </el-form-item>
-      </el-form>
-      <div v-if="form.target.dataSourceId && form.source.dataSourceId && form.target.dataSourceId === form.source.dataSourceId" style="color: #f56c6c; margin-left: 16px">目标数据源不能与来源数据源一致</div>
+                </el-form>
+            </el-card>
+        </el-col>
+        <div v-if="form.target.dataSourceId && form.source.dataSourceId && form.target.dataSourceId === form.source.dataSourceId" style="color: #f56c6c; margin-left: 16px">目标数据源不能与来源数据源一致</div>
+      </el-row>
+
     </el-card>
 
     <el-card style="margin-top: 16px">
@@ -89,19 +101,9 @@
       <template #header>
         <span>同步配置</span>
       </template>
-      <el-form :model="form" label-width="120px">
+        <el-form :model="form" label-width="120px">
         <el-form-item label="where条件">
           <el-input v-model="form.where" type="textarea" :rows="2" placeholder="示例：status = 1" />
-        </el-form-item>
-        <el-form-item label="调度策略">
-          <el-radio-group v-model="form.schedule.type">
-            <el-radio label="manual">手动</el-radio>
-            <el-radio label="cron">定时</el-radio>
-          </el-radio-group>
-          <div v-if="form.schedule.type==='cron'" style="display: inline-flex; align-items: center; margin-left: 12px">
-            <el-input v-model="form.schedule.cronExpr" placeholder="cron表达式" style="width: 240px" />
-            <el-button style="margin-left: 8px" @click="handleShowCron">生成</el-button>
-          </div>
         </el-form-item>
         <el-form-item label="同步方式">
           <el-radio-group v-model="form.mode.type">
@@ -119,23 +121,15 @@
             <el-option label="自定义" value="custom" />
           </el-select>
         </el-form-item>
-      </el-form>
+        </el-form>
+
     </el-card>
-    <!-- CronTab 选择器弹窗 -->
-    <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
-      <crontab @hide="openCron=false" @fill="crontabFill" :expression="expression" />
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="openCron=false">关 闭</el-button>
-        </div>
-      </template>
-    </el-dialog>
+
   </div>
 </template>
 
 <script setup>
 import { ElMessage } from 'element-plus'
-import Crontab from '@/components/Crontab'
 import { listDatasource, listDatabases, listTables, listColumns } from '@/api/datasource'
 const { proxy } = getCurrentInstance()
 
@@ -153,12 +147,8 @@ const form = reactive({
   defaultMapping: true,
   mappings: [],
   where: '',
-  schedule: { type: 'manual', cronExpr: '' },
   mode: { type: 'full', incrementField: '', incrementType: 'id' }
 })
-
-const openCron = ref(false)
-const expression = ref('')
 
 function getForm() {
   return JSON.parse(JSON.stringify(form))
@@ -191,14 +181,6 @@ function applyDefaultMapping() {
   form.mappings = tgtNames.filter(n => srcNames.has(n)).map(n => ({ targetField: n ,sourceExpr: n}))
 }
 
-function handleShowCron() {
-  expression.value = form.schedule.cronExpr
-  openCron.value = true
-}
-
-function crontabFill(value) {
-  form.schedule.cronExpr = value
-}
 
 watch(() => form.source.dataSourceId, v => {
   sourceDbList.value = []

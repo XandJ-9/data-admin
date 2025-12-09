@@ -6,13 +6,13 @@
       </template>
       <el-form :inline="true" :model="form.source" label-width="100px">
         <el-form-item label="数据源">
-          <el-select v-model="form.source.dataSourceId" placeholder="选择数据源" style="width: 280px">
+          <el-select v-model="form.source.dataSourceIds" multiple filterable clearable placeholder="选择数据源" style="width: 420px">
             <el-option v-for="ds in dsList" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="dbList.length" label="数据库">
-          <el-select v-model="form.source.databaseNames" multiple filterable clearable placeholder="选择数据库" style="width: 360px">
-            <el-option v-for="db in displayDbList" :key="db" :label="db" :value="db" />
+          <el-select v-model="form.source.databases" value-key="key" multiple filterable clearable placeholder="选择数据库" style="width: 560px">
+            <el-option v-for="db in displayDbList" :key="db.key" :label="db.label" :value="db" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="dbList.length" label="数据库名称正则">
@@ -20,8 +20,8 @@
           <el-button size="small" style="margin-left: 8px" @click="applyDbPattern">匹配</el-button>
         </el-form-item>
         <el-form-item label="数据表">
-          <el-select v-model="form.source.tableNames" multiple filterable clearable placeholder="选择表" style="width: 480px">
-            <el-option v-for="t in displayTableList" :key="t" :label="t" :value="t" />
+          <el-select v-model="form.source.tables" value-key="key" multiple filterable clearable placeholder="选择表" style="width: 640px">
+            <el-option v-for="t in displayTableList" :key="t.key" :label="t.label" :value="t" />
           </el-select>
         </el-form-item>
         <el-form-item label="数据表名称正则">
@@ -52,7 +52,7 @@
           </el-select>
         </el-form-item>
       </el-form>
-      <div v-if="form.target.dataSourceId && form.source.dataSourceId && form.target.dataSourceId === form.source.dataSourceId" style="color: #f56c6c; margin-left: 16px">目标数据源不能与来源数据源一致</div>
+      <div v-if="form.target.dataSourceId && form.source.dataSourceIds.length && form.source.dataSourceIds.includes(form.target.dataSourceId)" style="color: #f56c6c; margin-left: 16px">目标数据源不能与来源数据源一致</div>
     </el-card>
 
     <el-card style="margin-top: 16px">
@@ -92,13 +92,6 @@
         <el-form-item label="where条件">
           <el-input v-model="form.where" type="textarea" :rows="2" placeholder="示例：status = 1" />
         </el-form-item>
-        <el-form-item label="调度策略">
-          <el-radio-group v-model="form.schedule.type">
-            <el-radio label="manual">手动</el-radio>
-            <el-radio label="cron">定时</el-radio>
-          </el-radio-group>
-          <el-input v-if="form.schedule.type==='cron'" v-model="form.schedule.cronExpr" placeholder="cron表达式" style="width: 240px; margin-left: 12px" />
-        </el-form-item>
         <el-form-item label="同步方式">
           <el-radio-group v-model="form.mode.type">
             <el-radio label="full">全量</el-radio>
@@ -107,7 +100,7 @@
         </el-form-item>
         <el-form-item v-if="form.mode.type==='incremental'" label="增量字段">
           <el-select v-model="form.mode.incrementField" filterable allow-create placeholder="选择或输入增量字段" style="width: 240px">
-            <el-option v-for="c in unionSourceColumns" :key="c" :label="c" :value="c" />
+            <el-option v-for="c in sourceColumns" :key="c.name || c.columnName" :label="c.name || c.columnName" :value="c.name || c.columnName" />
           </el-select>
           <el-select v-model="form.mode.incrementType" style="width: 180px; margin-left: 12px">
             <el-option label="自增ID" value="id" />
@@ -135,12 +128,11 @@ const targetDbList = ref([])
 const targetTableList = ref([])
 
 const form = reactive({
-  source: { dataSourceId: undefined, databaseNames: [], databasePattern: '', tableNames: [], tablePattern: '' },
+  source: { dataSourceIds: [], databases: [], databasePattern: '', tables: [], tablePattern: '' },
   target: { dataSourceId: undefined, databaseName: undefined, tableName: undefined },
   defaultMapping: false,
   mappings: [],
   where: '',
-  schedule: { type: 'manual', cronExpr: '' },
   mode: { type: 'full', incrementField: '', incrementType: 'id' }
 })
 
@@ -156,7 +148,7 @@ function applyDbPattern() {
   if (!p) { displayDbList.value = [...dbList.value]; return }
   try {
     const re = new RegExp(p)
-    displayDbList.value = dbList.value.filter(d => re.test(String(d)))
+    displayDbList.value = dbList.value.filter(d => re.test(String(d.databaseName)))
   } catch { displayDbList.value = [...dbList.value] }
 }
 
@@ -165,7 +157,7 @@ function applyTablePattern() {
   if (!p) { displayTableList.value = [...tableList.value]; return }
   try {
     const re = new RegExp(p)
-    displayTableList.value = tableList.value.filter(t => re.test(String(t)))
+    displayTableList.value = tableList.value.filter(t => re.test(String(t.tableName)))
   } catch { displayTableList.value = [...tableList.value] }
 }
 
@@ -178,60 +170,84 @@ function applyDefaultMapping() {
   form.mappings = unionSourceColumns.value.map(n => ({ targetField: n, sourceExpr: n }))
 }
 
-watch(() => form.source.dataSourceId, v => {
+watch(() => form.source.dataSourceIds.slice().join(','), () => {
   dbList.value = []
   displayDbList.value = []
-  form.source.databaseNames = []
+  form.source.databases = []
   tableList.value = []
   displayTableList.value = []
-  form.source.tableNames = []
+  form.source.tables = []
   unionSourceColumns.value = []
   Object.keys(sourceColumnsMap).forEach(k => delete sourceColumnsMap[k])
-  if (!v) return
-  listDatabases({ dataSourceId: v }).then(res => {
-    const dbs = res.data
-    if (Array.isArray(dbs)) { dbList.value = dbs; displayDbList.value = dbs }
-  })
-  if (dbList.length) return
-  listTables({ dataSourceId: v }).then(res => {
-    const tableNames = (res.rows || []).map(t => t.tableName || t)
-    if (Array.isArray(tableNames)) {
-      tableList.value = tableNames;
-      displayTableList.value = tableNames
+  const ids = form.source.dataSourceIds
+  if (!ids.length) return
+  const tasks = ids.map(id => listDatabases({ dataSourceId: id }))
+  Promise.all(tasks).then(resList => {
+    const aggregates = []
+    let hasDb = false
+    resList.forEach((res, idx) => {
+      const dsId = ids[idx]
+      const ds = dsList.value.find(d => d.dataSourceId === dsId)
+      const dbs = Array.isArray(res.data) ? res.data : []
+      if (dbs.length) hasDb = true
+      dbs.forEach(db => {
+        const key = String(dsId) + ':' + String(db)
+        aggregates.push({ key, dataSourceId: dsId, dataSourceName: ds ? ds.dataSourceName : String(dsId), databaseName: String(db), label: (ds ? ds.dataSourceName : dsId) + ' / ' + String(db) })
+      })
+    })
+    dbList.value = aggregates
+    displayDbList.value = aggregates
+    if (!hasDb) {
+      const tableTasks = ids.map(id => listTables({ dataSourceId: id }))
+      Promise.all(tableTasks).then(tResList => {
+        const tables = []
+        tResList.forEach((res, idx) => {
+          const dsId = ids[idx]
+          const ds = dsList.value.find(d => d.dataSourceId === dsId)
+          (res.rows || []).forEach(r => {
+            const name = r.tableName || r
+            const key = String(dsId) + '::' + String(name)
+            tables.push({ key, dataSourceId: dsId, dataSourceName: ds ? ds.dataSourceName : String(dsId), tableName: String(name), label: (ds ? ds.dataSourceName : dsId) + ' / ' + String(name) })
+          })
+        })
+        tableList.value = tables
+        displayTableList.value = tables
+      })
     }
   })
 })
 
-watch(() => form.source.databaseNames.slice().join(','), () => {
+watch(() => form.source.databases.map(d => d.key).join(','), () => {
   tableList.value = []
   displayTableList.value = []
-  form.source.tableNames = []
+  form.source.tables = []
   unionSourceColumns.value = []
   Object.keys(sourceColumnsMap).forEach(k => delete sourceColumnsMap[k])
-  const dsId = form.source.dataSourceId
-  if (!dsId || !form.source.databaseNames.length) return
-  const promises = form.source.databaseNames.map(db => listTables({ dataSourceId: dsId, databaseName: db }))
-  Promise.all(promises).then(list => {
-    const names = []
-    list.forEach(res => {
-      (res.rows || []).forEach(r => names.push(r.tableName))
+  const dbs = form.source.databases
+  if (!dbs.length) return
+  const tasks = dbs.map(d => listTables({ dataSourceId: d.dataSourceId, databaseName: d.databaseName }))
+  Promise.all(tasks).then(resList => {
+    const tables = []
+    resList.forEach((res, idx) => {
+      const d = dbs[idx]
+      (res.rows || []).forEach(r => {
+        const name = r.tableName || r
+        const key = String(d.dataSourceId) + ':' + String(d.databaseName) + ':' + String(name)
+        tables.push({ key, dataSourceId: d.dataSourceId, dataSourceName: d.dataSourceName, databaseName: d.databaseName, tableName: String(name), label: d.dataSourceName + ' / ' + d.databaseName + ' / ' + String(name) })
+      })
     })
-    const uniq = Array.from(new Set(names))
-    tableList.value = uniq
-    displayTableList.value = uniq
+    tableList.value = tables
+    displayTableList.value = tables
   })
 })
 
-watch(() => form.source.tableNames.slice().join(','), () => {
+watch(() => form.source.tables.map(t => t.key).join(','), () => {
   unionSourceColumns.value = []
   Object.keys(sourceColumnsMap).forEach(k => delete sourceColumnsMap[k])
-  const dsId = form.source.dataSourceId
-  if (!dsId || !form.source.tableNames.length) return
-  const firstDb = form.source.databaseNames[0]
-  const firstTable = form.source.tableNames[0]
-  if (!firstTable) return
-  const params = { dataSourceId: dsId, tableName: firstTable }
-  if (firstDb) params.databaseName = firstDb
+  const first = form.source.tables[0]
+  if (!first) return
+  const params = { dataSourceId: first.dataSourceId, tableName: first.tableName }
+  if (first.databaseName) params.databaseName = first.databaseName
   listColumns(params).then(res => {
     const cols = (res.rows || []).map(c => c.name || c.columnName)
     unionSourceColumns.value = Array.from(new Set(cols))
