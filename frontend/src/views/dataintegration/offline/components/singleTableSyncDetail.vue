@@ -174,7 +174,7 @@ const form = reactive({
   defaultMapping: true,
   mappings: [],
   where: '',
-  mode: { type: 'full', incrementField: '', incrementType: 'id' }
+  mode: { type: 'full', incrementField: '', incrementType: '' }
 })
 
 function getForm() {

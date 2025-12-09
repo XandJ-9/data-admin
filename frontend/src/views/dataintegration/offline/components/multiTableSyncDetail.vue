@@ -178,7 +178,7 @@ const form = reactive({
   defaultMapping: false,
   mappings: [],
   where: '',
-  mode: { type: 'full', incrementField: '', incrementType: 'id' }
+  mode: { type: 'full', incrementField: '', incrementType: '' }
 })
 
 function getForm() { return JSON.parse(JSON.stringify(form)) }
@@ -263,7 +263,8 @@ watch(() => form.source.dataSourceIds.slice().join(','), () => {
         const tables = []
         results.forEach(({ res, dsId }) => {
           const ds = dsList.value.find(d => d.dataSourceId === dsId)
-            (res.rows || []).forEach(r => {
+          const tbArr = Array.isArray(res.rows) ? res.rows : []
+          tbArr.forEach(r => {
               const name = r.tableName || r
               const key = String(dsId) + '::' + String(name)
               tables.push({ key, dataSourceId: dsId, dataSourceName: ds ? ds.dataSourceName : String(dsId), tableName: String(name), label: (ds ? ds.dataSourceName : dsId) + ' / ' + String(name) })
