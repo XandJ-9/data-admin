@@ -36,6 +36,7 @@
     <el-dialog v-model="columns.length" title="字段信息" style="margin-top: 16px">
       <h4>表名：{{ currentTable }}</h4>
       <el-table :data="columns"  style="width: 100%; margin-top: 20px" height="60vh" border>
+        <el-table-column prop="order" label="序号" width="80" />
         <el-table-column prop="name" label="列名" />
         <el-table-column prop="comment" label="列注释" />
         <el-table-column prop="type" label="类型" />

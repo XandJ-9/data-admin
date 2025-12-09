@@ -74,8 +74,8 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    'EXCEPTION_HANDLER': 'apps.system.exceptions.custom_exception_handler',
-    'DEFAULT_PAGINATION_CLASS': 'apps.system.pagination.StandardPagination',
+    'EXCEPTION_HANDLER': 'apps.common.exceptions.custom_exception_handler',
+    'DEFAULT_PAGINATION_CLASS': 'apps.common.pagination.StandardPagination',
     'PAGE_SIZE': 10,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }

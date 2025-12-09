@@ -7,7 +7,6 @@ from django.db.utils import DatabaseError
 import traceback
 
 
-
 def _first_error_message(data):
     """
     Extract the first human-readable error message from DRF error dict/list.
