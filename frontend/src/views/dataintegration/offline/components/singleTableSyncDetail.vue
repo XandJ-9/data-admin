@@ -165,7 +165,7 @@ function applyDefaultMapping() {
   if (!targetColumns.value.length || !sourceColumns.value.length) return
   const srcNames = new Set((sourceColumns.value || []).map(c => c.name || c.columnName))
   const tgtNames = (targetColumns.value || []).map(c => c.name || c.columnName)
-  form.mappings = tgtNames.filter(n => srcNames.has(n)).map(n => ({ targetField: n ,sourceExpr: ''}))
+  form.mappings = tgtNames.filter(n => srcNames.has(n)).map(n => ({ targetField: n ,sourceExpr: n}))
 }
 
 watch(() => form.source.dataSourceId, v => {
