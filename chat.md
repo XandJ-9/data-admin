@@ -726,12 +726,16 @@ class InterfaceQueryLog(BaseModel):
 
 *功能描述*
 分库分表数据同步功能：
-- 选择数据源(支持多选)，
+- 选择数据源(支持多选)，如果两个数据源不是同一种类型（例如MySQL和PostgreSQL），则提示选择错误，不允许进行同步
 - 如果所选数据源下存在数据库，则选择数据库(支持多选，过滤筛选)，如果所选数据源下不存在数据库，则选择表(支持多选)，
 - 数据库和数据表均支持填写自定义匹配（支持正则表达式），
 - 选择目标数据源，数据库（如果存在）
 - 目标数据数据源不能与来源数据源一致
+- 其他功能请参考单表同步组件 singleTableSyncDetail.vue
 
 *注意*
 - 前端界面风格要求参考单表同步组件 singleTableSyncDetail.vue
 - 前端分库分表同步详情组件位置：/src/views/dataintegration/offline/components/multiTableSyncDetail.vue
+
+
+参考单表同步组件 singleTableSyncDetail.vue中基本信息的样式，修改分库分表同步组件为相同的样式，不要修改现有代码功能
