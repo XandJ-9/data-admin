@@ -60,11 +60,13 @@
       </div>
       <el-table :data="form.mappings" border style="width: 100%">
         <el-table-column prop="targetField" label="目标字段">
+          <template #header="scope">
+            <span>目标字段{{form.mappings.length}}/{{targetColumns.length}}</span>
+          </template>
           <template #default="scope">
-            <!-- <el-select v-model="scope.row.targetField" filterable placeholder="选择目标字段" style="width: 220px">
+            <el-select v-model="scope.row.targetField" filterable allow-create default-first-option placeholder="选择目标字段" style="width: 220px">
               <el-option v-for="c in targetColumns" :key="c.name || c.columnName" :label="c.name || c.columnName" :value="c.name || c.columnName" />
-            </el-select> -->
-            <el-input v-model="scope.row.targetField" placeholder="请输入目标字段" />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column prop="sourceExpr" label="来源字段/表达式">
@@ -132,6 +134,7 @@
 </template>
 
 <script setup>
+import { ElMessage } from 'element-plus'
 import Crontab from '@/components/Crontab'
 import { listDatasource, listDatabases, listTables, listColumns } from '@/api/datasource'
 const { proxy } = getCurrentInstance()
@@ -169,6 +172,10 @@ function loadDs() {
 }
 
 function addMappingRow() {
+    if (form.mappings.length >= targetColumns.value.length) {
+        ElMessage.warning('未指定目标表或超过目标表字段个数，最多只能添加' + targetColumns.value.length + '个映射')
+        return
+    }
   form.mappings.push({ targetField: '', sourceExpr: '' })
 }
 
