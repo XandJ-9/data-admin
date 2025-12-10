@@ -643,7 +643,7 @@ function resetFieldForm() {
 }
 
 function loadDatasourceOptions() {
-  listDatasource({ pageNum: 1, pageSize: 100 }).then(res => {
+  listDatasource().then(res => {
     datasourceOptions.value = res.rows || []
   })
 }

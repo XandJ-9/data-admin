@@ -172,7 +172,7 @@ const form = reactive({
 function getForm() { return JSON.parse(JSON.stringify(form)) }
 
 function loadDs() {
-    listDatasource({ pageNum: 1, pageSize: 100 }).then(res => { dsList.value = res.rows || [] })
+    listDatasource().then(res => { dsList.value = res.rows || [] })
 }
 
 function applyDbPattern() {

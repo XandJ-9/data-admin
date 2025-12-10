@@ -120,7 +120,7 @@ function applyResult(t, data) {
 }
 
 function getDsList() {
-  listDatasource({ pageNum: 1, pageSize: 100 }).then(res => {
+  listDatasource().then(res => {
     dsList.value = res.rows || []
   })
 }

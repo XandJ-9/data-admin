@@ -153,7 +153,7 @@ function getForm() {
 defineExpose({ getForm })
 
 function loadDs() {
-  listDatasource({ pageNum: 1, pageSize: 100 }).then(res => {
+  listDatasource().then(res => {
     dsList.value = res.rows || []
   })
 }
