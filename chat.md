@@ -813,3 +813,18 @@ class InterfaceQueryLog(BaseModel):
   - 不要修改任务详情的数据结构
 - 编辑完任务详情后，点击保存按钮，进入数据集成任务列表页，在详情页可查看已创建的任务
   - 数据集成任务列表页：frontend/src/views/dataintegration/taskList.vue
+
+
+## 数据集代码组件更新
+*需求*
+  在数据库同步到数据库的场景中，无论是单表或分库分表的同步任务详情，都修改为使用一个组件来替代，
+  
+*代码开发*
+- 新建一个数据库到数据库的同步组件dbToDbSyncDetail.vue
+- 组件位置为：frontend/src/views/dataintegration/offline/components/dbToDbSyncDetail.vue
+- 组件中的功能如下：
+  - 选择数据源，
+    - 选择一个数据源时，获取该数据源下的数据库，显示数据库选项框，否则不显示数据库选项框，直接显示数据表选项框
+    - 选择多个数据源，如果是不同类型的数据源则提示数据源类型不同，不支持读取数据库信息，否则可多选数据源，此时获取每个数据源下的数据库，数据库下拉选项按照“数据源名称/数据库名”展示，选择数据库后，获取数据表，数据表来自所选数据库下的数据表名的并集
+
+请参考分库分表数据同步组件，改造一个新的dbToDbSyncDetail组件，并替换taskDetail中的singleTableSynvDetail和multiTableSyncDetail组件

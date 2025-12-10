@@ -47,8 +47,7 @@
 
 <script setup>
 import Crontab from '@/components/Crontab'
-import SingleTableSyncDetail from './offline/components/singleTableSyncDetail.vue'
-import MultiTableSyncDetail from './offline/components/multiTableSyncDetail.vue'
+import DbToDbSyncDetail from './offline/components/dbToDbSyncDetail.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { addTask, updateTask, getTask } from '@/api/dataintegration'
 const route = useRoute()
@@ -79,10 +78,13 @@ async function handleSave() {
       await updateTask(id, payload)
       proxy.$modal.msgSuccess('保存成功')
     } else {
-      await addTask(payload)
-      proxy.$modal.msgSuccess('保存成功')
+      await addTask(payload).then(res => {
+        console.log('addTask', res)
+        router.push({ name: 'DataIntegrationTasks' })
+      }).catch(() => {
+        proxy.$modal.msgError('保存失败')
+      })
     }
-    router.push({ name: 'DataIntegrationTasks' })
   } catch (e) {
     proxy.$modal.msgError('保存失败')
   }
@@ -139,9 +141,9 @@ function crontabFill(value) {
 
 
 
-const type = computed(() => (route.query.type || 'single'))
-const pageTitle = computed(() => type.value === 'multi' ? '分库分表离线同步' : '单表离线同步')
-const currentComp = computed(() => type.value === 'multi' ? MultiTableSyncDetail : SingleTableSyncDetail)
+const type = ref(route.query.type || 'dbToDb')
+const pageTitle = ref(type.value === 'dbToDb' ? '数据库离线同步' : '')
+const currentComp = computed(() => DbToDbSyncDetail)
 const detailRef = ref()
 
 

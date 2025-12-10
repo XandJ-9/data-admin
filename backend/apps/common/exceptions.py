@@ -35,16 +35,16 @@ def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
     traceback.print_exc()
     if response is not None:
-        message = _first_error_message(response.data)
+        msg = _first_error_message(response.data)
         # Fallback when message is empty
-        if not message:
-            message = '请求错误'
-        response.data = {
-            'code': response.status_code,
-            'message': message,
-        }
+        if not msg:
+            msg = '请求错误'
+        # response.data = {
+        #     'code': response.status_code,
+        #     'message': message,
+        # }
         # return response
-        return Response(response.data, status=status.HTTP_200_OK)
+        # return Response(response.data, status=status.HTTP_200_OK)
     elif isinstance(exc, (ProtectedError, RestrictedError)):
         set_rollback()
         msg = "无法删除:该条数据与其他数据有相关绑定"

@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
     <el-row :gutter="20">
-      <el-col :span="12">
+      <el-col :span="24">
         <el-card>
           <template #header>
             <span>单表离线同步</span>
@@ -9,19 +9,7 @@
           <div>
             <p>支持将单个数据库中的表数据同步到另一个数据库中的表。</p>
             <p>适用场景：将单数源下单张表的数据从同步到另一个指定的数据源下的指定表中</p>
-            <el-button type="primary" @click="createTask('single')">创建任务</el-button>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card>
-          <template #header>
-            <span>分库分表离线同步</span>
-          </template>
-          <div>
-            <p>支持将多个数据库中的表数据同步到另一个数据源的单个表中。</p>
-            <p>适用场景：将单个数据源下的多个分库分表同步到另一个指定数据源下的一张表中</p>
-            <el-button type="primary" @click="createTask('multi')">创建任务</el-button>
+            <el-button type="primary" @click="createTask('dbTodb')">创建任务</el-button>
           </div>
         </el-card>
       </el-col>

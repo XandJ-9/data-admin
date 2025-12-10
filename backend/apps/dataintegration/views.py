@@ -42,28 +42,9 @@ class IntegrationTaskViewSet(BaseViewSet):
 
     def create(self, request, *args, **kwargs):
         ser = IntegrationTaskCreateSerializer(data=request.data)
-        if not ser.is_valid():
-            # 统一返回首个错误
-            try:
-                first_err = next(iter(ser.errors.values()))[0]
-                return self.error(str(first_err))
-            except Exception:
-                return self.error('参数错误')
-        data = ser.validated_data
-        model = IntegrationTask(
-            name=data['taskName'],
-            type=data['taskType'],
-            schedule=data.get('schedule') or {},
-            detail=data.get('detail') or {},
-            status=data.get('status', '0'),
-            remark=data.get('remark', ''),
-        )
-        try:
-            model.save()
-            out = self.get_serializer(model).data
-            return self.data(out)
-        except Exception as e:
-            return self.error(str(e))
+        ser.is_valid(raise_exception=True)
+        self.perform_create(ser)
+        return self.data(ser.data)
 
     def update(self, request, *args, **kwargs):
         ser = IntegrationTaskUpdateSerializer(data=request.data)

@@ -9,25 +9,22 @@ class IntegrationTaskSerializer(BaseModelSerializer):
     taskType = serializers.CharField(source='type')
     schedule = serializers.JSONField()
     detail = serializers.JSONField()
+    status = serializers.CharField(required=False)
+    remark = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = IntegrationTask
-        fields = ['taskId', 'taskName', 'taskType', 'schedule', 'detail']
+        fields = ['taskId', 'taskName', 'taskType', 'schedule', 'detail', 'status', 'remark']
 
 
 class IntegrationTaskQuerySerializer(PaginationQuerySerializer):
     taskName = serializers.CharField(required=False, allow_blank=True)
-    taskType = serializers.ChoiceField(required=False, choices=['single', 'multi'])
+    taskType = serializers.ChoiceField(required=False, choices=['dbToDb'])
     status = serializers.ChoiceField(required=False, choices=['0', '1'])
 
 
-class IntegrationTaskCreateSerializer(serializers.Serializer):
-    taskName = serializers.CharField(max_length=255)
-    taskType = serializers.ChoiceField(choices=['single', 'multi'])
-    schedule = serializers.JSONField()
-    detail = serializers.JSONField()
-    status = serializers.ChoiceField(required=False, choices=['0', '1'], default='0')
-    remark = serializers.CharField(required=False, allow_blank=True, default='')
+class IntegrationTaskCreateSerializer(IntegrationTaskSerializer):
+    pass
 
 
 class IntegrationTaskUpdateSerializer(IntegrationTaskCreateSerializer):

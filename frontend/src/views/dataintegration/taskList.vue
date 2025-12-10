@@ -6,8 +6,7 @@
       </el-form-item>
       <el-form-item label="任务类型" prop="taskType">
         <el-select v-model="queryParams.taskType" placeholder="请选择任务类型" clearable style="width: 200px">
-          <el-option label="单表" value="single" />
-          <el-option label="分库分表" value="multi" />
+          <el-option label="数据库离线同步" value="dbToDb" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -15,15 +14,6 @@
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
-
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button type="primary" plain icon="Plus" @click="createTask('single')">新增单表任务</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button type="primary" plain icon="Plus" @click="createTask('multi')">新增分库分表任务</el-button>
-      </el-col>
-    </el-row>
 
     <el-table v-loading="loading" :data="taskList">
       <el-table-column label="任务名称" prop="taskName" min-width="200" />
