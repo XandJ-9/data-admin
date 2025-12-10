@@ -30,6 +30,7 @@ urlpatterns = [
     path('data-api/datasource/', include('apps.datasource.urls')),
     path('data-api/dataservice/', include('apps.dataservice.urls')),
     path('data-api/datameta/', include('apps.datameta.urls')),
+    path('data-api/dataintegration/', include('apps.dataintegration.urls')),
     path('data-api/monitor/', include('apps.monitor.urls')),
     path('data-api/captcha/', include('captcha.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

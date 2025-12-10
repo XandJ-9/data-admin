@@ -1,9 +1,8 @@
 <template>
   <div class="app-container">
     <el-page-header :content="pageTitle" @back="goBack" />
-
     <div style="margin-top: 16px">
-      <component :is="currentComp" ref="detailRef" />
+        <component :is="currentComp" ref="detailRef" />
     </div>
 
     <el-card style="margin-top: 16px">
@@ -12,14 +11,14 @@
         </template>
         <el-form :model="taskDetailForm" label-width="120px">
         <el-form-item label="调度策略">
-          <el-radio-group v-model="taskDetailForm.schedule.type">
+        <el-radio-group v-model="taskDetailForm.schedule.type">
             <el-radio label="manual">手动</el-radio>
             <el-radio label="cron">定时</el-radio>
-          </el-radio-group>
-          <div v-if="taskDetailForm.schedule.type==='cron'" style="display: inline-flex; align-items: center; margin-left: 12px">
+        </el-radio-group>
+        <div v-if="taskDetailForm.schedule.type==='cron'" style="display: inline-flex; align-items: center; margin-left: 12px">
             <el-input v-model="taskDetailForm.schedule.cronExpr" placeholder="cron表达式" style="width: 240px" />
             <el-button style="margin-left: 8px" @click="handleShowCron">生成</el-button>
-          </div>
+        </div>
         </el-form-item>
         <el-form-item label="分组调度">
             <el-select v-model="taskDetailForm.schedule.group" allow-create filterable default-first-option placeholder="请选择分组" style="width: 240px">
@@ -28,6 +27,7 @@
         </el-form-item>
         </el-form>
     </el-card>
+
     <!-- CronTab 选择器弹窗 -->
     <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
       <crontab @hide="openCron=false" @fill="crontabFill" :expression="expression" />
@@ -50,29 +50,39 @@ import Crontab from '@/components/Crontab'
 import SingleTableSyncDetail from './offline/components/singleTableSyncDetail.vue'
 import MultiTableSyncDetail from './offline/components/multiTableSyncDetail.vue'
 import { useRoute, useRouter } from 'vue-router'
+import { addTask, updateTask, getTask } from '@/api/dataintegration'
 const route = useRoute()
 const router = useRouter()
 const { proxy } = getCurrentInstance()
 
-const type = computed(() => (route.query.type || 'single'))
-const pageTitle = computed(() => type.value === 'multi' ? '分库分表离线同步' : '单表离线同步')
-const currentComp = computed(() => type.value === 'multi' ? MultiTableSyncDetail : SingleTableSyncDetail)
-const detailRef = ref()
 
 function goBack() {
   router.back()
 }
 
-function handleSave() {
+async function handleSave() {
   try {
     taskDetailForm.detail = detailRef.value?.getForm?.()
     if (!taskDetailForm.detail) {
       proxy.$modal.msgError('表单未就绪')
       return
     }
-      proxy.$modal.msgSuccess('已暂存任务配置')
-    
-    console.log('sync task payload', taskDetailForm)
+    const payload = {
+      taskName: pageTitle.value,
+      taskType: type.value,
+      schedule: taskDetailForm.schedule,
+      detail: taskDetailForm.detail
+    }
+    const id = route.params.id
+      if (id && id !== 'new') {
+        console.log('updateTask', id, payload)
+      await updateTask(id, payload)
+      proxy.$modal.msgSuccess('保存成功')
+    } else {
+      await addTask(payload)
+      proxy.$modal.msgSuccess('保存成功')
+    }
+    router.push({ name: 'DataIntegrationTasks' })
   } catch (e) {
     proxy.$modal.msgError('保存失败')
   }
@@ -103,6 +113,7 @@ const handleValidate = () => {
     }
 }
 
+
 // 任务调度信息
 const taskDetailForm = reactive({
   schedule: {
@@ -125,6 +136,26 @@ function handleShowCron() {
 function crontabFill(value) {
   taskDetailForm.schedule.cronExpr = value
 }
+
+
+
+const type = computed(() => (route.query.type || 'single'))
+const pageTitle = computed(() => type.value === 'multi' ? '分库分表离线同步' : '单表离线同步')
+const currentComp = computed(() => type.value === 'multi' ? MultiTableSyncDetail : SingleTableSyncDetail)
+const detailRef = ref()
+
+
+onMounted(() => {
+  const id = route.params.id
+  if (id && id !== 'new') {
+    getTask(id).then(res => {
+        const data = res.data || {}
+        taskDetailForm.schedule = data.schedule || { type: 'manual', cronExpr: '', group: '' }
+        taskDetailForm.detail = data.detail || {}
+        detailRef.value?.setForm?.(taskDetailForm.detail)
+    })
+  }
+})
 
 </script>
 

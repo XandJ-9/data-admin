@@ -159,6 +159,7 @@ const targetTableList = ref([])
 const targetColumns = ref([])
 const sourceTypeError = ref(false)
 const sourceTypeText = ref('')
+const initializing = ref(false)
 
 const form = reactive({
     source: { dataSourceIds: [], databases: [], databasePattern: '', tables: [], tablePattern: '' },
@@ -170,6 +171,27 @@ const form = reactive({
 })
 
 function getForm() { return JSON.parse(JSON.stringify(form)) }
+function setForm(payload) {
+    try {
+        initializing.value = true
+        const data = JSON.parse(JSON.stringify(payload || {}))
+        const src = data.source || {}
+        const tgt = data.target || {}
+        form.source.dataSourceIds = Array.isArray(src.dataSourceIds) ? src.dataSourceIds : []
+        form.source.databases = Array.isArray(src.databases) ? src.databases : []
+        form.source.databasePattern = src.databasePattern || ''
+        form.source.tables = Array.isArray(src.tables) ? src.tables : []
+        form.source.tablePattern = src.tablePattern || ''
+        form.target.dataSourceId = tgt.dataSourceId || ''
+        form.target.databaseName = tgt.databaseName || ''
+        form.target.tableName = tgt.tableName || ''
+        form.defaultMapping = !!data.defaultMapping
+        form.mappings = Array.isArray(data.mappings) ? data.mappings : []
+        form.where = data.where || ''
+        form.mode = Object.assign({ type: 'full', incrementField: '', incrementType: '' }, data.mode || {})
+    } catch {}
+    nextTick(() => { initializing.value = false })
+}
 
 function loadDs() {
     listDatasource().then(res => { dsList.value = res.rows || [] })
@@ -196,6 +218,7 @@ function applyTablePattern() {
 }
 
 watch(() => form.source.dataSourceIds.slice().join(','), () => {
+    if (initializing.value) return
     // 校验来源数据源类型一致性
     const ids = form.source.dataSourceIds
     const types = Array.from(new Set(ids.map(id => {
@@ -253,6 +276,7 @@ watch(() => form.source.dataSourceIds.slice().join(','), () => {
 })
 
 watch(() => form.source.databases.map(d => d.key).join(','), () => {
+    if (initializing.value) return
     tableList.value = []
     displayTableList.value = []
     form.source.tables = []
@@ -297,6 +321,7 @@ watch(() => form.source.databases.map(d => d.key).join(','), () => {
 })
 
 watch(() => form.source.tables.map(t => t.key).join(','), () => {
+    if (initializing.value) return
     sourceColumns.value = []
     Object.keys(sourceColumnsMap).forEach(k => delete sourceColumnsMap[k])
     const first = form.source.tables[0]
@@ -310,6 +335,7 @@ watch(() => form.source.tables.map(t => t.key).join(','), () => {
 })
 
 watch(() => form.target.dataSourceId, v => {
+    if (initializing.value) return
     targetDbList.value = []
     form.target.databaseName = undefined
     targetTableList.value = []
@@ -329,6 +355,7 @@ watch(() => form.target.dataSourceId, v => {
 })
 
 watch(() => form.target.databaseName, v => {
+    if (initializing.value) return
     targetTableList.value = []
     form.target.tableName = undefined
     const dsId = form.target.dataSourceId
@@ -341,6 +368,7 @@ watch(() => form.target.databaseName, v => {
 })
 
 watch(() => form.target.tableName, v => {
+    if (initializing.value) return
     targetColumns.value = []
     const dsId = form.target.dataSourceId
     if (!dsId || !v) return
@@ -358,7 +386,7 @@ function isValid() {
     return !sourceTypeError.value && !targetSameAsSource
 }
 
-defineExpose({ getForm, isValid })
+defineExpose({ getForm, setForm, isValid })
 </script>
 
 <style scoped></style>

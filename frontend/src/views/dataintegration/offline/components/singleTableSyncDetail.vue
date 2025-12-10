@@ -20,7 +20,7 @@
                 </el-form-item>
               </el-row>
               <el-row>
-                <el-form-item v-if="sourceDbList.length" label="数据库">
+                <el-form-item v-if="sourceDbList.length || form.source.databaseName" label="数据库">
                   <el-select v-model="form.source.databaseName" filterable clearable placeholder="选择数据库"
                     style="width: 240px">
                     <el-option v-for="db in sourceDbList" :key="db" :label="db" :value="db" />
@@ -137,6 +137,7 @@ const sourceTableList = ref([])
 const targetTableList = ref([])
 const sourceColumns = ref([])
 const targetColumns = ref([])
+const initializing = ref(false)
 
 const form = reactive({
   source: { dataSourceId: '', databaseName: '', tableName: '' },
@@ -150,7 +151,20 @@ const form = reactive({
 function getForm() {
   return JSON.parse(JSON.stringify(form))
 }
-defineExpose({ getForm })
+function setForm(payload) {
+  try {
+    initializing.value = true
+    const data = payload || {}
+    Object.assign(form.source, data.source || {})
+    Object.assign(form.target, data.target || {})
+    form.defaultMapping = !!data.defaultMapping
+    form.mappings = Array.isArray(data.mappings) ? data.mappings : []
+    form.where = data.where || ''
+    form.mode = Object.assign({ type: 'full', incrementField: '', incrementType: '' }, data.mode || {})
+  } catch {}
+  nextTick(() => { initializing.value = false })
+}
+defineExpose({ getForm, setForm })
 
 function loadDs() {
   listDatasource().then(res => {
@@ -159,6 +173,7 @@ function loadDs() {
 }
 
 watch(() => form.source.dataSourceId, v => {
+  if (initializing.value) return
   sourceDbList.value = []
   form.source.databaseName = undefined
   sourceTableList.value = []
@@ -176,6 +191,7 @@ watch(() => form.source.dataSourceId, v => {
 })
 
 watch(() => form.source.databaseName, v => {
+  if (initializing.value) return
   sourceTableList.value = []
   form.source.tableName = undefined
   sourceColumns.value = []
@@ -188,6 +204,7 @@ watch(() => form.source.databaseName, v => {
 })
 
 watch(() => form.source.tableName, v => {
+  if (initializing.value) return
   sourceColumns.value = []
   if (!form.source.dataSourceId || !v) return
   const params = { dataSourceId: form.source.dataSourceId, tableName: v }
@@ -199,6 +216,7 @@ watch(() => form.source.tableName, v => {
 })
 
 watch(() => form.target.dataSourceId, v => {
+  if (initializing.value) return
   targetDbList.value = []
   form.target.databaseName = undefined
   targetTableList.value = []
@@ -216,6 +234,7 @@ watch(() => form.target.dataSourceId, v => {
 })
 
 watch(() => form.target.databaseName, v => {
+  if (initializing.value) return
   targetTableList.value = []
   form.target.tableName = undefined
   targetColumns.value = []
@@ -228,6 +247,7 @@ watch(() => form.target.databaseName, v => {
 })
 
 watch(() => form.target.tableName, v => {
+  if (initializing.value) return
   targetColumns.value = []
   if (!form.target.dataSourceId || !v) return
   const params = { dataSourceId: form.target.dataSourceId, tableName: v }

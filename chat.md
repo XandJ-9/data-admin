@@ -754,3 +754,62 @@ class InterfaceQueryLog(BaseModel):
 *其他要求*
 - 不要修改其他前端代码，只新建一个字段映射组件
 - 代码目录： frontend\src\components\FieldMappings\index.vue
+
+
+## 数据集成模块后端功能实现
+请基于前端数据集成模块的设计，设计后端对应的数据模型
+
+*关键描述*
+- 后端新建应用dataintegration, 位置：backend\apps\dataintegration
+- 前端集成模块代码位置： frontend\src\views\dataintegration
+- 前端只有任务详情编辑页，详情信息如下数据结构
+```json
+{
+    "schedule": {
+        "type": "manual",
+        "cronExpr": "",
+        "group": ""
+    },
+    "detail": {
+        "source": {
+            "dataSourceIds": [],
+            "databases": [],
+            "databasePattern": "",
+            "tables": [],
+            "tablePattern": ""
+        },
+        "target": {
+            "dataSourceId": "",
+            "databaseName": "",
+            "tableName": ""
+        },
+        "defaultMapping": false,
+        "mappings": [],
+        "where": "",
+        "mode": {
+            "type": "full",
+            "incrementField": "",
+            "incrementType": ""
+        }
+    }
+}
+```
+
+- 需要完成对应前端数据集成任务列表
+
+*注意事项*
+- 后端代码开发要求符合开发规范，可参考其他应用的开发规范，
+- 不要在backend/apps/dataintegration目录其外的地方修改代码
+- 前端风格一致
+
+
+## 数据集成任务管理前端实现
+*需求*
+  根据后端实现的dataintegration应用的接口，实现对应前端的页面
+
+*功能描述*
+- 在数据集成首页点击创建任务按钮，进入对应任务详情(编辑)页,已经实现对应代码文件为taskDetail.vue
+  - 在taskDetail.vue中添加保存任务的功能，调用接口实现详情保存
+  - 不要修改任务详情的数据结构
+- 编辑完任务详情后，点击保存按钮，进入数据集成任务列表页，在详情页可查看已创建的任务
+  - 数据集成任务列表页：frontend/src/views/dataintegration/taskList.vue

@@ -96,12 +96,12 @@ export const constantRoutes = [
         component: () => import('@/views/dataintegration/index.vue'),
         meta: { title: '数据集成首页', icon: 'guide' }
       },
-    //   {
-    //     path: 'tasks',
-    //     name: 'DataIntegrationTasks',
-    //     component: () => import('@/views/dataintegration/taskList.vue'),
-    //     meta: { title: '同步任务列表', icon: 'list' }
-    //   },
+      {
+        path: 'tasks',
+        name: 'DataIntegrationTasks',
+        component: () => import('@/views/dataintegration/taskList.vue'),
+        meta: { title: '同步任务列表', icon: 'list' }
+      },
       {
         path: 'task/:id',
         name: 'DataIntegrationTaskDetail',
