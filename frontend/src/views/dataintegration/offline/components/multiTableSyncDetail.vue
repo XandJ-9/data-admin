@@ -105,36 +105,12 @@
             <template #header>
                 <span>字段映射</span>
             </template>
-            <div style="margin-bottom: 8px">
-                <el-checkbox v-model="form.defaultMapping" @change="applyDefaultMapping">默认同名映射</el-checkbox>
-                <el-button size="small" style="margin-left: 12px" @click="addMappingRow">新增映射</el-button>
-            </div>
-            <el-table :data="form.mappings" border style="width: 100%">
-                <el-table-column prop="targetField" label="目标字段">
-                    <template #header>
-                        <span>目标字段{{form.mappings.length}}/{{targetColumns.length}}</span>
-                    </template>
-                    <template #default="scope">
-                        <el-select v-model="scope.row.targetField" filterable allow-create default-first-option
-                            placeholder="选择目标字段" style="width: 220px">
-                            <el-option v-for="c in targetColumns.filter(c => !form.mappings.find(m => m.targetField === c))" :key="c" :label="c" :value="c" />
-                        </el-select>
-                    </template>
-                </el-table-column>
-                <el-table-column prop="sourceExpr" label="来源字段/表达式">
-                    <template #default="scope">
-                        <el-select v-model="scope.row.sourceExpr" filterable allow-create default-first-option
-                            placeholder="选择或输入" style="width: 260px">
-                            <el-option v-for="c in unionSourceColumns" :key="c" :label="c" :value="c" />
-                        </el-select>
-                    </template>
-                </el-table-column>
-                <el-table-column label="操作" width="120">
-                    <template #default="scope">
-                        <el-button link type="danger" @click="removeMapping(scope.$index)">删除</el-button>
-                    </template>
-                </el-table-column>
-            </el-table>
+            <field-mapping ref="fieldMapping" 
+            :source-columns="sourceColumns" 
+            :target-columns="targetColumns" 
+            :mappings="form.mappings" 
+            @update:mappings="v => form.mappings = v"
+            />
         </el-card>
 
         <el-card style="margin-top: 16px">
@@ -154,7 +130,7 @@
                 <el-form-item v-if="form.mode.type === 'incremental'" label="增量字段">
                     <el-select v-model="form.mode.incrementField" filterable allow-create placeholder="选择或输入增量字段"
                         style="width: 240px">
-                        <el-option v-for="c in unionSourceColumns" :key="c" :label="c" :value="c" />
+                        <el-option v-for="c in sourceColumns" :key="c" :label="c" :value="c" />
                     </el-select>
                     <el-select v-model="form.mode.incrementType" style="width: 180px; margin-left: 12px">
                         <el-option label="自增ID" value="id" />
@@ -168,8 +144,8 @@
 </template>
 
 <script setup>
+import FieldMapping from '@/components/FieldMapping'
 import { listDatasource, listDatabases, listTables, listColumns } from '@/api/datasource'
-const { proxy } = getCurrentInstance()
 
 const dsList = ref([])
 const dbList = ref([])
@@ -177,7 +153,7 @@ const displayDbList = ref([])
 const tableList = ref([])
 const displayTableList = ref([])
 const sourceColumnsMap = reactive({})
-const unionSourceColumns = ref([])
+const sourceColumns = ref([])
 const targetDbList = ref([])
 const targetTableList = ref([])
 const targetColumns = ref([])
@@ -215,24 +191,8 @@ function applyTablePattern() {
     try {
         const re = new RegExp(p)
         displayTableList.value = tableList.value.filter(t => re.test(String(t.tableName)))
+        form.source.tables = displayTableList.value
     } catch { displayTableList.value = [...tableList.value] }
-}
-
-function addMappingRow() { form.mappings.push({ targetField: '', sourceExpr: '' }) }
-function removeMapping(i) { form.mappings.splice(i, 1) }
-
-function applyDefaultMapping() {
-    if (!form.defaultMapping) return
-    const src = unionSourceColumns.value || []
-    const tgt = targetColumns.value || []
-    if (tgt.length && src.length) {
-        const srcSet = new Set(src)
-        form.mappings = tgt.filter(n => srcSet.has(n)).map(n => ({ targetField: n, sourceExpr: n }))
-        return
-    }
-    if (src.length) {
-        form.mappings = src.map(n => ({ targetField: n, sourceExpr: n }))
-    }
 }
 
 watch(() => form.source.dataSourceIds.slice().join(','), () => {
@@ -251,7 +211,7 @@ watch(() => form.source.dataSourceIds.slice().join(','), () => {
     tableList.value = []
     displayTableList.value = []
     form.source.tables = []
-    unionSourceColumns.value = []
+    sourceColumns.value = []
     Object.keys(sourceColumnsMap).forEach(k => delete sourceColumnsMap[k])
     if (!ids.length) return
     const tasks = ids.map(id => listDatabases({ dataSourceId: id }))
@@ -296,7 +256,7 @@ watch(() => form.source.databases.map(d => d.key).join(','), () => {
     tableList.value = []
     displayTableList.value = []
     form.source.tables = []
-    unionSourceColumns.value = []
+    sourceColumns.value = []
     Object.keys(sourceColumnsMap).forEach(k => delete sourceColumnsMap[k])
 
     const firstDb = form.source.databases[0]
@@ -337,7 +297,7 @@ watch(() => form.source.databases.map(d => d.key).join(','), () => {
 })
 
 watch(() => form.source.tables.map(t => t.key).join(','), () => {
-    unionSourceColumns.value = []
+    sourceColumns.value = []
     Object.keys(sourceColumnsMap).forEach(k => delete sourceColumnsMap[k])
     const first = form.source.tables[0]
     if (!first) return
@@ -345,8 +305,7 @@ watch(() => form.source.tables.map(t => t.key).join(','), () => {
     if (first.databaseName) params.databaseName = first.databaseName
     listColumns(params).then(res => {
         const cols = (res.rows || []).map(c => c.name || c.columnName)
-        unionSourceColumns.value = Array.from(new Set(cols))
-        applyDefaultMapping()
+        sourceColumns.value = Array.from(new Set(cols))
     })
 })
 
@@ -389,7 +348,6 @@ watch(() => form.target.tableName, v => {
     if (form.target.databaseName) params.databaseName = form.target.databaseName
     listColumns(params).then(res => {
         targetColumns.value = (res.rows || []).map(c => c.name || c.columnName)
-        applyDefaultMapping()
     })
 })
 

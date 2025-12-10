@@ -739,3 +739,18 @@ class InterfaceQueryLog(BaseModel):
 
 
 参考单表同步组件 singleTableSyncDetail.vue中基本信息的样式，修改分库分表同步组件为相同的样式，不要修改现有代码功能
+
+## 数据集成代码优化
+*需求*
+  在单表同步(SingleTableSyncDetail.vue)和分库分表同步(MultiTableSyncDetail.vue)组件中，参考字段映射部分的代码功能，封装一个字段映射组件，实现字段映射功能
+
+*具体功能*
+- 传入参数： 来源字段列表，目标字段列表，字段映射关系 
+- 在字段映射组件中，可以添加新的映射关系，可以在任意指定字段后追加字段映射关系
+- 目标字段可选列表中不出现已映射的字段
+- 字段映射个数不能超过目标字段个数
+- 提示已存在映射关系个数/目标字段个数信息
+
+*其他要求*
+- 不要修改其他前端代码，只新建一个字段映射组件
+- 代码目录： frontend\src\components\FieldMappings\index.vue

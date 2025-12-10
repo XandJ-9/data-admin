@@ -86,39 +86,12 @@
       <template #header>
         <span>字段映射</span>
       </template>
-      <div style="margin-bottom: 8px">
-        <!-- <el-button type="primary" @click="applyDefaultMapping">默认同名映射</el-button> -->
-        <el-checkbox v-model="form.defaultMapping" @change="applyDefaultMapping">默认同名映射</el-checkbox>
-        <el-button size="small" style="margin-left: 12px" @click="addMappingRow">新增映射</el-button>
-      </div>
-      <el-table :data="form.mappings" border style="width: 100%">
-        <el-table-column prop="targetField" label="目标字段">
-          <template #header>
-            <span>目标字段{{ form.mappings.length }}/{{ targetColumns.length }}</span>
-          </template>
-          <template #default="scope">
-            <el-select v-model="scope.row.targetField" filterable allow-create default-first-option placeholder="选择目标字段"
-              style="width: 220px">
-              <el-option v-for="c in targetColumns.filter(c => !form.mappings.find(m => m.targetField === c))" :key="c" :label="c"
-                :value="c" />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column prop="sourceExpr" label="来源字段/表达式">
-          <template #default="scope">
-            <el-select v-model="scope.row.sourceExpr" filterable allow-create default-first-option placeholder="选择或输入"
-              style="width: 260px">
-              <el-option v-for="c in sourceColumns" :key="c" :label="c" :value="c" />
-            </el-select>
-            <!-- <el-input v-else v-model="scope.row.sourceExpr" placeholder="请输入" style="width: 260px" /> -->
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120">
-          <template #default="scope">
-            <el-button link type="danger" @click="removeMapping(scope.$index)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <field-mapping ref="fieldMapping" 
+      :source-columns="sourceColumns" 
+      :target-columns="targetColumns" 
+      :mappings="form.mappings" 
+      @update:mappings="v => form.mappings = v"
+      />
     </el-card>
 
     <el-card style="margin-top: 16px">
@@ -154,9 +127,8 @@
 </template>
 
 <script setup>
-import { ElMessage } from 'element-plus'
+import FieldMapping  from '@/components/FieldMapping'
 import { listDatasource, listDatabases, listTables, listColumns } from '@/api/datasource'
-const { proxy } = getCurrentInstance()
 
 const dsList = ref([])
 const sourceDbList = ref([])
@@ -185,27 +157,6 @@ function loadDs() {
     dsList.value = res.rows || []
   })
 }
-
-function addMappingRow() {
-  if (form.mappings.length >= targetColumns.value.length) {
-    ElMessage.warning('未指定目标表或超过目标表字段个数，最多只能添加' + targetColumns.value.length + '个映射')
-    return
-  }
-  form.mappings.push({ targetField: '', sourceExpr: '' })
-}
-
-function removeMapping(i) {
-  form.mappings.splice(i, 1)
-}
-
-function applyDefaultMapping() {
-  if (!form.defaultMapping) return
-  if (!targetColumns.value.length || !sourceColumns.value.length) return
-  const srcNames = new Set(sourceColumns.value || [])
-  const tgtNames = (targetColumns.value || [])
-  form.mappings = tgtNames.filter(n => srcNames.has(n)).map(n => ({ targetField: n, sourceExpr: n }))
-}
-
 
 watch(() => form.source.dataSourceId, v => {
   sourceDbList.value = []
@@ -243,7 +194,7 @@ watch(() => form.source.tableName, v => {
   if (form.source.databaseName) params.databaseName = form.source.databaseName
   listColumns(params).then(res => {
     sourceColumns.value = (res.rows || []).map(c => c.name || c.columnName)
-    applyDefaultMapping()
+    // applyDefaultMapping()
   })
 })
 
@@ -283,7 +234,7 @@ watch(() => form.target.tableName, v => {
   if (form.target.databaseName) params.databaseName = form.target.databaseName
   listColumns(params).then(res => {
       targetColumns.value = (res.rows || []).map(c => c.name || c.columnName)
-    applyDefaultMapping()
+    // applyDefaultMapping()
   })
 })
 
