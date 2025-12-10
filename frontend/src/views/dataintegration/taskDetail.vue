@@ -40,6 +40,7 @@
     <div style="margin-top: 16px; text-align: right">
       <el-button @click="goBack">返 回</el-button>
       <el-button type="primary" @click="handleSave">保 存</el-button>
+      <el-button type="info" @click="handleValidate">校 验</el-button>
     </div>
   </div>
 </template>
@@ -77,6 +78,30 @@ function handleSave() {
   }
 }
 
+
+const handleValidate = () => {
+    try {
+        if (!taskDetailForm.detail) {
+            proxy.$modal.msgError('表单未保存')
+            return
+        }
+
+        if (!taskDetailForm.detail.mode) {
+            proxy.$modal.msgError('请选择任务执行模式')
+            return
+        }
+        // 检查是否指定的增量字段
+        if (taskDetailForm.detail.mode.type && taskDetailForm.detail.mode.type === 'incremental') {
+            if (!taskDetailForm.detail.mode.incrementField) {
+                proxy.$modal.msgError('增量字段未指定')
+                return
+            }
+        }
+        proxy.$modal.msgSuccess('校验通过')
+    } catch (e) {
+        proxy.$modal.msgError('校验失败')
+    }
+}
 
 // 任务调度信息
 const taskDetailForm = reactive({

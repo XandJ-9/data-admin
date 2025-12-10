@@ -99,8 +99,8 @@
           <template #default="scope">
             <el-select v-model="scope.row.targetField" filterable allow-create default-first-option placeholder="选择目标字段"
               style="width: 220px">
-              <el-option v-for="c in targetColumns" :key="c.name || c.columnName" :label="c.name || c.columnName"
-                :value="c.name || c.columnName" />
+              <el-option v-for="c in targetColumns.filter(c => !form.mappings.find(m => m.targetField === c))" :key="c" :label="c"
+                :value="c" />
             </el-select>
           </template>
         </el-table-column>
@@ -108,8 +108,7 @@
           <template #default="scope">
             <el-select v-model="scope.row.sourceExpr" filterable allow-create default-first-option placeholder="选择或输入"
               style="width: 260px">
-              <el-option v-for="c in sourceColumns" :key="c.name || c.columnName" :label="c.name || c.columnName"
-                :value="c.name || c.columnName" />
+              <el-option v-for="c in sourceColumns" :key="c" :label="c" :value="c" />
             </el-select>
             <!-- <el-input v-else v-model="scope.row.sourceExpr" placeholder="请输入" style="width: 260px" /> -->
           </template>
@@ -139,8 +138,7 @@
         <el-form-item v-if="form.mode.type === 'incremental'" label="增量字段">
           <el-select v-model="form.mode.incrementField" filterable allow-create placeholder="选择或输入增量字段"
             style="width: 240px">
-            <el-option v-for="c in sourceColumns" :key="c.name || c.columnName" :label="c.name || c.columnName"
-              :value="c.name || c.columnName" />
+            <el-option v-for="c in sourceColumns" :key="c" :label="c" :value="c" />
           </el-select>
           <el-select v-model="form.mode.incrementType" style="width: 180px; margin-left: 12px">
             <el-option label="自增ID" value="id" />
@@ -169,8 +167,8 @@ const sourceColumns = ref([])
 const targetColumns = ref([])
 
 const form = reactive({
-  source: { dataSourceId: undefined, databaseName: undefined, tableName: undefined },
-  target: { dataSourceId: undefined, databaseName: undefined, tableName: undefined },
+  source: { dataSourceId: '', databaseName: '', tableName: '' },
+  target: { dataSourceId: '', databaseName: '', tableName: '' },
   defaultMapping: true,
   mappings: [],
   where: '',
@@ -203,8 +201,8 @@ function removeMapping(i) {
 function applyDefaultMapping() {
   if (!form.defaultMapping) return
   if (!targetColumns.value.length || !sourceColumns.value.length) return
-  const srcNames = new Set((sourceColumns.value || []).map(c => c.name || c.columnName))
-  const tgtNames = (targetColumns.value || []).map(c => c.name || c.columnName)
+  const srcNames = new Set(sourceColumns.value || [])
+  const tgtNames = (targetColumns.value || [])
   form.mappings = tgtNames.filter(n => srcNames.has(n)).map(n => ({ targetField: n, sourceExpr: n }))
 }
 
@@ -244,7 +242,7 @@ watch(() => form.source.tableName, v => {
   const params = { dataSourceId: form.source.dataSourceId, tableName: v }
   if (form.source.databaseName) params.databaseName = form.source.databaseName
   listColumns(params).then(res => {
-    sourceColumns.value = res.rows || []
+    sourceColumns.value = (res.rows || []).map(c => c.name || c.columnName)
     applyDefaultMapping()
   })
 })
@@ -284,7 +282,7 @@ watch(() => form.target.tableName, v => {
   const params = { dataSourceId: form.target.dataSourceId, tableName: v }
   if (form.target.databaseName) params.databaseName = form.target.databaseName
   listColumns(params).then(res => {
-    targetColumns.value = res.rows || []
+      targetColumns.value = (res.rows || []).map(c => c.name || c.columnName)
     applyDefaultMapping()
   })
 })
