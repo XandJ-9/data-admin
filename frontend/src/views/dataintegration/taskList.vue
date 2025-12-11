@@ -5,8 +5,10 @@
         <el-input v-model="queryParams.taskName" placeholder="请输入任务名称" clearable style="width: 200px" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="任务类型" prop="taskType">
-        <el-select v-model="queryParams.taskType" placeholder="请选择任务类型" clearable style="width: 200px">
-          <el-option label="数据库离线同步" value="dbToDb" />
+        <el-select v-model="queryParams.taskType" placeholder="请选择任务类型" clearable style="width: 220px">
+          <el-option label="数据库同步到数据库" value="dbToDb" />
+          <el-option label="数据库同步到Hive" value="dbToHive" />
+          <el-option label="Hive同步到数据库" value="hiveToDb" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -17,10 +19,12 @@
 
     <el-table v-loading="loading" :data="taskList">
       <el-table-column label="任务名称" prop="taskName" min-width="200" />
-      <el-table-column label="任务类型" prop="taskType" width="120">
+      <el-table-column label="任务类型" prop="taskType" width="160">
         <template #default="scope">
-          <el-tag type="info" v-if="scope.row.taskType==='single'">单表</el-tag>
-          <el-tag type="success" v-else>分库分表</el-tag>
+          <el-tag v-if="scope.row.taskType==='dbToDb'" type="primary">数据库→数据库</el-tag>
+          <el-tag v-else-if="scope.row.taskType==='dbToHive'" type="success">数据库→Hive</el-tag>
+          <el-tag v-else-if="scope.row.taskType==='hiveToDb'" type="warning">Hive→数据库</el-tag>
+          <el-tag v-else type="info">未知</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="状态" prop="status" width="100">
@@ -85,7 +89,7 @@ function resetQuery() {
 }
 
 function viewDetail(row) {
-  const type = row.taskType || 'single'
+  const type = row.taskType || 'dbToDb'
   router.push({ name: 'DataIntegrationTaskDetail', params: { id: row.taskId }, query: { type } })
 }
 

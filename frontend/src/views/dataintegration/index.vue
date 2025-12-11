@@ -1,15 +1,33 @@
 <template>
   <div class="app-container">
     <el-row :gutter="20">
-      <el-col :span="24">
+      <el-col :span="8">
         <el-card>
           <template #header>
-            <span>单表离线同步</span>
+            <span>数据库同步到数据库</span>
           </template>
           <div>
-            <p>支持将单个数据库中的表数据同步到另一个数据库中的表。</p>
-            <p>适用场景：将单数源下单张表的数据从同步到另一个指定的数据源下的指定表中</p>
-            <el-button type="primary" @click="createTask('dbTodb')">创建任务</el-button>
+            <el-button type="primary" @click="createTask('dbToDb')">创建任务</el-button>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card>
+          <template #header>
+            <span>数据库同步到Hive</span>
+          </template>
+          <div>
+            <el-button type="primary" @click="createTask('dbToHive')">创建任务</el-button>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card>
+          <template #header>
+            <span>Hive同步到数据库</span>
+          </template>
+          <div>
+            <el-button type="primary" @click="createTask('hiveToDb')">创建任务</el-button>
           </div>
         </el-card>
       </el-col>
