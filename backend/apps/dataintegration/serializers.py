@@ -19,7 +19,7 @@ class IntegrationTaskSerializer(BaseModelSerializer):
 
 class IntegrationTaskQuerySerializer(PaginationQuerySerializer):
     taskName = serializers.CharField(required=False, allow_blank=True)
-    taskType = serializers.ChoiceField(required=False, choices=['dbToDb'])
+    taskType = serializers.ChoiceField(required=False, choices=['dbToDb', 'dbToHive', 'hiveToDb'])
     status = serializers.ChoiceField(required=False, choices=['0', '1'])
 
 

@@ -47,28 +47,8 @@ class IntegrationTaskViewSet(BaseViewSet):
         return self.data(ser.data)
 
     def update(self, request, *args, **kwargs):
-        ser = IntegrationTaskUpdateSerializer(data=request.data)
-        if not ser.is_valid():
-            try:
-                first_err = next(iter(ser.errors.values()))[0]
-                return self.error(str(first_err))
-            except Exception:
-                return self.error('参数错误')
-        data = ser.validated_data
-        pk = kwargs.get('pk') or data.get('taskId')
-        try:
-            obj = IntegrationTask.objects.get(pk=pk, del_flag='0')
-        except IntegrationTask.DoesNotExist:
-            return self.not_found('任务不存在')
-        obj.name = data['taskName']
-        obj.type = data['taskType']
-        obj.schedule = data.get('schedule') or {}
-        obj.detail = data.get('detail') or {}
-        obj.status = data.get('status', '0')
-        obj.remark = data.get('remark', '')
-        try:
-            obj.save()
-            out = self.get_serializer(obj).data
-            return self.data(out)
-        except Exception as e:
-            return self.error(str(e))
+        obj = self.get_object()
+        ser = IntegrationTaskUpdateSerializer(instance=obj, data=request.data)
+        ser.is_valid(raise_exception=True)
+        self.perform_update(ser)
+        return self.data(ser.data)

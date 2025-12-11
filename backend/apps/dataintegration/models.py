@@ -4,7 +4,9 @@ from apps.system.models import BaseModel
 
 class IntegrationTask(BaseModel):
     TASK_TYPE_CHOICES = (
-        ('dbToDb', '数据库离线同步'),
+        ('dbToDb', '数据库同步'),
+        ('dbToHive', '数据库同步到Hive'),
+        ('hiveToDb', 'Hive同步到数据库'),
     )
 
     name = models.CharField(max_length=255, verbose_name='任务名称')
