@@ -62,7 +62,7 @@ watch(() => props.targetColumns, () => {
 
 function addMappingRow() {
   if (!props.targetColumns.length) {
-    ElMessage.warning('未指定目标字段')
+    ElMessage.warning('目标表字段数为空')
     return
   }
   if (mappings.value.length >= props.targetColumns.length) {
