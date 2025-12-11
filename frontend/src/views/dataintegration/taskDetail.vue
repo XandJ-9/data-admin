@@ -1,40 +1,44 @@
 <template>
   <div class="app-container">
-      <el-form>
-        <el-form-item label="任务名称">
-          <el-input v-model="taskForm.name" placeholder="请输入任务名称" style="width: 320px" />
-        </el-form-item>
-      </el-form>
+    <el-form>
+      <el-form-item label="任务名称">
+        <el-input v-model="taskForm.name" placeholder="请输入任务名称" style="width: 320px; margin-right: 10px" />
+          <el-button @click="goBack">返 回</el-button>
+          <el-button type="primary" @click="handleSave">保 存</el-button>
+          <el-button type="info" @click="handleValidate">校 验</el-button>
+      </el-form-item>
+    </el-form>
+
 
     <el-card>
-        <template #header>
-            <span>任务配置</span>
-        </template>
-        <el-row>
-            <el-col :span="12">
-            <el-card>
-                <template #header>
-                    <span>来源</span>
-                </template>
-            </el-card>
-            </el-col>
-            <el-col :span="12">
-            <el-card>
-                <template #header>
-                    <span>目标</span>
-                </template>
-            </el-card>
-            </el-col>
-        </el-row>
+      <template #header>
+        <span>任务配置</span>
+      </template>
+      <el-row>
+        <el-col :span="12">
+          <el-card>
+            <template #header>
+              <span>来源</span>
+            </template>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card>
+            <template #header>
+              <span>目标</span>
+            </template>
+          </el-card>
+        </el-col>
+      </el-row>
     </el-card>
 
-    <el-card>
-        <field-mapping 
-            v-model:source-columns="taskForm.detail.sourceColumns"
-            v-model:target-columns="taskForm.detail.targetColumns"
-            v-model:mappings="taskForm.detail.mappings"
-            v-model:defaultMapping="taskForm.detail.defaultMapping"
-        />
+    <el-card style="margin-top: 16px">
+      <template #header>
+        <span>字段映射</span>
+      </template>
+      <field-mapping v-model:source-columns="taskForm.detail.sourceColumns"
+        v-model:target-columns="taskForm.detail.targetColumns" v-model:mappings="taskForm.detail.mappings"
+        v-model:defaultMapping="taskForm.detail.defaultMapping" />
     </el-card>
 
     <!-- <el-card style="margin-top: 16px">
@@ -67,42 +71,40 @@
 
     <!-- 调度配置 -->
     <el-card style="margin-top: 16px">
-        <template #header>
+      <template #header>
         <span>任务调度策略</span>
-        </template>
-        <el-form :model="taskForm" label-width="120px">
+      </template>
+      <el-form :model="taskForm" label-width="120px">
         <el-form-item label="调度策略">
-        <el-radio-group v-model="taskForm.schedule.type">
+          <el-radio-group v-model="taskForm.schedule.type">
             <el-radio label="manual">手动</el-radio>
             <el-radio label="cron">定时</el-radio>
-        </el-radio-group>
-        <div v-if="taskForm.schedule.type==='cron'" style="display: inline-flex; align-items: center; margin-left: 12px">
+          </el-radio-group>
+          <div v-if="taskForm.schedule.type === 'cron'"
+            style="display: inline-flex; align-items: center; margin-left: 12px">
             <el-input v-model="taskForm.schedule.cronExpr" placeholder="cron表达式" style="width: 240px" />
             <el-button style="margin-left: 8px" @click="handleShowCron">生成</el-button>
-        </div>
+          </div>
         </el-form-item>
         <el-form-item label="分组调度">
-            <el-select v-model="taskForm.schedule.group" allow-create filterable default-first-option placeholder="请选择分组" style="width: 240px">
-                <el-option v-for="g in scheduleGroups" :key="g" :label="g" :value="g" />
-            </el-select>
+          <el-select v-model="taskForm.schedule.group" allow-create filterable default-first-option placeholder="请选择分组"
+            style="width: 240px">
+            <el-option v-for="g in scheduleGroups" :key="g" :label="g" :value="g" />
+          </el-select>
         </el-form-item>
-        </el-form>
+      </el-form>
     </el-card>
 
     <!-- CronTab 选择器弹窗 -->
     <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
-      <crontab @hide="openCron=false" @fill="crontabFill" :expression="expression" />
+      <crontab @hide="openCron = false" @fill="crontabFill" :expression="expression" />
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="openCron=false">关 闭</el-button>
+          <el-button @click="openCron = false">关 闭</el-button>
         </div>
       </template>
     </el-dialog>
-    <div style="margin-top: 16px; text-align: right">
-      <el-button @click="goBack">返 回</el-button>
-      <el-button type="primary" @click="handleSave">保 存</el-button>
-      <el-button type="info" @click="handleValidate">校 验</el-button>
-    </div>
+
   </div>
 </template>
 
@@ -139,6 +141,7 @@ async function handleSave() {
       detail: taskForm.detail
     }
     const id = route.params.id
+    console.log('handleSave', payload)
     if (id && id !== 'new') {
       await updateTask(id, payload)
       proxy.$modal.msgSuccess('保存成功')
@@ -186,6 +189,4 @@ onMounted(() => {
 
 </script>
 
-<style scoped>
-</style>
-
+<style scoped></style>
