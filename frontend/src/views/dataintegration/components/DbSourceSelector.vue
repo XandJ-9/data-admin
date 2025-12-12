@@ -7,13 +7,14 @@
                 </el-select>
             </el-form-item>
             <el-form-item v-if="databaseList.length" label="数据库" label-position="top"> 
-                <el-select v-model="source.databases" :multiple="databaseMultiple" filterable placeholder="请选择数据库">
+                <!-- 当选项是数组对象时，需要指定对象中的key,这样才能定位到被选项，使用  value-key指定对象中的唯一值字段 -->
+                <el-select v-model="source.databases" :multiple="databaseMultiple" filterable placeholder="请选择数据库" value-key="key">
                     <el-option v-for="item in databaseList" :key="item.key" :label="item.label" :value="item"/>
                 </el-select>
             </el-form-item>
             <el-form-item label="数据表" label-position="top">
                 <el-select v-model="source.tables" :multiple="tableMultiple" filterable placeholder="请选择数据表">
-                    <el-option v-for="item in tableList" :key="item.key" :label="item.name" :value="item.name"/>
+                    <el-option v-for="item in tableList" :key="item.key" :label="item.label" :value="item.key"/>
                 </el-select>
             </el-form-item>
         </el-form>
@@ -92,12 +93,27 @@ watch(() => source.value.dataSourceIds, (ids) => {
     }
 })
 
-watch(() => source.value.databases, (database) => {
+watch(() => source.value.databases, (databases) => {
     tableList.value = []
-    if (Array.isArray(database)) {
-        console.log('database list', database)
+    if (Array.isArray(databases)) {
+        const reqs = databases.map(db =>
+            listTables({ dataSourceId: db.dataSourceId, databaseName: db.name }).then(res => ({ db, data: res?.rows || [] }))
+        )
+        Promise.all(reqs).then(results => {
+            results.forEach(({ db, data }) => {
+                // databaseList.forEach(dbName => {})
+                tableList.value.push(...data.map(tb => ({
+                    key: `${db.key}:${tb.tableName}`,
+                    label: `${db.label}/${tb.tableName}`,
+                    name: tb.tableName,
+                    databaseName: db.name,
+                    dataSourceId: db.dataSourceId
+                })))
+            })
+        })
+        console.log('database multi', databases)
     } else {
-        console.log('database sigle', database)
+        console.log('database sigle', databases)
     }
     
 })
