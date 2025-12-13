@@ -7,10 +7,11 @@
             <span>来源</span>
             </template>
             <db-source-selector 
-            v-model:source="detail.source" 
+            v-model:source="source" 
             v-model:columns="sourceColumns"
             :datasourceMultiple="true"
             :databaseMultiple="true"
+            :tableMultiple="false"
             />
         </el-card>
         </el-col>
@@ -20,7 +21,7 @@
             <span>目标</span>
             </template>
             <db-source-selector 
-            v-model:source="detail.target" 
+            v-model:source="target" 
             v-model:columns="targetColumns" />
         </el-card>
         </el-col>
@@ -32,7 +33,7 @@
         <template #header>
             <span>字段映射</span>
         </template>
-        <field-mapping v-model:source-columns="sourceColumns"
+        <Field-mapping v-model:source-columns="sourceColumns"
             v-model:target-columns="targetColumns" 
             v-model:mappings="fieldMappings"
             v-model:defaultMapping="defaultMapping" />
@@ -77,7 +78,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, toRef, watch } from 'vue'
+import { reactive, ref, toRef, toRefs, watch } from 'vue'
 import FieldMapping from '@/components/FieldMapping'
 import DbSourceSelector from './DbSourceSelector.vue';
 
@@ -85,7 +86,9 @@ import DbSourceSelector from './DbSourceSelector.vue';
 const props = defineProps({
   detail: {
     type: Object,
-        default: () => ({
+    default: () => ({
+            source: {},
+            target: {},
             where: '',
             mode: {
                 type: 'full',
@@ -98,8 +101,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update:detail'])
 
-// const detail = reactive(props.detail)
-const detail = toRef(props.detail)
+const source = ref({})
+const target = ref({})
 const sourceColumns = ref([])
 const targetColumns = ref([])
 const fieldMappings = ref([])
@@ -113,18 +116,30 @@ const syncConfig = ref({
     }
 })
 
-watch(() => JSON.stringify(props.detail), (v) => {
-    detail.value = JSON.parse(v)
-    emit('update:detail', detail.value)
+
+watch(() => JSON.stringify(props.detail.source || {}), v => {
+  const data = JSON.parse(v)
+  console.log('watch config.detail.source', data)
+  source.value = data
 })
 
-// watch(() => detail.value.source, (val) => { 
-//     const datasourceIds = val.dataSourceIds
-//     console.log('watch datasourceIds', datasourceIds)
-// })
-const showDetails = () => {
-    console.log(detail.value, props.detail)
-}
+watch(() => JSON.stringify(props.detail.target || {}), v => {
+  const data = JSON.parse(v)
+  console.log('watch config.detail.target', data)
+  target.value = data
+})
+
+watch(() => JSON.stringify(source.value), (v) => {
+    console.log('watch source', JSON.parse(v))
+    props.detail.source = JSON.parse(v)
+    emit('update:detail', props.detail)
+})
+
+watch(() => JSON.stringify(target.value), (v) => {
+    console.log('watch target', JSON.parse(v))
+    props.detail.target = JSON.parse(v)
+    emit('update:detail', props.detail)
+})
 
 </script>
 

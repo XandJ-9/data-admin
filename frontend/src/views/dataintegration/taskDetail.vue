@@ -13,7 +13,7 @@
         <template #header>
           <span>任务配置</span>
         </template>
-        <sync-config-detail v-model:detail="taskForm.detail" />
+        <sync-config-detail v-model:detail="taskForm.detail" :comfirm="saved"/>
     </el-card>
 
     <!-- 调度配置 -->
@@ -81,7 +81,15 @@ const taskForm = reactive({
   detail: {}
 })
 
+watch(() => JSON.stringify(taskForm.detail), (v) => {
+  console.log('watch taskForm.detail', JSON.parse(v))
+})
+
+
+const saved = ref(false)
+
 async function handleSave() {
+  saved.value = true
   try {
     const payload = {
       taskName: taskForm.name,
@@ -101,12 +109,10 @@ async function handleSave() {
   } catch (e) {
     console.log(e)
   }
+  saved.value = false
 }
 
 const handleValidate = () => { }
-
-// 任务调度信息
-
 
 const scheduleGroups = ref([])
 const openCron = ref(false)
@@ -121,8 +127,6 @@ function crontabFill(value) {
   taskForm.schedule.cronExpr = value
 }
 
-const detailRef = ref()
-
 onMounted(() => {
   const id = route.params.id
   if (id && id !== 'new') {
@@ -136,7 +140,6 @@ onMounted(() => {
         proxy.$modal.msgError('获取任务详情失败，跳转到任务列表')
         useTagsViewStore().delView({ name: 'DataIntegrationTaskDetail' })
         goBack()
-        // console.log(e)
     })
   }
 })

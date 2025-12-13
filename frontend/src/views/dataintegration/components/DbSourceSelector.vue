@@ -18,12 +18,11 @@
                 </el-select>
             </el-form-item>
         </el-form>
-        <el-button type="primary" @click="showInfo">显示父组件传递信息</el-button>
     </div>
 </template>
 
 <script setup>
-import { toRefs, ref, onMounted, watch} from 'vue'
+import { toRef, ref, onMounted, watch } from 'vue'
 import { listDatasource, listDatabases, listTables } from '@/api/datasource'
 
 const props = defineProps({
@@ -40,15 +39,17 @@ const props = defineProps({
     tableMultiple: false
 })
 
-// const emit = defineEmits(['update:source'])
+const emit = defineEmits(['update:source'])
 // 监听数据变化，触发父组件更新
 // watch(() => source.value.dataSourceIds, (ids) => {
 //     source.value.dataSourceIds = ids
 //     emit('update:source', source.value)
 // })
 
-const { source, columns } = toRefs(props)
+// const { source, columns } = toRefs(props)
 
+const source = toRef(props.source)
+const columns = toRef(props.columns)
 const datasourceList = ref([])
 const databaseList = ref([])
 const tableList = ref([])
@@ -59,6 +60,11 @@ const loadDs = ()=>{
         datasourceList.value = res.rows
     })
 }
+
+watch(() => props.source, (val) => {
+    source.value = val
+})
+
 
 watch(() => source.value.dataSourceIds, (ids) => {
     databaseList.value = []
@@ -80,6 +86,7 @@ watch(() => source.value.dataSourceIds, (ids) => {
             })
         })
     } else {
+      console.log(datasourceList.value, ids)
         const dsName = datasourceList.value.find(d => d.dataSourceId === ids)?.dataSourceName || ''
         listDatabases({ dataSourceId: ids }).then(res => {
             const arr = res?.data || []
@@ -91,6 +98,7 @@ watch(() => source.value.dataSourceIds, (ids) => {
             }))
         })
     }
+    emit('update:source', source.value)
 })
 
 watch(() => source.value.databases, (databases) => {
@@ -111,16 +119,21 @@ watch(() => source.value.databases, (databases) => {
                 })))
             })
         })
-        console.log('database multi', databases)
     } else {
-        console.log('database sigle', databases)
+        const dbName = databases.name || ''
+        listTables({ dataSourceId: databases.dataSourceId, databaseName: dbName }).then(res => {
+            const arr = res?.rows || []
+            tableList.value = arr.map(tb => ({
+                key: `${databases.key}:${tb.tableName}`,
+                label: `${databases.label}/${tb.tableName}`,
+                name: tb.tableName,
+                databaseName: dbName,
+                dataSourceId: databases.dataSourceId
+            }))
+        })
     }
-    
+    emit('update:source', source.value)
 })
-
-const showInfo = () => {
-    console.log(source.value)
-}
 
 onMounted(()=>{
     loadDs()
