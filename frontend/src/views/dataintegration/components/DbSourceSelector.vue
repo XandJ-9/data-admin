@@ -86,13 +86,13 @@ watch(() => source.value.dataSourceIds, (ids) => {
             })
         })
     } else {
-      console.log(datasourceList.value, ids)
+        console.log(datasourceList.value, ids)
         const dsName = datasourceList.value.find(d => d.dataSourceId === ids)?.dataSourceName || ''
         listDatabases({ dataSourceId: ids }).then(res => {
             const arr = res?.data || []
             databaseList.value = arr.map(dbName => ({
                 key: `${ids}:${dbName}`,
-                label: `${dsName}/${dbName}`,
+                label: `${dbName}`,
                 name: dbName,
                 dataSourceId: ids
             }))
@@ -125,7 +125,7 @@ watch(() => source.value.databases, (databases) => {
             const arr = res?.rows || []
             tableList.value = arr.map(tb => ({
                 key: `${databases.key}:${tb.tableName}`,
-                label: `${databases.label}/${tb.tableName}`,
+                label: `${tb.tableName}`,
                 name: tb.tableName,
                 databaseName: dbName,
                 dataSourceId: databases.dataSourceId
