@@ -54,10 +54,10 @@ const loadDs = ()=>{
     })
 }
 
-// watch(() => props.source, (val) => {
-    // source.value = val
-    // emit('update:source', source.value)
-// })
+watch(() => props.source, (val) => {
+    source.value = val
+    emit('update:source', source.value)
+})
 
 
 watch(() => source.value.dataSourceIds, (ids) => {
@@ -69,7 +69,7 @@ watch(() => source.value.dataSourceIds, (ids) => {
         )
         Promise.all(reqs).then(results => {
             results.forEach(({ dsId, data }) => {
-                let dsName = datasourceList.value.find(d => d.dataSourceId === dsId)?.dataSourceName || ''
+                const dsName = datasourceList.value.find(d => d.dataSourceId === dsId)?.dataSourceName || ''
                 // databaseList.forEach(dbName => {})
                 databaseList.value.push(...data.map(dbName => ({
                     key: `${dsId}:${dbName}`,
@@ -79,31 +79,48 @@ watch(() => source.value.dataSourceIds, (ids) => {
                 })))
             })
         })
+
+      if (!databaseList.value.length) {
+        const tabReqs = ids.map(dsId => 
+            listTables({dataSourceId: dsId}).then(res => ({dsId, data: res?.rows}))
+        )
+        Promise.all(tabReqs).then(result => {
+          result.forEach(({ dsId, data }) => {
+            const dsName = datasourceList.value.find(d => d.dataSourceId === dsId)?.dataSourceName || ''
+            tableList.value.push(...data.map(tb => ({
+                key: `${dsId}:${tb.tableName}`,
+                label: `${dsName}/${tb.tableName}`,
+                name: tb.tableName,
+                dataSourceId: dsId
+            })))
+          })
+        })
+        }
     } else {
-        console.log(datasourceList.value, ids)
-        const dsName = datasourceList.value.find(d => d.dataSourceId === ids)?.dataSourceName || ''
+        const dsId = ids
+        const dsName = datasourceList.value.find(d => d.dataSourceId === dsId)?.dataSourceName || ''
         listDatabases({ dataSourceId: ids }).then(res => {
             const arr = res?.data || []
             databaseList.value = arr.map(dbName => ({
-                key: `${ids}:${dbName}`,
-                label: `${dbName}`,
+                key: `${dsId}:${dbName}`,
+                label: `${dsName}/${dbName}`,
                 name: dbName,
-                dataSourceId: ids
+                dataSourceId: dsId
             }))
         })
 
-        if(!databaseList.value.length){
-          listTables({dataSourceId: ids}).then(res => {
-              const arr = res?.rows || []
-              tableList.value = arr.map(tb => ({
-                  key: `${ids}:${tb.tableName}`,
-                  label: `${tb.tableName}`,
-                  name: tb.tableName,
-                  databaseName: dsName,
-                  dataSourceId: ids
-              }))
-          })
-        }
+      if(!databaseList.value.length){
+        listTables({dataSourceId: dsId}).then(res => {
+          const arr = res?.rows || []
+          tableList.value = arr.map(tb => ({
+              key: `${dsId}:${tb.tableName}`,
+              label: `${tb.tableName}`,
+              name: tb.tableName,
+              databaseName: dsName,
+              dataSourceId: dsId
+          }))
+      })
+    }
     }
 })
 

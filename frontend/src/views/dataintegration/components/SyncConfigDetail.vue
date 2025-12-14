@@ -101,8 +101,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update:detail'])
 
-const source = ref({})
-const target = ref({})
+const source = ref(props.detail.source)
+const target = ref(props.detail.target)
 const sourceColumns = ref([])
 const targetColumns = ref([])
 const fieldMappings = ref([])
@@ -117,17 +117,17 @@ const syncConfig = ref({
 })
 
 
-watch(() => JSON.stringify(props.detail.source || {}), v => {
-  const data = JSON.parse(v)
-  console.log('watch config.detail.source', data)
-  source.value = data
-})
+// watch(() => JSON.stringify(props.detail.source || {}), v => {
+//   const data = JSON.parse(v)
+//   console.log('watch config.detail.source', data)
+//   source.value = data
+// })
 
-watch(() => JSON.stringify(props.detail.target || {}), v => {
-  const data = JSON.parse(v)
-  console.log('watch config.detail.target', data)
-  target.value = data
-})
+// watch(() => JSON.stringify(props.detail.target || {}), v => {
+//   const data = JSON.parse(v)
+//   console.log('watch config.detail.target', data)
+//   target.value = data
+// })
 
 watch(() => JSON.stringify(source.value), (v) => {
     console.log('watch source', JSON.parse(v))
