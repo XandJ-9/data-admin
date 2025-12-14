@@ -72,7 +72,7 @@ function goBack() {
 
 const taskForm = reactive({
   name: '',
-  type: 'db2db',
+  type: 'dbTodb',
   schedule: {
     type: 'manual',
     cronExpr: '',
@@ -129,6 +129,7 @@ function crontabFill(value) {
 
 onMounted(() => {
   const id = route.params.id
+  taskForm.type = route.query.type
   if (id && id !== 'new') {
     getTask(id).then(res => {
       const data = res.data || {}

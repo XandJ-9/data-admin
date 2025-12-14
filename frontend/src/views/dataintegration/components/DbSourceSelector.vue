@@ -40,13 +40,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:source'])
-// 监听数据变化，触发父组件更新
-// watch(() => source.value.dataSourceIds, (ids) => {
-//     source.value.dataSourceIds = ids
-//     emit('update:source', source.value)
-// })
-
-// const { source, columns } = toRefs(props)
 
 const source = toRef(props.source)
 const columns = toRef(props.columns)
@@ -61,9 +54,10 @@ const loadDs = ()=>{
     })
 }
 
-watch(() => props.source, (val) => {
-    source.value = val
-})
+// watch(() => props.source, (val) => {
+    // source.value = val
+    // emit('update:source', source.value)
+// })
 
 
 watch(() => source.value.dataSourceIds, (ids) => {
@@ -97,11 +91,24 @@ watch(() => source.value.dataSourceIds, (ids) => {
                 dataSourceId: ids
             }))
         })
+
+        if(!databaseList.value.length){
+          listTables({dataSourceId: ids}).then(res => {
+              const arr = res?.rows || []
+              tableList.value = arr.map(tb => ({
+                  key: `${ids}:${tb.tableName}`,
+                  label: `${tb.tableName}`,
+                  name: tb.tableName,
+                  databaseName: dsName,
+                  dataSourceId: ids
+              }))
+          })
+        }
     }
-    emit('update:source', source.value)
 })
 
-watch(() => source.value.databases, (databases) => {
+watch(() => JSON.stringify(source.value.databases), (val) => {
+    const databases = JSON.parse(val)
     tableList.value = []
     if (Array.isArray(databases)) {
         const reqs = databases.map(db =>
@@ -112,7 +119,7 @@ watch(() => source.value.databases, (databases) => {
                 // databaseList.forEach(dbName => {})
                 tableList.value.push(...data.map(tb => ({
                     key: `${db.key}:${tb.tableName}`,
-                    label: `${db.label}/${tb.tableName}`,
+                    label: `${tb.tableName}`,
                     name: tb.tableName,
                     databaseName: db.name,
                     dataSourceId: db.dataSourceId
@@ -132,7 +139,6 @@ watch(() => source.value.databases, (databases) => {
             }))
         })
     }
-    emit('update:source', source.value)
 })
 
 onMounted(()=>{
