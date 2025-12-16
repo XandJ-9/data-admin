@@ -158,6 +158,21 @@ watch(() => JSON.stringify(source.value.databases), (val) => {
     }
 })
 
+watch(() => source.value.tables, (val) => {
+    const tables = JSON.parse(val)
+    columns.value = []
+    if (Array.isArray(tables)) {
+        const table = tables.first()
+        if (table) {
+            listColumns({ dataSourceId: table.dataSourceId, databaseName: table.databaseName, tableName: table.name })
+                .then(res => {
+                const cols = res?.rows || []
+                    columns.value = cols.map(c => c.name)
+            })
+        }
+    }
+})
+
 onMounted(()=>{
     loadDs()
 })
