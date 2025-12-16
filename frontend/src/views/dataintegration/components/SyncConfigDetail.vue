@@ -35,8 +35,7 @@
         </template>
         <Field-mapping v-model:source-columns="sourceColumns"
             v-model:target-columns="targetColumns" 
-            v-model:mappings="fieldMappings"
-            v-model:defaultMapping="defaultMapping" />
+            v-model:mappings="fieldMappings"/>
         </el-card>
         </el-col>
     </el-row>
@@ -78,7 +77,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, toRef, toRefs, watch } from 'vue'
+import { onMounted, reactive, ref, toRef, toRefs, watch } from 'vue'
 import FieldMapping from '@/components/FieldMapping'
 import DbSourceSelector from './DbSourceSelector.vue';
 
@@ -101,12 +100,13 @@ const props = defineProps({
 
 const emit = defineEmits(['update:detail'])
 
-const source = ref(props.detail.source)
-const target = ref(props.detail.target)
+
+const detail = ref({})
+const source = ref({})
+const target = ref({})
 const sourceColumns = ref([])
 const targetColumns = ref([])
 const fieldMappings = ref([])
-const defaultMapping = ref(false)
 const syncConfig = ref({
     where: '',
     mode: {
@@ -117,28 +117,68 @@ const syncConfig = ref({
 })
 
 
-// watch(() => JSON.stringify(props.detail.source || {}), v => {
-//   const data = JSON.parse(v)
-//   console.log('watch config.detail.source', data)
-//   source.value = data
-// })
+watch(() => JSON.stringify(props.detail || {}), v => {
+    // source.value = props.detail.source || {}
+    detail.value = props.detail || {}
+    // console.log('watch config.detail', detail.value)
+    source.value = detail.value.source || {}
+    target.value = detail.value.target || {}
+    sourceColumns.value = detail.value.sourceColumns || []
+    targetColumns.value = detail.value.targetColumns || []
+    fieldMappings.value = detail.value.fieldMappings || []
+    syncConfig.value = detail.value.syncConfig || {
+        where: '',
+        mode: {
+            type: 'full',
+            incrementField: '',
+            incrementType: ''
+        }
+    }
+})
 
 // watch(() => JSON.stringify(props.detail.target || {}), v => {
-//   const data = JSON.parse(v)
-//   console.log('watch config.detail.target', data)
-//   target.value = data
+//     target.value = props.detail.target || {}
+//     console.log('watch config.detail.target', target.value)
 // })
 
 watch(() => JSON.stringify(source.value), (v) => {
-    console.log('watch source', JSON.parse(v))
-    props.detail.source = JSON.parse(v)
-    emit('update:detail', props.detail)
+    // console.log('watch source', JSON.parse(v))
+    detail.value.source = JSON.parse(v)
+    emit('update:detail', detail.value)
 })
 
 watch(() => JSON.stringify(target.value), (v) => {
-    console.log('watch target', JSON.parse(v))
-    props.detail.target = JSON.parse(v)
-    emit('update:detail', props.detail)
+    // console.log('watch target', JSON.parse(v))
+    detail.value.target = JSON.parse(v)
+    emit('update:detail', detail.value)
+})
+
+watch(() => JSON.stringify(sourceColumns.value), (v) => {
+    // console.log('watch sourceColumns', JSON.parse(v))
+    detail.value.sourceColumns = JSON.parse(v)
+    emit('update:detail', detail.value)
+})
+
+watch(() => JSON.stringify(targetColumns.value), (v) => {
+    // console.log('watch targetColumns', JSON.parse(v))
+    detail.value.targetColumns = JSON.parse(v)
+    emit('update:detail', detail.value)
+})
+
+watch(() => JSON.stringify(fieldMappings.value), (v) => {
+    // console.log('watch fieldMappings', JSON.parse(v))
+    detail.value.fieldMappings = JSON.parse(v)
+    emit('update:detail', detail.value)
+})
+
+watch(() => JSON.stringify(syncConfig.value), (v) => {
+    // console.log('watch syncConfig', JSON.parse(v))
+    detail.value.syncConfig = JSON.parse(v)
+    emit('update:detail', detail.value)
+})
+
+onMounted(() => {
+    // console.log('syncConfigDetail onMounted', detail.value)
 })
 
 </script>

@@ -56,7 +56,14 @@ class PostgresExecutor(DataSourceExecutor):
 
     def get_databases(self):
         # Postgres 在连接上下文使用单库，跨库需新连接；此处返回 None 表示无数据库选择
-        return None
+        # return None
+        self.connect()
+        cur = self.conn.cursor()
+        try:
+            cur.execute("SELECT current_database()")
+            return [r[0] for r in cur.fetchall()]
+        finally:
+            cur.close()
 
     def get_table_schema(self, table):
         self.connect()

@@ -13,7 +13,7 @@
         <template #header>
           <span>任务配置</span>
         </template>
-        <sync-config-detail v-model:detail="taskForm.detail" :comfirm="saved"/>
+        <sync-config-detail v-model:detail="taskForm.detail"/>
     </el-card>
 
     <!-- 调度配置 -->
@@ -72,24 +72,22 @@ function goBack() {
 
 const taskForm = reactive({
   name: '',
-  type: 'dbTodb',
+  type: undefined,
+  detail: {},
   schedule: {
     type: 'manual',
     cronExpr: '',
     group: '',
-  },
-  detail: {}
+  }
 })
 
 watch(() => JSON.stringify(taskForm.detail), (v) => {
-  console.log('watch taskForm.detail', JSON.parse(v))
+    // console.log('watch taskForm.detail', JSON.parse(v))
+    taskForm.detail = JSON.parse(v)
 })
 
 
-const saved = ref(false)
-
 async function handleSave() {
-  saved.value = true
   try {
     const payload = {
       taskName: taskForm.name,
@@ -98,7 +96,6 @@ async function handleSave() {
       detail: taskForm.detail
     }
     const id = route.params.id
-    console.log('handleSave', payload)
     if (id && id !== 'new') {
       await updateTask(id, payload)
       proxy.$modal.msgSuccess('保存成功')
@@ -109,7 +106,6 @@ async function handleSave() {
   } catch (e) {
     console.log(e)
   }
-  saved.value = false
 }
 
 const handleValidate = () => { }
@@ -139,7 +135,7 @@ onMounted(() => {
       taskForm.detail = data.detail || {}
     }).catch(e => {
         proxy.$modal.msgError('获取任务详情失败，跳转到任务列表')
-        useTagsViewStore().delView({ name: 'DataIntegrationTaskDetail' })
+        useTagsViewStore().delView(route) // 删除当前详情页路由对应的标签页
         goBack()
     })
   }
