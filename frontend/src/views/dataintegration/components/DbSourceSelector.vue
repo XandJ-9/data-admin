@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { toRef, ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, reactive } from 'vue'
 import { listDatasource, listDatabases, listTables, listColumns } from '@/api/datasource'
 
 const props = defineProps({
@@ -68,214 +68,243 @@ watch(() => props.source, (val) => {
     if(source.table !== val.table) {
         source.table = val.table
     }
-    console.log('selector source', source)
+    // console.log('selector source', source)
 }, {deep: true})
 
+function emitUpdate() {
+    emit('update:source', source)
+    emit('update:columns', columns.value)
+}
 
-// function updateSourceData() {
-    // source.value = {
-    //     dataSourceId: Array.isArray(selectedDs.value) ? selectedDs.value : [selectedDs.value],
-    //     database: Array.isArray(selectedDb.value) ? selectedDb.value : [selectedDb.value],
-    //     table: Array.isArray(selectedTb.value) ? selectedTb.value : [selectedTb.value]
-    // }
-    // emit('update:source', source.value)
-    // emit('update:columns', columns.value)
-
-// }
-
-// watch(() => source.dataSourceId, async (ids) => {
-//     databaseList.value = []
-//     tableList.value = []
-//     if (props.datasourceMultiple) {
-//         const reqs = ids.map(async dsId =>
-//             await listDatabases({ dataSourceId: dsId }).then(res => ({ dsId, data: res?.data || [] }))
-//         )
-//         Promise.all(reqs).then(results => {
-//             results.forEach(({ dsId, data }) => {
-//                 const dsName = datasourceList.value.find(d => d.dataSourceId === dsId)?.dataSourceName || ''
-//                 // databaseList.forEach(dbName => {})
-//                 databaseList.value.push(...data.map(dbName => ({
-//                     key: `${dsId}:${dbName}`,
-//                     label: `${dsName}/${dbName}`,
-//                     name: dbName,
-//                     dataSourceId: dsId
-//                 })))
-//             })
-//         })
-
-//       if (!databaseList.value.length) {
-//         const tabReqs = ids.map(async dsId =>
-//             await listTables({dataSourceId: dsId}).then(res => ({dsId, data: res?.rows}))
-//         )
-//         Promise.all(tabReqs).then(result => {
-//           result.forEach(({ dsId, data }) => {
-//             const dsName = datasourceList.value.find(d => d.dataSourceId === dsId)?.dataSourceName || ''
-//             tableList.value.push(...data.map(tb => ({
-//                 key: `${dsId}:${tb.tableName}`,
-//                 label: `${dsName}/${tb.tableName}`,
-//                 name: tb.tableName,
-//                 dataSourceId: dsId
-//             })))
-//           })
-//         })
-//         }
-//     } else {
-//         const dsId = ids
-//         const dsName = datasourceList.value.find(d => d.dataSourceId === dsId)?.dataSourceName || ''
-//         await listDatabases({ dataSourceId: ids }).then(res => {
-//             const arr = res?.data || []
-//             databaseList.value = arr.map(dbName => ({
-//                 key: `${dsId}:${dbName}`,
-//                 label: `${dsName}/${dbName}`,
-//                 name: dbName,
-//                 dataSourceId: dsId
-//             }))
-//         })
-
-//       if(!databaseList.value.length){
-//         await listTables({dataSourceId: dsId}).then(res => {
-//           const arr = res?.rows || []
-//           tableList.value = arr.map(tb => ({
-//               key: `${dsId}:${tb.tableName}`,
-//               label: `${tb.tableName}`,
-//               name: tb.tableName,
-//               databaseName: dsName,
-//               dataSourceId: dsId
-//           }))
-//       })
-//     }
-//     }
-//     console.log('datasourceList', datasourceList.value,
-//         '\ndatabaseList', databaseList.value,
-//         '\ntableList', tableList.value,
-//         '\nsource', source.value)
-//     updateSourceData()
-// })
-
-// watch(() => source.database, (val) => {
-//     const databases = val
-//     tableList.value = []
-//     if (props.databaseMultiple) {
-//         const reqs = databases.map(db =>
-//             listTables({ dataSourceId: db.dataSourceId, databaseName: db.name }).then(res => ({ db, data: res?.rows || [] }))
-//         )
-//         Promise.all(reqs).then(results => {
-//             results.forEach(({ db, data }) => {
-//                 // databaseList.forEach(dbName => {})
-//                 tableList.value.push(...data.map(tb => ({
-//                     key: `${db.key}:${tb.tableName}`,
-//                     label: `${tb.tableName}`,
-//                     name: tb.tableName,
-//                     databaseName: db.name,
-//                     dataSourceId: db.dataSourceId
-//                 })))
-//             })
-//         })
-//     } else {
-//         const dbName = databases.name || ''
-//         listTables({ dataSourceId: databases.dataSourceId, databaseName: dbName }).then(res => {
-//             const arr = res?.rows || []
-//             tableList.value = arr.map(tb => ({
-//                 key: `${databases.key}:${tb.tableName}`,
-//                 label: `${tb.tableName}`,
-//                 name: tb.tableName,
-//                 databaseName: dbName,
-//                 dataSourceId: databases.dataSourceId
-//             }))
-//         })
-//     }
-//     updateSourceData()
-// })
-
-// watch(() => source.table, async (val) => {
-//     const tables = val
-//     columns.value = []
-//     let table = null;
-//     if (props.tableMultiple) {
-//         table = tables.first()
-//     } else {
-//         table = tables
-//     }
-//     if(!table) return
-//     await listColumns({ dataSourceId: table.dataSourceId, databaseName: table.databaseName, tableName: table.name })
-//         .then(res => {
-//         const cols = res?.rows || []
-//             columns.value = cols.map(c => c.name)
-//         })
-//     // console.log('watch table and columns', table, columns.value)
-//     updateSourceData()
-// })
-
-
-const handleDataSourceChange = async () => {
-    if (!source.dataSourceId) return
+const loadMetadata = async (preserve = false) => {
+    if (!preserve) {
+        source.database = props.databaseMultiple ? [] : undefined
+        source.table = props.tableMultiple ? [] : undefined
+    }
     databaseList.value = []
-    tableList.value = []
-    if (props.datasourceMultiple) { 
-        const dsArr = source.dataSourceId
-        dsArr.forEach(async dsId => {
-            await listDatabases({ dataSourceId: dsId }).then(res => { 
-                const arr = res?.data || []
-                databaseList.value.push(...arr.map(dbName => ({
+    if (!preserve) {
+        tableList.value = []
+        columns.value = []
+    }
+    
+    if (!source.dataSourceId || (Array.isArray(source.dataSourceId) && source.dataSourceId.length === 0)) {
+        emitUpdate()
+        return
+    }
+
+    const dsIds = Array.isArray(source.dataSourceId) ? source.dataSourceId : [source.dataSourceId]
+    
+    const getDsName = (id) => datasourceList.value.find(d => d.dataSourceId === id)?.dataSourceName || ''
+
+    try {
+        // Fetch databases for all selected sources
+        const dbPromises = dsIds.map(async (dsId) => {
+            const res = await listDatabases({ dataSourceId: dsId })
+            return { dsId, data: res.data || [] }
+        })
+
+        const dbResults = await Promise.all(dbPromises)
+        
+        let hasDatabases = false
+        dbResults.forEach(({ dsId, data }) => {
+            if (data.length > 0) {
+                hasDatabases = true
+                const dsName = getDsName(dsId)
+                databaseList.value.push(...data.map(dbName => ({
                     key: `${dsId}:${dbName}`,
-                    label: `${dbName}`,
+                    label: props.datasourceMultiple ? `${dsName} > ${dbName}` : dbName,
                     name: dbName,
                     dataSourceId: dsId
                 })))
-                console.log('handleDataSourceChange, database list => ', databaseList.value)
-            })
-            if(!databaseList.value.length){
-                await listTables({dataSourceId: dsId}).then(res => { 
-                    const arr = res?.rows || []
-                    tableList.value = arr.map(tb => ({
-                        key: `${dsId}:${tb.tableName}`,
-                        label: `${tb.tableName}`,
-                        name: tb.tableName,
-                        databaseName: dsName,
-                        dataSourceId: dsId
-                    }))
-                })
             }
         })
-    }else{
-        const dsId = source.dataSourceId
-        await listDatabases({ dataSourceId: dsId }).then(res => { 
-            const arr = res?.data || []
-            databaseList.value = arr.map(dbName => ({
-                key: `${dsId}:${dbName}`,
-                label: `${dbName}`,
-                name: dbName,
-                dataSourceId: dsId
-            }))
-            console.log('handleDataSourceChange, database list => ', databaseList.value)
-        })
-        if(!databaseList.value.length){
-            await listTables({dataSourceId: dsId}).then(res => { 
-                const arr = res?.rows || []
-                tableList.value = arr.map(tb => ({
-                    key: `${dsId}:${tb.tableName}`,
-                    label: `${tb.tableName}`,
-                    name: tb.tableName,
-                    databaseName: dsName,
-                    dataSourceId: dsId
-                }))
+
+        // If no databases found, try fetching tables directly
+        if (databaseList.value.length === 0) {
+            const tablePromises = dsIds.map(async (dsId) => {
+                 const res = await listTables({ dataSourceId: dsId })
+                 return { dsId, data: res.rows || [] }
+            })
+            const tableResults = await Promise.all(tablePromises)
+            
+            // Only clear table list if we are repopulating it here
+            tableList.value = [] 
+            tableResults.forEach(({ dsId, data }) => {
+                 const dsName = getDsName(dsId)
+                 tableList.value.push(...data.map(tb => ({
+                     key: `${dsId}:${tb.tableName}`,
+                     label: props.datasourceMultiple ? `${dsName} > ${tb.tableName}` : tb.tableName,
+                     name: tb.tableName,
+                     dataSourceId: dsId
+                 })))
             })
         }
+    } catch (e) {
+        console.error('Failed to load metadata', e)
+    }
+    
+    emitUpdate()
+}
+
+const handleDataSourceChange = async () => {
+    await loadMetadata(false)
+}
+
+const loadTables = async (preserve = false) => {
+    if (!preserve) {
+        source.table = props.tableMultiple ? [] : undefined
+    }
+    tableList.value = []
+    if (!preserve) {
+        columns.value = []
+    }
+    
+    const selectedDbs = Array.isArray(source.database) ? source.database : (source.database ? [source.database] : [])
+    
+    if (selectedDbs.length === 0) {
+        // If no DB selected, and we are not in "no-db" mode (which is handled in loadMetadata), return
+        // But wait, if databaseList is empty, we might be in "no-db" mode. 
+        // If databaseList is NOT empty, and no DB selected, then tableList should be empty.
+        if (databaseList.value.length > 0) {
+            emitUpdate()
+            return
+        }
+        // If databaseList is empty, loadMetadata might have already populated tableList.
+        // So we shouldn't clear it here if we came from loadMetadata?
+        // Actually handleDatabaseChange is only called when database selection changes.
+        // So if databaseList is empty, this function is unlikely to be called by user.
+        // But for initialization, we need to be careful.
     }
 
+    if (databaseList.value.length === 0 && tableList.value.length > 0) {
+        // "No-database" mode (e.g. flat datasource), tables already loaded by loadMetadata
+        return
+    }
+
+    try {
+        const tablePromises = selectedDbs.map(async (db) => {
+            const res = await listTables({ dataSourceId: db.dataSourceId, databaseName: db.name })
+            return { db, data: res.rows || [] }
+        })
+        
+        const tableResults = await Promise.all(tablePromises)
+        
+        tableResults.forEach(({ db, data }) => {
+             tableList.value.push(...data.map(tb => ({
+                 key: `${db.key}:${tb.tableName}`,
+                 label: props.databaseMultiple || props.datasourceMultiple ? `${db.label} > ${tb.tableName}` : tb.tableName,
+                 name: tb.tableName,
+                 dataSourceId: db.dataSourceId,
+                 databaseName: db.name
+             })))
+        })
+    } catch (e) {
+        console.error('Failed to load tables', e)
+    }
+    
+    emitUpdate()
 }
 
-const handleDatabaseChange = () => {
-
+const handleDatabaseChange = async () => {
+    await loadTables(false)
 }
 
-const handleTableChange = () => { 
+const loadColumns = async (preserve = false) => {
+    if (!preserve) {
+        columns.value = []
+    }
+    const selectedTables = Array.isArray(source.table) ? source.table : (source.table ? [source.table] : [])
+    
+    if (selectedTables.length === 0) {
+        emitUpdate()
+        return
+    }
+    
+    try {
+        // Fetch columns for the first selected table
+        const firstTable = selectedTables[0]
+        const res = await listColumns({ 
+             dataSourceId: firstTable.dataSourceId, 
+             databaseName: firstTable.databaseName, 
+             tableName: firstTable.name 
+        })
+        
+        if (res.rows) {
+            columns.value = res.rows.map(c => c.name)
+        }
+    } catch (e) {
+        console.error('Failed to load columns', e)
+    }
 
+    emitUpdate()
+}
+
+const handleTableChange = async () => { 
+    await loadColumns(false)
+}
+
+const initData = async () => {
+    if (source.dataSourceId) {
+        await loadMetadata(true)
+        if (source.database) {
+            await loadTables(true)
+            if (source.table) {
+                await loadColumns(true)
+            }
+        }
+    }
 }
 
 onMounted(() => { 
     listDatasource().then(res => { 
         datasourceList.value = res.rows || []
+        // Initialize if props already provided
+        initData()
     })
 })
+
+watch(() => props.source, async (val) => {
+    const dsChanged = source.dataSourceId !== val.dataSourceId
+    const dbChanged = source.database !== val.database
+    const tbChanged = source.table !== val.table
+
+    if(dsChanged) {
+        source.dataSourceId = val.dataSourceId
+    }
+    if(dbChanged) {
+        source.database = val.database
+    }
+    if(tbChanged) {
+        source.table = val.table
+    }
+    
+    // If external source changed (e.g. loaded from API), we might need to re-init lists
+    // Only if lists are empty or mismatch?
+    // Simple logic: if datasource changed, reload metadata. 
+    // If datasource is same but we have no lists (page refresh?), reload.
+    if (dsChanged || (val.dataSourceId && datasourceList.value.length > 0 && databaseList.value.length === 0 && tableList.value.length === 0)) {
+         // Wait for next tick to ensure local source is updated? 
+         // No, we just updated it above.
+         // But we should be careful not to trigger double loads if user is interacting.
+         // This watch is deep on props.source.
+         // If user interacts, emitUpdate updates parent, parent updates prop, this watch triggers.
+         // We need to avoid re-fetching if we initiated the change.
+         // But here we are just syncing props to local.
+         
+         // If the change came from parent (and is not just an echo of our emit), we should reload.
+         // But detecting "echo" is hard.
+         // However, initData(true) preserves selection. Re-fetching lists with same ID shouldn't hurt much, just network calls.
+         // To avoid excessive calls, we could check if lists are already populated for this ID.
+         // For now, let's just call initData() if it looks like a new assignment.
+         
+         // Actually, if dsChanged is true, it means ID changed, so we MUST reload.
+         if (dsChanged) {
+             await loadMetadata(false) // New DS, reset downstream
+         } else if (val.dataSourceId && databaseList.value.length === 0 && tableList.value.length === 0) {
+             // Same DS, but no lists loaded yet (initial load scenario)
+             await initData()
+         }
+    }
+    
+}, {deep: true})
 </script>

@@ -1,19 +1,25 @@
 <template>
   <div class="app-container">
-    <el-form>
-      <el-form-item label="任务名称">
-        <el-input v-model="taskForm.name" placeholder="请输入任务名称" style="width: 320px; margin-right: 10px" />
-          <el-button @click="goBack">返回列表</el-button>
-          <el-button type="primary" @click="handleSave">保 存</el-button>
-          <el-button type="info" @click="handleValidate">校 验</el-button>
-      </el-form-item>
-    </el-form>
+    <el-card>
+      <div class="header-actions">
+        <el-form :inline="true" :model="taskForm" class="demo-form-inline">
+          <el-form-item label="任务名称">
+            <el-input v-model="taskForm.name" placeholder="请输入任务名称" style="width: 320px" />
+          </el-form-item>
+          <el-form-item>
+            <el-button @click="goBack">返回列表</el-button>
+            <el-button type="primary" @click="handleSave">保 存</el-button>
+            <!-- <el-button type="info" @click="handleValidate">校 验</el-button> -->
+          </el-form-item>
+        </el-form>
+      </div>
+    </el-card>
 
     <el-card style="margin-top: 16px">
-        <template #header>
-          <span>任务配置</span>
-        </template>
-        <sync-config-detail v-model:detail="taskForm.detail"/>
+      <template #header>
+        <span>任务配置</span>
+      </template>
+      <sync-config-detail v-model:detail="taskForm.detail" />
     </el-card>
 
     <!-- 调度配置 -->
@@ -56,19 +62,21 @@
 </template>
 
 <script setup>
+import { reactive, ref, watch, onMounted, getCurrentInstance } from 'vue'
 import Crontab from '@/components/Crontab'
 import SyncConfigDetail from './components/SyncConfigDetail'
 import { useRoute, useRouter } from 'vue-router'
 import { addTask, updateTask, getTask } from '@/api/dataintegration'
 import useTagsViewStore from '@/store/modules/tagsView'
+
 const route = useRoute()
 const router = useRouter()
+const tagsViewStore = useTagsViewStore()
 const { proxy } = getCurrentInstance()
 
-function goBack() {
-    //   router.back()
-    router.push({ name: 'DataIntegrationTasks' })
-}
+const scheduleGroups = ref([])
+const openCron = ref(false)
+const expression = ref('')
 
 const taskForm = reactive({
   name: '',
@@ -81,13 +89,24 @@ const taskForm = reactive({
   }
 })
 
-watch(() => JSON.stringify(taskForm.detail), (v) => {
-    // console.log('watch taskForm.detail', JSON.parse(v))
-    taskForm.detail = JSON.parse(v)
-})
-
+function goBack() {
+  const visitedViews = tagsViewStore.visitedViews
+  const view = visitedViews.find(v => v.path === route.path)
+  if (view) {
+    tagsViewStore.delView(view).then(() => {
+        router.push({ name: 'DataIntegrationTasks' })
+    })
+  } else {
+      router.push({ name: 'DataIntegrationTasks' })
+  }
+}
 
 async function handleSave() {
+  if (!taskForm.name) {
+    proxy.$modal.msgError('请输入任务名称')
+    return
+  }
+  
   try {
     const payload = {
       taskName: taskForm.name,
@@ -101,18 +120,14 @@ async function handleSave() {
       proxy.$modal.msgSuccess('保存成功')
     } else {
       await addTask(payload)
-      router.push({ name: 'DataIntegrationTasks' })
+      proxy.$modal.msgSuccess('新增成功')
+      // router.push({ name: 'DataIntegrationTasks' })
+      goBack()
     }
   } catch (e) {
-    console.log(e)
+    console.error(e)
   }
 }
-
-const handleValidate = () => { }
-
-const scheduleGroups = ref([])
-const openCron = ref(false)
-const expression = ref('')
 
 function handleShowCron() {
   expression.value = taskForm.schedule.cronExpr
@@ -134,8 +149,7 @@ onMounted(() => {
       taskForm.schedule = data.schedule || { type: 'manual', cronExpr: '', group: '' }
       taskForm.detail = data.detail || {}
     }).catch(e => {
-        proxy.$modal.msgError('获取任务详情失败，跳转到任务列表')
-        useTagsViewStore().delView(route) // 删除当前详情页路由对应的标签页
+        proxy.$modal.msgError('获取任务详情失败')
         goBack()
     })
   }
@@ -143,4 +157,9 @@ onMounted(() => {
 
 </script>
 
-<style scoped></style>
+<style scoped>
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+</style>
