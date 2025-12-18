@@ -152,3 +152,8 @@ AUTH_USER_MODEL = 'system.User'
 
 
 APPEND_SLASH=False
+
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
