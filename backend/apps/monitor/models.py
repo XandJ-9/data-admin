@@ -38,3 +38,22 @@ class OperLog(BaseModel):
 
     def __str__(self):
         return f"{self.oper_id}-{self.title}-{self.oper_name}"
+
+
+class Logininfor(models.Model):
+    info_id = models.BigAutoField(primary_key=True, verbose_name='访问ID')
+    user_name = models.CharField(max_length=50, verbose_name='用户账号')
+    ipaddr = models.CharField(max_length=128, verbose_name='登录IP地址')
+    login_location = models.CharField(max_length=255, verbose_name='登录地点', blank=True, null=True)
+    browser = models.CharField(max_length=50, verbose_name='浏览器类型', blank=True, null=True)
+    os = models.CharField(max_length=50, verbose_name='操作系统', blank=True, null=True)
+    status = models.CharField(max_length=1, default='0', verbose_name='登录状态')
+    msg = models.CharField(max_length=255, verbose_name='提示消息', blank=True, null=True)
+    login_time = models.DateTimeField(verbose_name='访问时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'sys_logininfor'
+        verbose_name = '系统登录日志'
+        verbose_name_plural = '系统登录日志'
+        ordering = ['-login_time']
+

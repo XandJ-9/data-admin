@@ -77,22 +77,22 @@ service.interceptors.response.use(res => {
     // 未设置状态码则默认成功状态
     const code = res.data.code || 200
     // 获取错误信息
-    const msg = errorCode[code] || res.data.message || errorCode['default']
+    const msg = errorCode[code] || res.data.msg || errorCode['default']
     // 二进制数据则直接返回
     if (res.request.responseType ===  'blob' || res.request.responseType ===  'arraybuffer') {
-      return res.data
+      return res
     }
     if (code === 401) {
       if (!isRelogin.show) {
         isRelogin.show = true
         ElMessageBox.confirm('登录状态已过期，您可以继续留在该页面，或者重新登录', '系统提示', { confirmButtonText: '重新登录', cancelButtonText: '取消', type: 'warning' }).then(() => {
-          isRelogin.show = false
-          removeToken()
-          router.replace({ path: '/index' })
-          // useUserStore().logOut().then(() => {
-              // location.href = '/index'
-              // router.replace({ path: '/index' })
-          // })
+            isRelogin.show = false
+            removeToken()
+            router.replace({ path: '/login' })
+        //   useUserStore().logOut().then(() => {
+        //       // location.href = '/index'
+        //       router.replace({ path: '/index' })
+        //   })
       }).catch(() => {
         isRelogin.show = false
       })
@@ -106,12 +106,13 @@ service.interceptors.response.use(res => {
       return Promise.reject(new Error(msg))
     } else if (code !== 200) {
       ElNotification.error({ title: msg })
-      return Promise.reject(new Error(msg))
+      return Promise.reject('error')
     } else {
       return  Promise.resolve(res.data)
     }
   },
   error => {
+    console.log('err' + error)
     let { message } = error
     if (message == "Network Error") {
       message = "后端接口连接异常"
@@ -133,13 +134,21 @@ export function download(url, params, filename, config) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     responseType: 'blob',
     ...config
-  }).then(async (data) => {
-    const isBlob = blobValidate(data)
+  }).then(async (resp) => {
+    const isBlob = blobValidate(resp.data)
     if (isBlob) {
-      const blob = new Blob([data])
-      saveAs(blob, filename)
+      const blob = new Blob([resp.data])
+      let name = filename
+      const contentDisposition = decodeURIComponent(resp.headers['content-disposition'])
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename=["']?([^"';]+)["']?/)
+        if (match && match[1]) {
+          name = match[1]
+        }
+      }
+      saveAs(blob, name)
     } else {
-      const resText = await data.text()
+      const resText = await resp.data.text()
       const rspObj = JSON.parse(resText)
       const errMsg = errorCode[rspObj.code] || rspObj.msg || errorCode['default']
       ElMessage.error(errMsg)

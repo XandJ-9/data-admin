@@ -7,6 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from .core import BaseViewSet
 from ..permission import HasRolePermission
 from ..common import audit_log
+from apps.common.mixins import ExportExcelMixin
+from collections import OrderedDict
 from ..serializers import (
     UserSerializer, DeptSerializer, UserProfileSerializer, RoleSerializer, PostSerializer,
     UserQuerySerializer, ResetPwdSerializer, ChangeStatusSerializer,
@@ -17,11 +19,27 @@ from ..models import User, Dept, Role, UserRole, Post, UserPost
 
 from drf_spectacular.utils import extend_schema
 
-class UserViewSet(BaseViewSet):
+class UserViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = User.objects.all()
     serializer_class = UserSerializer
     update_body_serializer_class = UserUpdateSerializer
+    export_field_label = OrderedDict([
+        ('id', '用户序号'),
+        ('username', '登录名称'),
+        ('nick_name', '用户昵称'),
+        ('email', '用户邮箱'),
+        ('phonenumber', '手机号码'),
+        ('sex', '用户性别'),
+        ('status', '帐号状态'),
+        ('login_ip', '最后登录IP'),
+        ('login_date', '最后登录时间'),
+        ('dept.dept_name', '部门名称'),
+        ('create_by', '创建者'),
+        ('create_time', '创建时间'),
+        ('remark', '备注')
+    ])
+    export_filename = '用户数据'
     def get_queryset(self):
         queryset = super().get_queryset()
         s = UserQuerySerializer(data=self.request.query_params)
@@ -136,31 +154,29 @@ class UserViewSet(BaseViewSet):
         tree_data = build_tree(mapped)
         return self.data(tree_data)
     
-    @action(detail=False, methods=['get', 'put'])
+    @action(detail=False, methods=['get'], url_path=r'profile')
     def profile(self, request):
         user = request.user
+        serializer = UserProfileSerializer(user)
+        # 获取用户所属的角色组和岗位组名称
+        role_names = list(UserRole.objects.filter(user=user).values_list('role__role_name', flat=True))
+        post_names = list(UserPost.objects.filter(user=user).values_list('post__post_name', flat=True))
         
-        if request.method == 'GET':
-            serializer = UserProfileSerializer(user)
-            # 获取用户所属的角色组和岗位组名称
-            role_names = list(UserRole.objects.filter(user=user).values_list('role__role_name', flat=True))
-            post_names = list(UserPost.objects.filter(user=user).values_list('post__post_name', flat=True))
-            
-            data = {
-                'data': serializer.data,
-                'roleGroup': ','.join(role_names),
-                'postGroup': ','.join(post_names)
-            }
-            return self.raw_response(data)
-            
-        elif request.method == 'PUT':
-            # 记录审计日志 (手动调用装饰器逻辑或在此处记录，为简化直接保留逻辑)
-            # 注意：@audit_log 装饰器通常用于整个视图方法，混合方法时可能需要特殊处理
-            # 这里简单起见，直接执行更新逻辑
-            serializer = UserProfileSerializer(user, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return self.ok('个人信息修改成功')
+        data = {
+            'data': serializer.data,
+            'roleGroup': ','.join(role_names),
+            'postGroup': ','.join(post_names)
+        }
+        return self.raw_response(data)
+
+    @action(detail=False, methods=['put'], url_path=r'updateProfile')
+    @audit_log
+    def updateProfile(self, request):
+        user = request.user
+        serializer = UserProfileSerializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return self.ok('个人信息修改成功')
     
     @action(detail=False, methods=['put'], url_path=r'profile/updatePwd')
     @audit_log

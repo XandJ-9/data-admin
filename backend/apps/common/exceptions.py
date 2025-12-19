@@ -7,6 +7,7 @@ from django.db.utils import DatabaseError
 import traceback
 
 
+
 def _first_error_message(data):
     """
     Extract the first human-readable error message from DRF error dict/list.
@@ -34,11 +35,17 @@ def custom_exception_handler(exc, context):
     """
     response = exception_handler(exc, context)
     traceback.print_exc()
-    code = 500
-    msg = '请求错误'
     if response is not None:
-        msg = _first_error_message(response.data)
-        code = response.status_code
+        message = _first_error_message(response.data)
+        # Fallback when message is empty
+        if not message:
+            message = '请求错误'
+        response.data = {
+            'code': response.status_code,
+            'message': message,
+        }
+        # return response
+        return Response(response.data, status=status.HTTP_200_OK)
     elif isinstance(exc, (ProtectedError, RestrictedError)):
         set_rollback()
         msg = "无法删除:该条数据与其他数据有相关绑定"
@@ -47,6 +54,5 @@ def custom_exception_handler(exc, context):
         msg = "数据库错误:" + str(exc)
     elif isinstance(exc, Exception):
         msg = str(exc)
-    print(f'code={code}, msg={msg}')
     # Non-DRF or unhandled exceptions → 500
-    return Response({'code': code, 'message': msg}, status=status.HTTP_200_OK)
+    return Response({'code': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
