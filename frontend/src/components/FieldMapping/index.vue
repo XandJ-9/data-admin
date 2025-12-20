@@ -46,18 +46,22 @@ const props = defineProps({
 
 // const emit = defineEmits(['update:sourceColumns', 'update:targetColumns', 'update:mappings'])
 
-watch(() => props.targetColumns, (val) => {
-  // 当目标表字段变化时，清理无效的映射（目标字段不存在于新目标表字段中）
-  if (props.mappings.length > 0) {
-    const newTargetSet = new Set(val || [])
-    for (let i = props.mappings.length - 1; i >= 0; i--) {
-      const m = props.mappings[i]
-      if (m.targetField && !newTargetSet.has(m.targetField)) {
-        props.mappings.splice(i, 1)
-      }
-    }
-  }
-})
+// watch(() => props.mappings, (val) => {
+//   console.log('mappings changed', val)
+// })
+
+// watch(() => props.targetColumns, (val) => {
+//   // 当目标表字段变化时，清理无效的映射（目标字段不存在于新目标表字段中）
+//   if (props.mappings.length > 0) {
+//     const newTargetSet = new Set(val || [])
+//     for (let i = props.mappings.length - 1; i >= 0; i--) {
+//       const m = props.mappings[i]
+//       if (m.targetField && !newTargetSet.has(m.targetField)) {
+//         props.mappings.splice(i, 1)
+//       }
+//     }
+//   }
+// })
 
 function applyDefaultMapping() {
   const src = props.sourceColumns || []

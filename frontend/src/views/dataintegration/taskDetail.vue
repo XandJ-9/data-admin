@@ -19,7 +19,7 @@
       <template #header>
         <span>任务配置</span>
       </template>
-      <sync-config-detail v-model:detail="taskForm.detail" />
+      <SyncConfigDetail v-model:detail="taskForm.detail" />
     </el-card>
 
     <!-- 调度配置 -->
