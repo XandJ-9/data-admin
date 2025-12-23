@@ -16,7 +16,7 @@
         <el-button @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
-    <el-table :data="list" border>
+    <el-table :data="list" border style="width: 100%">
       <el-table-column prop="createTime" label="时间" width="180" />
       <el-table-column prop="userName" label="用户" width="120" />
       <el-table-column prop="dataSourceName" label="数据源" width="120" />
@@ -26,14 +26,17 @@
         </template>
       </el-table-column>
       <el-table-column prop="durationMs" label="耗时(ms)" width="120" />
-      <el-table-column prop="sqlText" label="SQL">
+      <el-table-column prop="sqlText" label="SQL" min-width="200">
         <template #default="scope">
-          <el-tooltip placement="top" v-if="scope.row.sqlText">
-            <template #content>
-              <div class="prewrap">{{ scope.row.sqlText }}</div>
-            </template>
-            <div class="prewrap">{{ scope.row.sqlText }}</div>
-          </el-tooltip>
+          <div v-if="scope.row.sqlText">
+            <div v-if="scope.row.sqlText.length <= 100" class="prewrap">
+              {{ scope.row.sqlText }}
+            </div>
+            <div v-else>
+              <div class="prewrap">{{ scope.row.sqlText.substring(0, 100) }}...</div>
+              <el-button link type="primary" @click="showSqlDetail(scope.row.sqlText)">查看详情</el-button>
+            </div>
+          </div>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -45,6 +48,7 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
+
     </el-table>
     <pagination
       v-show="total>0"
@@ -55,6 +59,13 @@
       @update:limit="val => (query.pageSize = val)"
       @pagination="getList"
     />
+    
+    <el-dialog v-model="sqlDetailVisible" title="SQL详情" width="800px">
+      <div class="sql-detail">{{ currentSql }}</div>
+      <template #footer>
+        <el-button @click="sqlDetailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -63,6 +74,14 @@ import { listQueryLog } from '@/api/dataservice'
 const list = ref([])
 const total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10, userName: '', status: '' })
+
+const sqlDetailVisible = ref(false)
+const currentSql = ref('')
+
+function showSqlDetail(sql) {
+  currentSql.value = sql
+  sqlDetailVisible.value = true
+}
 
 function getList() {
   listQueryLog(query).then(res => {
@@ -92,8 +111,18 @@ onMounted(() => {
   white-space: nowrap;
 }
 .prewrap {
-  white-space: pre-wrap;
+  /* white-space: pre-wrap; */
   word-break: break-word;
   max-width: 600px;
+  overflow-x: hidden;
+}
+.sql-detail {
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 500px;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
 }
 </style>
