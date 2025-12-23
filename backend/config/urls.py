@@ -34,6 +34,7 @@ urlpatterns = [
     path('data-api/datameta/', include('apps.datameta.urls')),
     path('data-api/dataintegration/', include('apps.dataintegration.urls')),
     path('data-api/monitor/', include('apps.monitor.urls')),
+    path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     path('data-api/captcha/', include('captcha.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

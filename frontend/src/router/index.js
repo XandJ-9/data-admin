@@ -111,6 +111,29 @@ export const constantRoutes = [
 //       }
 //     ]
 //   },
+// },
+  {
+    path: '/datataskmonitor',
+    component: Layout,
+    hidden: false,
+    redirect: '/datataskmonitor/index',
+    meta: { title: '数据运维', icon: 'monitor' },
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/datataskmonitor/index.vue'),
+        name: 'DataTask',
+        meta: { title: '任务管理', icon: 'list' }
+      },
+      {
+        path: 'log',
+        component: () => import('@/views/datataskmonitor/log.vue'),
+        name: 'TaskLog',
+        meta: { title: '任务日志', icon: 'log' },
+        hidden: true
+      }
+    ]
+  }
 ]
 
 // 动态路由，基于用户权限动态去加载

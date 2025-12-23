@@ -206,4 +206,3 @@
 1. **Apache NiFi**：借鉴其“数据流可视化拖拽”“处理器（Processor）算子库”设计，将复杂ETL转换拆分为可组合的原子操作；  
 
 2. **Kettle（Pentaho Data Integration）**：借鉴其“作业（Job）
-> （注：文档部分内容可能由 AI 生成）
