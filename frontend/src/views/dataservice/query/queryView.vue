@@ -12,6 +12,7 @@
         <el-button type="success" @click="emitNext" :disabled="(!next || running)">下一页</el-button>
         <el-button type="warning" @click="emitExport" :disabled="!innerDsId || !innerSql || running">导出CSV</el-button>
         <el-button type="warning" @click="showTpl = true">模板参数</el-button>
+        <el-button @click="showMaximize = true" icon="FullScreen" title="放大编辑">放大</el-button>
       </el-form-item>
       <el-form-item label="每页行数">
         <el-input-number v-model="innerPageSize" :min="1" :max="1000" />
@@ -39,6 +40,16 @@
         <el-button @click="showTpl=false">取消</el-button>
         <el-button type="primary" @click="saveParams">保存</el-button>
       </template>
+    </el-dialog>
+    
+    <el-dialog v-model="showMaximize" title="SQL编辑" width="80%" top="5vh" :close-on-click-modal="false">
+      <VAceEditor
+        v-model:value="innerSql"
+        lang="sql"
+        theme="xcode"
+        :options="{...aceOptions, fontSize: 16}"
+        style="height: 70vh; border: 1px solid var(--el-border-color);"
+      />
     </el-dialog>
   </div>
 </template>
@@ -77,6 +88,7 @@ const innerPageSize = ref(props.pageSize)
 const innerOffset = ref(props.offset)
 const next = computed(() => props.next)
 const showTpl = ref(false)
+const showMaximize = ref(false)
 const tplParams = ref(Object.entries(props.templateParams || {}).map(([k,v]) => ({ key: k, value: String(v) })))
 watch(innerDsId, v => emit('update:dataSourceId', v))
 watch(innerSql, v => emit('update:sqlText', v))

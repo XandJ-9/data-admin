@@ -454,3 +454,26 @@
   - 优化组件结构，提高代码可读性和可维护性
   - 重构组件逻辑，避免重复代码和冗余功能
   - 优化组件性能，提高用户体验
+
+
+# 数据服务模块优化查询结果
+## Context
+  - 数据服务模块，前端代码位置： frontend/src/views/dataservice/query/index.vue
+  - 查询结果组件： frontend/src/views/dataservice/query/queryResult.vue
+
+## Requirements
+  - 查询结果组件中，展示查询结果的表格，表格中包含查询结果的所有字段，每个字段的宽度根据字段宽度过长时，自动显示省略号，并且支持列宽拖拽
+  - 查询编辑窗口需要能够扩大，方便查看完整的sql语句
+
+## Constraints
+  - 表格的列宽调整后，需要实时更新表格的宽度，不能出现滚动条
+  - 保持前端风格一致
+
+# 数据服务模块优化查询编辑组件
+## Context
+  - 当查询语句太长时，编辑窗口的高度限制了查看查询语句的体验，需要优化查询编辑窗口组件，
+  - 查询编辑窗口组件： frontend/src/views/dataservice/query/queryView.vue
+
+## Requirements
+  - 查询编辑窗口组件需要能够扩大，方便查看完整的sql语句
+  - 可以在扩大的编辑框中编辑sql语句，编辑完成后，需要及时更新查询结果组件中的查询语句
