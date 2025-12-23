@@ -123,7 +123,6 @@ const ensureDefaults = () => {
     // but explicit assignment ensures emit works if useVModel relies on it.
     if (changed) {
       detail.value = { ...d } // spread to create new reference to ensure update triggers
-      console.log('ensureDefaults', detail.value.fieldMappings)
     }
 }
 
