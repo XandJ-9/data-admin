@@ -123,7 +123,7 @@ export const constantRoutes = [
         path: 'index',
         component: () => import('@/views/datataskmonitor/index.vue'),
         name: 'DataTask',
-        meta: { title: '任务管理', icon: 'list' }
+        meta: { title: '任务运维', icon: 'list' }
       },
       {
         path: 'log',
