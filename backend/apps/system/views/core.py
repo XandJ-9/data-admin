@@ -9,18 +9,17 @@ from captcha.models import CaptchaStore
 from captcha.views import captcha_image
 import base64
 from urllib.parse import quote
-
-from ..models import UserRole, Menu, DictType, DictData
-from ..serializers import DictTypeSerializer, DictDataSerializer, UserProfileSerializer, UserInfoSerializer
 from django.db.models import Q
 from django.core.cache import cache
 from rest_framework.pagination import PageNumberPagination
-from ..common import audit_log
-
 from drf_spectacular.utils import extend_schema
 
+from ..models import UserRole, Menu, DictType, DictData
+from ..serializers import DictTypeSerializer, DictDataSerializer, UserProfileSerializer, UserInfoSerializer
+from ..common import audit_log
 
- 
+from apps.common.mixins import BaseViewMixin
+
 
 
 class CaptchaView(TokenObtainPairView):
@@ -161,54 +160,6 @@ class GetRoutersView(generics.GenericAPIView):
         routers = [r for r in [to_router(n) for n in tree] if r is not None]
         # cache.set('routers', routers, timeout=3600)
         return Response({"code": 200, "msg": "操作成功", "data": routers})
-
-
-class BaseViewMixin:
-    # 通用响应封装
-    def ok(self, msg='操作成功'):
-        return Response({'code': 200, 'msg': msg})
-
-    def error(self, msg='操作失败'):
-        return Response({'code': 400, 'msg': msg})
-    
-    def data(self, data, msg='操作成功'):
-        return Response({'code': 200, 'msg': msg, 'data': data})
-
-    def not_found(self, msg='未找到'):
-        return Response({'code': 404, 'msg': msg})
-    
-    def raw_response(self, data):
-        return Response(data)
-
-    def csv_response(self, columns, rows, filename, bom=False):
-        import csv, io
-        from django.http import HttpResponse
-        output = io.StringIO()
-        if bom:
-            output.write('\ufeff')
-        if columns:
-            headers = columns
-            writer = csv.DictWriter(output, fieldnames=headers)
-            writer.writeheader()
-            for r in rows:
-                row = {k: v for k, v in zip(headers, r)}
-                writer.writerow(row)
-        resp = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
-        resp['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return resp
-
-    def excel_response(self, filename, workbook):
-        # 使用传入的 openpyxl.Workbook 生成 xlsx 响应
-        import io
-        from django.http import HttpResponse
-        try:
-            output = io.BytesIO()
-            workbook.save(output)
-        except Exception as e:
-            return self.error(f'导出 Excel 失败：{e}')
-        resp = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        resp['Content-Disposition'] = f'attachment; filename="{quote(filename)}"'
-        return resp
 
 class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
     required_roles = None

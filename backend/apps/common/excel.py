@@ -18,7 +18,7 @@ class ExcelUtil:
         self.field_list = field_list or []
         self.header_list = header_list or self.field_list
 
-    def export_excel(self, filename="export"):
+    def make_excel(self, filename="export"):
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Sheet1"
@@ -39,22 +39,21 @@ class ExcelUtil:
                 cell = ws.cell(row=row_num, column=col_num, value=value)
                 cell.alignment = Alignment(horizontal='center', vertical='center')
 
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-        
+        # output = BytesIO()
+        # wb.save(output)
+        # output.seek(0)
+        # response = HttpResponse(
+        #     output.getvalue(),
+        #     content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        # )
         # Ensure filename has extension
-        if not filename.endswith('.xlsx'):
-            filename += '.xlsx'
-
-        response = HttpResponse(
-            output.getvalue(),
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        response.headers['content-disposition'] =  f'attachment;filename={quote(f"{filename}")}'
-        # # cross-origin跨域请求需要设置Access-Control-Expose-Headers响应信息
-        response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
-        return response
+        # if not filename.endswith('.xlsx'):
+        #    filename += '.xlsx'
+        # response.headers['content-disposition'] =  f'attachment;filename={quote(f"{filename}")}'
+        # # # cross-origin跨域请求需要设置Access-Control-Expose-Headers响应信息
+        # response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        # return response
+        return wb
 
     def get_value(self, obj, field):
         """
