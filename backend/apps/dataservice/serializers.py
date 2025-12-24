@@ -6,7 +6,7 @@ from apps.dataservice.models import QueryLog, InterfaceInfo, InterfaceField
 class DataServiceQuerySerializer(serializers.Serializer):
     dataSourceId = serializers.IntegerField()
     sql = serializers.CharField()
-    params = serializers.DictField(child=serializers.CharField(), required=False, allow_empty=True)
+    params = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False, allow_empty=True, allow_null=True)
     pageSize = serializers.IntegerField(required=False, min_value=1, default=50)
     offset = serializers.IntegerField(required=False, min_value=0, default=0)
 
