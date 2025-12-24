@@ -91,7 +91,8 @@ function exportRows(t, p) {
   payload.pageSize = 10000
   payload.offset = 0
   exportQuery(payload).then(res => {
-    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    // const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const blob = new Blob([res.data])
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

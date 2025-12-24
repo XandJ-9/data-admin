@@ -516,7 +516,7 @@ function exportFromDialog() {
     }
   }
   exportInterfaceById(id, { params: paramsObj || {}, pageSize: execForm.value.pageSize || 1000, offset: execForm.value.offset || 0 }).then(res => {
-    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
