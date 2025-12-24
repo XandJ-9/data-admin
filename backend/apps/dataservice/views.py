@@ -19,6 +19,7 @@ from .custom import make_interface_workbook, parse_interface_workbook
 from apps.dbutils.factory import get_executor
 from django.template import Template, Context
 from django.db import transaction
+from django.db.models import F
 from openpyxl import load_workbook
 
 import time
@@ -269,7 +270,7 @@ class InterfaceInfoViewSet(BaseViewSet):
 
         wb = make_interface_workbook(interface, list(fields))
 
-        filename = f"{interface.interface_code}_{interface.interface_name}.xlsx"
+        filename = f"{interface.interface_name}.xlsx"
         return self.excel_response(filename, wb)
     
     @action(detail=False, methods=['post'], url_path='import-meta')
@@ -348,3 +349,91 @@ class InterfaceFieldViewSet(BaseViewSet):
         if interface_id:
             qs = qs.filter(interface_id=interface_id)
         return qs.order_by('-create_time')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        position = instance.interface_para_position
+        para_type = instance.interface_para_type
+        interface = instance.interface
+        
+        response = super().destroy(request, *args, **kwargs)
+        
+        # 删除成功后，后续字段位置前移
+        if response.status_code == 200:
+            InterfaceField.objects.filter(
+                interface=interface,
+                interface_para_type=para_type,
+                del_flag='0',
+                interface_para_position__gt=position
+            ).update(interface_para_position=F('interface_para_position') - 1)
+            
+        return response
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        instance = serializer.instance
+        # 新增字段时，自动调整后续字段位置
+        if instance:
+            InterfaceField.objects.filter(
+                interface=instance.interface,
+                interface_para_type=instance.interface_para_type,
+                del_flag='0',
+                interface_para_position__gte=instance.interface_para_position
+            ).exclude(id=instance.id).update(
+                interface_para_position=F('interface_para_position') + 1
+            )
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        old_position = instance.interface_para_position
+        old_type = instance.interface_para_type
+        
+        super().perform_update(serializer)
+        
+        new_instance = serializer.instance
+        if not new_instance:
+            return
+
+        new_position = new_instance.interface_para_position
+        new_type = new_instance.interface_para_type
+
+        # 如果类型改变
+        if old_type != new_type:
+            # 旧组：删除（后续前移）
+            InterfaceField.objects.filter(
+                interface=new_instance.interface,
+                interface_para_type=old_type,
+                del_flag='0',
+                interface_para_position__gt=old_position
+            ).update(interface_para_position=F('interface_para_position') - 1)
+
+            # 新组：插入（后续后移）
+            InterfaceField.objects.filter(
+                interface=new_instance.interface,
+                interface_para_type=new_type,
+                del_flag='0',
+                interface_para_position__gte=new_position
+            ).exclude(id=new_instance.id).update(
+                interface_para_position=F('interface_para_position') + 1
+            )
+        else:
+            # 类型不变，位置改变
+            if old_position != new_position:
+                qs = InterfaceField.objects.filter(
+                    interface=new_instance.interface,
+                    interface_para_type=new_type,
+                    del_flag='0'
+                ).exclude(id=new_instance.id)
+
+                if new_position < old_position:
+                    # 前移：[new, old) 后移
+                    qs.filter(
+                        interface_para_position__gte=new_position,
+                        interface_para_position__lt=old_position
+                    ).update(interface_para_position=F('interface_para_position') + 1)
+                else:
+                    # 后移：(old, new] 前移
+                    qs.filter(
+                        interface_para_position__gt=old_position,
+                        interface_para_position__lte=new_position
+                    ).update(interface_para_position=F('interface_para_position') - 1)

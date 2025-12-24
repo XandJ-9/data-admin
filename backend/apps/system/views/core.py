@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from captcha.models import CaptchaStore
 from captcha.views import captcha_image
 import base64
+from urllib.parse import quote
 
 from ..models import UserRole, Menu, DictType, DictData
 from ..serializers import DictTypeSerializer, DictDataSerializer, UserProfileSerializer, UserInfoSerializer
@@ -206,7 +207,7 @@ class BaseViewMixin:
         except Exception as e:
             return self.error(f'导出 Excel 失败：{e}')
         resp = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+        resp['Content-Disposition'] = f'attachment; filename="{quote(filename)}"'
         return resp
 
 class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):

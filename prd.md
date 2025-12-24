@@ -294,6 +294,34 @@
 - 点击接口列表中的接口，能够跳转到接口详情页面
 - 参考现有的代码逻辑（frontend\src\views\dataservice\interface\index.vue中的el-drawer组件中的内容），完成单独的接口详情页
 
+### 接口详情优化
+**Context** 在接口详情页,接口sql内容展示过长影响体验，需要添加一个按钮，点击后展示完整的sql语句。
+**Task** sql展示替换为一个按钮，点击后展示完整的sql语句。
+**Location** frontend/src/views/dataservice/interface/detail/index.vue
+**Requirements:**
+- 替换接口SQL的展示方式，修改为查看按钮，点击后展示完整的sql语句，
+- 使用sql语法编辑器展示接口sql语句，支持语法高亮、自动补全等功能，可以使用VAceEditor组件。
+
+
+### 接口详情优化
+**Context** 接口详情页展示接口的字段信息，字段的参数类型和数据类型均需要转译展示
+**Task** 
+ - 接口字段的参数类型和数据类型需要根据定义进行转译展示，例如：int -> 整数，varchar(255) -> 字符串(255)
+ - 接口根据参数类型需要区分输入参数和输出参数，输入参数展示在“请求参数”区域，输出参数展示在“响应参数”区域。
+ - 接口字段需要根据参数位置进行排序，分别对请求参数和响应参数进行排序。
+**Location** frontend/src/views/dataservice/interface/detail/index.vue
+**Requirements:**
+- 类型字典参考后端定义：backend\apps\dataservice\models.py中接口模型相关的定义
+
+### 接口详情字段更新优化
+**Context** 新增或更新字段的顺序位置时，需要自动的将其他字段的位置进行调整，保证每个字段有序。
+**Task** 
+ - 变更后的接口字段位置顺序需要根据定义进行调整，保持有序。
+**Location** frontend/src/views/dataservice/interface/detail/index.vue
+**Requirements:**
+- 请你自行考虑实现方案，在实现功能的同时，考虑到代码的可维护性和扩展性。
+
+
 
 ### 数据服务-数据接口功能更新
 *需求*

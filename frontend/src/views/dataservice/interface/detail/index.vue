@@ -26,15 +26,28 @@
         <el-descriptions-item label="报警类型">
           <dict-tag :options="alarm_type_options" :value="detail.alarmType" />
         </el-descriptions-item>
+        <el-descriptions-item label="接口SQL">
+          <el-button type="primary" link @click="openSql">查看SQL</el-button>
+        </el-descriptions-item>
       </el-descriptions>
     </div>
 
-    <div style="margin-bottom: 12px;">
-      <h4 class="form-header h4">接口 SQL</h4>
-      <el-card>
-        <div class="prewrap">{{ detail.interfaceSql || '-' }}</div>
-      </el-card>
-    </div>
+    <!-- SQL查看弹窗 -->
+    <el-dialog v-model="sqlOpen" title="查看SQL" width="800px" append-to-body>
+      <VAceEditor
+        v-model:value="detail.interfaceSql"
+        lang="sql"
+        theme="xcode"
+        :options="aceOptions"
+        style="height: 400px; border: 1px solid #ccc;"
+        readonly
+      />
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="sqlOpen = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <div>
       <h4 class="form-header h4">字段列表</h4>
@@ -44,12 +57,56 @@
         </el-col>
         <right-toolbar @queryTable="getFieldList" />
       </el-row>
-      <el-table v-loading="fieldLoading" :data="fieldList">
+      
+      <h5 style="margin: 10px 0; font-weight: bold;">请求参数</h5>
+      <el-table v-loading="fieldLoading" :data="inputFieldList">
         <el-table-column label="参数编码" prop="interfaceParaCode" :show-overflow-tooltip="true" />
         <el-table-column label="参数名称" prop="interfaceParaName" :show-overflow-tooltip="true" />
-        <el-table-column label="位置" prop="interfaceParaPosition" width="90" />
-        <el-table-column label="类型" prop="interfaceParaType" width="120" />
-        <el-table-column label="数据类型" prop="interfaceDataType" width="120" />
+        <el-table-column label="参数位置" prop="interfaceParaPosition" width="90" />
+        <el-table-column label="参数类型" width="120">
+          <template #default="scope">
+            {{ scope.row.interfaceParaType === '1' ? '输入参数' : '输出参数' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="数据类型" width="120">
+          <template #default="scope">
+             {{ dataTypeMap[scope.row.interfaceDataType] || scope.row.interfaceDataType }}
+          </template>
+        </el-table-column>
+        <el-table-column label="默认值" prop="interfaceParaDefault" :show-overflow-tooltip="true" />
+        <el-table-column label="显示" prop="interfaceShowFlag" width="90">
+          <template #default="scope">
+            <dict-tag :options="yes_no_options" :value="scope.row.interfaceShowFlag" />
+          </template>
+        </el-table-column>
+        <el-table-column label="导出" prop="interfaceExportFlag" width="90">
+          <template #default="scope">
+            <dict-tag :options="yes_no_options" :value="scope.row.interfaceExportFlag" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="center" width="200" fixed="right">
+          <template #default="scope">
+            <el-button link type="primary" icon="Edit" @click="openFieldEdit(scope.row)" v-hasPermi="['dataservice:interface-field:edit']">修改</el-button>
+            <el-button link type="danger" icon="Delete" @click="handleFieldDelete(scope.row)" v-hasPermi="['dataservice:interface-field:remove']">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <h5 style="margin: 20px 0 10px 0; font-weight: bold;">响应参数</h5>
+      <el-table v-loading="fieldLoading" :data="outputFieldList">
+        <el-table-column label="参数编码" prop="interfaceParaCode" :show-overflow-tooltip="true" />
+        <el-table-column label="参数名称" prop="interfaceParaName" :show-overflow-tooltip="true" />
+        <el-table-column label="参数位置" prop="interfaceParaPosition" width="90" />
+        <el-table-column label="参数类型" width="120">
+          <template #default="scope">
+            {{ scope.row.interfaceParaType === '1' ? '输入参数' : '输出参数' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="数据类型" width="120">
+          <template #default="scope">
+             {{ dataTypeMap[scope.row.interfaceDataType] || scope.row.interfaceDataType }}
+          </template>
+        </el-table-column>
         <el-table-column label="默认值" prop="interfaceParaDefault" :show-overflow-tooltip="true" />
         <el-table-column label="显示" prop="interfaceShowFlag" width="90">
           <template #default="scope">
@@ -162,6 +219,11 @@
 <script setup name="InterfaceDetail">
 import { getInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, exportInterfaceMeta } from '@/api/dataservice'
 import { useRoute, useRouter } from 'vue-router'
+import { VAceEditor } from 'vue3-ace-editor'
+import 'ace-builds/src-noconflict/ext-language_tools'
+import 'ace-builds/src-noconflict/mode-sql'
+import 'ace-builds/src-noconflict/snippets/sql'
+import 'ace-builds/src-noconflict/theme-xcode'
 
 const { proxy } = getCurrentInstance()
 const route = useRoute()
@@ -185,7 +247,49 @@ const detail = ref({})
 const fieldLoading = ref(false)
 const fieldList = ref([])
 const fieldOpen = ref(false)
+
+const dataTypeMap = {
+  '1': '字符',
+  '2': '整数',
+  '3': '小数',
+  '4': '百分比',
+  '5': '无格式整数',
+  '6': '无格式小数',
+  '7': '无格式百分比',
+  '8': '1位百分比',
+  '9': '1位小数',
+  '10': '年份',
+  '11': '日期',
+  '12': '月份',
+  '13': '单选',
+  '14': '多选',
+  '15': '文本',
+}
+
+const inputFieldList = computed(() => {
+  return (fieldList.value || [])
+    .filter(item => item.interfaceParaType === '1')
+    .sort((a, b) => (a.interfaceParaPosition || 0) - (b.interfaceParaPosition || 0))
+})
+
+const outputFieldList = computed(() => {
+  return (fieldList.value || [])
+    .filter(item => item.interfaceParaType === '2')
+    .sort((a, b) => (a.interfaceParaPosition || 0) - (b.interfaceParaPosition || 0))
+})
+
 const fieldTitle = ref('')
+
+const sqlOpen = ref(false)
+const aceOptions = {
+  fontSize: 14,
+  showPrintMargin: false,
+  wrap: true,
+  enableBasicAutocompletion: true,
+  enableLiveAutocompletion: true,
+  enableSnippets: true,
+  readOnly: true
+}
 
 const data = reactive({
   fieldRules: {
@@ -216,6 +320,10 @@ function getFieldList() {
   }).catch(() => {
     fieldLoading.value = false
   })
+}
+
+function openSql() {
+  sqlOpen.value = true
 }
 
 function handleBack() {
