@@ -21,10 +21,10 @@ class MetaTableViewSet(BaseViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         # 数据源过滤
-        ds_id = self.request.query_params.get('dataSourceId')
-        if ds_id:
+        ds_name = self.request.query_params.get('dataSourceName')
+        if ds_name:
             try:
-                qs = qs.filter(data_source_id=int(ds_id))
+                qs = qs.filter(data_source__name__icontains=ds_name)
             except Exception:
                 pass
         # 表名模糊

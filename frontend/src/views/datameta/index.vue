@@ -7,6 +7,9 @@
       <el-form-item label="数据库">
         <el-input v-model="filterDbName" placeholder="支持模糊匹配" style="width: 220px" />
       </el-form-item>
+      <el-form-item label="数据源">
+        <el-input v-model="filterDataSourceName" placeholder="支持模糊匹配" style="width: 220px" />
+      </el-form-item> 
       <el-form-item label="创建时间">
         <el-date-picker v-model="createRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 300px" />
       </el-form-item>
@@ -19,13 +22,14 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="displayTables" row-key="id" style="width: 100%; margin-top: 12px" border>
+    <el-table v-loading="loading" :data="displayTables" row-key="id" style="width: 100%; margin-top: 12px" border show-overflow-tooltip>
       <el-table-column prop="tableName" label="表名" />
       <el-table-column prop="comment" label="表描述">
         <template #default="scope">
           <div class="prewrap">{{ scope.row.comment }}</div>
         </template>
       </el-table-column>
+      <el-table-column prop="dataSourceName" label="数据源" />
       <el-table-column prop="databaseName" label="原始数据库" />
       <el-table-column prop="createTime" label="创建同步时间" />
       <el-table-column prop="updateTime" label="修改同步时间" />
@@ -113,6 +117,7 @@ const total = ref(0)
 const pageNum = ref(1)
 const pageSize = ref(10)
 const filterName = ref('')
+const filterDataSourceName = ref('')
 const filterDbName = ref('')
 const createRange = ref([])
 const updateRange = ref([])
@@ -131,11 +136,11 @@ const rules = {
 }
 const dsOptions = ref([])
 
-
 function getTables() {
   loading.value = true
   const params = { pageNum: pageNum.value, pageSize: pageSize.value }
   if (filterName.value) params.tableName = filterName.value
+  if (filterDataSourceName.value) params.dataSourceName = filterDataSourceName.value
   if (filterDbName.value) params.databaseName = filterDbName.value
   if (Array.isArray(createRange.value) && createRange.value.length === 2) {
     params.createTimeStart = toISO(createRange.value[0])
@@ -241,7 +246,7 @@ function confirmDelete(row) {
 }
 
 function loadDataSources() {
-  listDatasource({ pageNum: 1, pageSize: 1000 }).then(res => {
+  listDatasource().then(res => {
     dsOptions.value = res.rows || []
   })
 }

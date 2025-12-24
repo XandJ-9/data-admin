@@ -6,12 +6,13 @@ from .models import MetaTable, MetaColumn
 class MetaTableSerializer(BaseModelSerializer):
     tableName = serializers.CharField(source='table_name')
     dataSourceId = serializers.IntegerField(source='data_source_id')
+    dataSourceName = serializers.CharField(source='data_source.name', read_only=True, required=False)
     comment = serializers.CharField(required=False, allow_blank=True)
     databaseName = serializers.CharField(source='database', required=False, allow_blank=True)
 
     class Meta:
         model = MetaTable
-        fields = ['id', 'dataSourceId', 'tableName', 'comment', 'databaseName']
+        fields = ['id', 'dataSourceId', 'tableName', 'comment', 'databaseName', 'dataSourceName']
 
 
 class MetaColumnSerializer(BaseModelSerializer):
