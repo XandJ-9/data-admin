@@ -31,6 +31,17 @@
       <el-col :span="1.5">
         <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
       </el-col>
+      <el-col :span="1.5">
+        <el-upload
+          ref="uploadRef"
+          action="#"
+          :http-request="customUpload"
+          :show-file-list="false"
+          accept=".xlsx, .xls"
+        >
+          <el-button type="info" plain icon="Upload" v-hasPermi="['dataservice:interface:import']">导入</el-button>
+        </el-upload>
+      </el-col>
       <right-toolbar :showSearch="showSearch" @update:showSearch="val => (showSearch = val)" @queryTable="getList" />
     </el-row>
 
@@ -193,152 +204,6 @@
       </template>
     </el-dialog>
 
-    <!-- 明细抽屉：接口信息 + 字段列表 -->
-    <el-drawer v-model="detailOpen" title="接口明细" size="80%" append-to-body>
-      <div style="margin-bottom: 12px;">
-          <el-descriptions title="基本信息" :column="2" border>
-            <el-descriptions-item label="接口名称">{{ detail.interfaceName }}</el-descriptions-item>
-            <el-descriptions-item label="接口编码">{{ detail.interfaceCode }}</el-descriptions-item>
-            <el-descriptions-item label="数据库类型">{{ detail.interfaceDbType }}</el-descriptions-item>
-            <el-descriptions-item label="数据库名称">{{ detail.interfaceDbName }}</el-descriptions-item>
-            <el-descriptions-item label="分页"><dict-tag :options="yes_no_options" :value="detail.isPaging" /></el-descriptions-item>
-            <el-descriptions-item label="日期查询"><dict-tag :options="yes_no_options" :value="detail.isDateOption" /></el-descriptions-item>
-            <el-descriptions-item label="合计"><dict-tag :options="yes_no_options" :value="detail.isTotal" /></el-descriptions-item>
-            <el-descriptions-item label="登录验证"><dict-tag :options="yes_no_options" :value="detail.isLoginVisit" /></el-descriptions-item>
-            <el-descriptions-item label="报警类型"><dict-tag :options="alarm_type_options" :value="detail.alarmType" /></el-descriptions-item>
-          </el-descriptions>
-          <div style="margin-top: 8px;">
-            <el-button type="warning" icon="Download" @click="handleExportMeta" v-hasPermi="['dataservice:interface:export']">导出接口定义</el-button>
-          </div>
-      </div>
-      <div style="margin-bottom: 12px;">
-        <h4 class="form-header h4">接口 SQL</h4>
-        <el-card>
-          <div class="prewrap">{{ detail.interfaceSql || '-' }}</div>
-        </el-card>
-      </div>
-      <div>
-        <h4 class="form-header h4">字段列表</h4>
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
-            <el-button type="primary" plain icon="Plus" @click="openFieldAdd" v-hasPermi="['dataservice:interface-field:add']">新增字段</el-button>
-          </el-col>
-          <right-toolbar @queryTable="getFieldList" />
-        </el-row>
-        <el-table v-loading="fieldLoading" :data="fieldList">
-          <el-table-column label="参数编码" prop="interfaceParaCode" :show-overflow-tooltip="true" />
-          <el-table-column label="参数名称" prop="interfaceParaName" :show-overflow-tooltip="true" />
-          <el-table-column label="位置" prop="interfaceParaPosition" width="90" />
-          <el-table-column label="类型" prop="interfaceParaType" width="120" />
-          <el-table-column label="数据类型" prop="interfaceDataType" width="120" />
-          <el-table-column label="默认值" prop="interfaceParaDefault" :show-overflow-tooltip="true" />
-          <el-table-column label="显示" prop="interfaceShowFlag" width="90">
-            <template #default="scope">
-              <dict-tag :options="yes_no_options" :value="scope.row.interfaceShowFlag" />
-            </template>
-          </el-table-column>
-          <el-table-column label="导出" prop="interfaceExportFlag" width="90">
-            <template #default="scope">
-              <dict-tag :options="yes_no_options" :value="scope.row.interfaceExportFlag" />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" align="center" width="200" fixed="right">
-            <template #default="scope">
-              <el-button link type="primary" icon="Edit" @click="openFieldEdit(scope.row)" v-hasPermi="['dataservice:interface-field:edit']">修改</el-button>
-              <el-button link type="danger" icon="Delete" @click="handleFieldDelete(scope.row)" v-hasPermi="['dataservice:interface-field:remove']">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-    </el-drawer>
-
-    <!-- 字段新增/修改弹窗 -->
-    <el-dialog :title="fieldTitle" v-model="fieldOpen" width="700px" append-to-body>
-      <el-form ref="fieldFormRef" :model="fieldForm" :rules="fieldRules" label-width="140px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="参数编码" prop="interfaceParaCode">
-              <el-input v-model="fieldForm.interfaceParaCode" placeholder="请输入参数编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="参数名称" prop="interfaceParaName">
-              <el-input v-model="fieldForm.interfaceParaName" placeholder="请输入参数名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="参数位置" prop="interfaceParaPosition">
-              <el-input-number v-model="fieldForm.interfaceParaPosition" :min="0" controls-position="right" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="参数类型" prop="interfaceParaType">
-              <el-select v-model="fieldForm.interfaceParaType" placeholder="请选择类型">
-                <el-option label="输入参数" value="1" />
-                <el-option label="输出参数" value="2" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="数据类型" prop="interfaceDataType">
-              <el-select v-model="fieldForm.interfaceDataType" placeholder="请选择数据类型">
-                <el-option label="字符" value="1" />
-                <el-option label="整数" value="2" />
-                <el-option label="小数" value="3" />
-                <el-option label="百分比" value="4" />
-                <el-option label="无格式整数" value="5" />
-                <el-option label="无格式小数" value="6" />
-                <el-option label="无格式百分比" value="7" />
-                <el-option label="1位百分比" value="8" />
-                <el-option label="1位小数" value="9" />
-                <el-option label="年份" value="10" />
-                <el-option label="日期" value="11" />
-                <el-option label="月份" value="12" />
-                <el-option label="单选" value="13" />
-                <el-option label="多选" value="14" />
-                <el-option label="文本" value="15" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="默认值" prop="interfaceParaDefault">
-              <el-input v-model="fieldForm.interfaceParaDefault" placeholder="可选：默认值" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="是否显示" prop="interfaceShowFlag">
-              <el-radio-group v-model="fieldForm.interfaceShowFlag">
-                <el-radio v-for="dict in yes_no_options" :key="dict.value" :value="dict.value">{{ dict.label }}</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="是否导出" prop="interfaceExportFlag">
-              <el-radio-group v-model="fieldForm.interfaceExportFlag">
-                <el-radio v-for="dict in yes_no_options" :key="dict.value" :value="dict.value">{{ dict.label }}</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="显示名称" prop="interfaceShowDesc">
-              <el-input v-model="fieldForm.interfaceShowDesc" placeholder="可选：显示名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="字段描述" prop="interfaceParaDesc">
-              <el-input v-model="fieldForm.interfaceParaDesc" type="textarea" :rows="2" placeholder="可选：描述" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitFieldForm">确 定</el-button>
-          <el-button @click="cancelField">取 消</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
     <!-- 执行查询弹窗 -->
     <el-dialog :title="execTitle" v-model="execOpen" width="900px" append-to-body>
       <el-form label-width="120px">
@@ -378,10 +243,12 @@
 
 <script setup name="Interface">
 /* eslint-disable vue/no-v-model-argument */
-import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, executeInterfaceById, exportInterfaceById, exportInterfaceMeta } from '@/api/dataservice'
+import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, executeInterfaceById, exportInterfaceById, importInterfaceMeta } from '@/api/dataservice'
 import { listDatasource } from '@/api/datasource'
+import { useRouter } from 'vue-router'
 
 const { proxy } = getCurrentInstance()
+const router = useRouter()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
 
 const yes_no_options = [
@@ -408,13 +275,24 @@ const total = ref(0)
 const open = ref(false)
 const title = ref('')
 
-const detailOpen = ref(false)
-const detail = ref({})
-const fieldLoading = ref(false)
-const fieldList = ref([])
-const fieldOpen = ref(false)
-const fieldTitle = ref('')
 const datasourceOptions = ref([])
+
+// 导入相关
+const uploadRef = ref(null)
+
+function customUpload(option) {
+  const formData = new FormData()
+  formData.append('file', option.file)
+  proxy.$modal.loading("正在导入数据，请稍候...")
+  importInterfaceMeta(formData).then(res => {
+    proxy.$modal.closeLoading()
+    proxy.$modal.msgSuccess(res.msg)
+    getList()
+  }).catch(() => {
+    proxy.$modal.closeLoading()
+    proxy.$modal.msgError('导入失败')
+  })
+}
 
 // 执行查询弹窗与结果
 const execOpen = ref(false)
@@ -447,16 +325,9 @@ const data = reactive({
     interfaceDbType: [{ required: true, message: '数据库类型不能为空', trigger: 'change' }],
     interfaceDbName: [{ required: true, message: '数据库名称不能为空', trigger: 'blur' }],
   },
-  fieldRules: {
-    interfaceParaCode: [{ required: true, message: '参数编码不能为空', trigger: 'blur' }],
-    interfaceParaName: [{ required: true, message: '参数名称不能为空', trigger: 'blur' }],
-    interfaceParaPosition: [{ type: 'number', message: '位置需为数字', trigger: 'blur' }],
-    interfaceParaType: [{ required: true, message: '参数类型不能为空', trigger: 'change' }],
-    interfaceDataType: [{ required: true, message: '数据类型不能为空', trigger: 'change' }],
-  }
 })
 
-const { form, queryParams, rules, fieldRules } = toRefs(data)
+const { form, queryParams, rules } = toRefs(data)
 
 function getList() {
   loading.value = true
@@ -563,83 +434,7 @@ function handleDelete(row) {
 function openDetail(row) {
   const id = row?.interfaceId
   if (!id) return
-  getInterfaceInfo(id).then(res => {
-    detail.value = res.data || {}
-    detailOpen.value = true
-    getFieldList()
-  })
-}
-
-function getFieldList() {
-  fieldLoading.value = true
-  listInterfaceFields({ interfaceId: detail.value.interfaceId }).then(res => {
-    fieldList.value = res.rows || []
-    fieldLoading.value = false
-  }).catch(() => {
-    fieldLoading.value = false
-  })
-}
-
-function openFieldAdd() {
-  resetFieldForm()
-  fieldForm.value.interfaceId = detail.value.interfaceId
-  fieldOpen.value = true
-  fieldTitle.value = '新增字段'
-}
-
-function openFieldEdit(row) {
-  resetFieldForm()
-  Object.assign(fieldForm.value, row || {})
-  fieldOpen.value = true
-  fieldTitle.value = '修改字段'
-}
-
-function submitFieldForm() {
-  proxy.$refs['fieldFormRef'].validate(valid => {
-    if (!valid) return
-    if (fieldForm.value.fieldId !== undefined) {
-      updateInterfaceField(fieldForm.value).then(() => {
-        proxy.$modal.msgSuccess('修改成功')
-        fieldOpen.value = false
-        getFieldList()
-      })
-    } else {
-      addInterfaceField(fieldForm.value).then(() => {
-        proxy.$modal.msgSuccess('新增成功')
-        fieldOpen.value = false
-        getFieldList()
-      })
-    }
-  })
-}
-
-function handleFieldDelete(row) {
-  const idsParam = row?.fieldId
-  proxy.$modal.confirm('是否确认删除字段编号为"' + idsParam + '"的数据项？').then(function() {
-    return delInterfaceField(idsParam)
-  }).then(() => {
-    getFieldList()
-    proxy.$modal.msgSuccess('删除成功')
-  }).catch(() => {})
-}
-
-const fieldForm = ref({})
-function resetFieldForm() {
-  fieldForm.value = {
-    fieldId: undefined,
-    interfaceId: undefined,
-    interfaceParaCode: undefined,
-    interfaceParaName: undefined,
-    interfaceParaPosition: 0,
-    interfaceParaType: undefined,
-    interfaceDataType: undefined,
-    interfaceParaDefault: undefined,
-    interfaceShowFlag: '1',
-    interfaceExportFlag: '1',
-    interfaceShowDesc: undefined,
-    interfaceParaDesc: undefined,
-  }
-  proxy.resetForm('fieldFormRef')
+  router.push('/dataservice/interface/detail/' + id)
 }
 
 function loadDatasourceOptions() {
@@ -726,25 +521,6 @@ function exportFromDialog() {
     const a = document.createElement('a')
     a.href = url
     a.download = `interface_${id}_export.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-    proxy.$modal.msgSuccess('导出成功')
-  }).catch(err => {
-    proxy.$modal.msgError(err?.msg || '导出失败')
-  })
-}
-
-function handleExportMeta() {
-  const id = detail.value.interfaceId
-  if (!id) return
-  exportInterfaceMeta(id).then(res => {
-    const blob = new Blob([res], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `interface_${id}_meta.xlsx`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

@@ -14,10 +14,12 @@ from .serializers import (
     InterfaceFieldSerializer, InterfaceFieldUpdateSerializer,
 )
 from .models import InterfaceInfo, InterfaceField
-from .custom import make_interface_workbook
+from .custom import make_interface_workbook, parse_interface_workbook
 
 from apps.dbutils.factory import get_executor
 from django.template import Template, Context
+from django.db import transaction
+from openpyxl import load_workbook
 
 import time
 
@@ -176,7 +178,6 @@ class QueryLogViewSet(BaseViewSet):
             qs = qs.filter(status=status_value)
         return qs.order_by('-create_time')
 
-
 class InterfaceInfoViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = InterfaceInfo.objects.filter(del_flag='0').order_by('-create_time')
@@ -256,7 +257,7 @@ class InterfaceInfoViewSet(BaseViewSet):
         resp = self.csv_response(columns, rows, filename, bom=False)
         return resp
 
-    @action(detail=True, methods=['get'], url_path='export-meta')
+    @action(detail=True, methods=['post'], url_path='export-meta')
     def export_meta(self, request, pk=None):
         # 使用样式化 Excel 生成器导出接口定义（基本信息 + 字段列表）
         try:
@@ -268,9 +269,66 @@ class InterfaceInfoViewSet(BaseViewSet):
 
         wb = make_interface_workbook(interface, list(fields))
 
-        import datetime
-        filename = f"interface_meta_{pk}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        filename = f"{interface.interface_code}_{interface.interface_name}.xlsx"
         return self.excel_response(filename, wb)
+    
+    @action(detail=False, methods=['post'], url_path='import-meta')
+    def import_meta(self, request):
+        """导入接口定义 Excel (支持批量)"""
+        file = request.FILES.get('file')
+        if not file:
+            return self.error('请上传 Excel 文件')
+        
+        try:
+            wb = load_workbook(file, data_only=True)
+            results = parse_interface_workbook(wb)
+        except Exception as e:
+            return self.error(f'解析 Excel 失败: {str(e)}')
+            
+        if not results:
+            return self.error('未解析到有效的接口定义')
+            
+        success_count = 0
+        try:
+            with transaction.atomic():
+                for info, fields in results:
+                    # 1. 保存/更新接口信息
+                    # 查找是否存在
+                    obj, created = InterfaceInfo.objects.update_or_create(
+                        interface_code=info.interface_code,
+                        defaults={
+                            'interface_name': info.interface_name,
+                            'interface_desc': info.interface_desc,
+                            'interface_db_type': info.interface_db_type,
+                            'interface_db_name': info.interface_db_name,
+                            'interface_sql': info.interface_sql,
+                            'is_total': info.is_total,
+                            'total_sql': info.total_sql,
+                            'is_paging': info.is_paging,
+                            'is_date_option': info.is_date_option,
+                            'is_second_table': info.is_second_table,
+                            'is_login_visit': info.is_login_visit,
+                            'alarm_type': info.alarm_type,
+                            'del_flag': '0' # 确保未删除
+                        }
+                    )
+                    
+                    # 2. 保存字段信息
+                    # 先删除旧字段
+                    InterfaceField.objects.filter(interface=obj).delete()
+                    
+                    # 批量创建新字段
+                    for field in fields:
+                        field.interface = obj
+                        field.del_flag = '0'
+                    
+                    InterfaceField.objects.bulk_create(fields)
+                    success_count += 1
+                    
+        except Exception as e:
+            return self.error(f'导入失败: {str(e)}')
+            
+        return self.ok(msg=f'成功导入 {success_count} 个接口')
 
 
 class InterfaceFieldViewSet(BaseViewSet):

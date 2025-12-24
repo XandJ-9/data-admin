@@ -160,3 +160,13 @@ export function exportInterfaceMeta(interfaceId) {
     responseType: 'blob'
   })
 }
+
+// 接口：导入接口定义（Excel）
+export function importInterfaceMeta(data) {
+  return request({
+    url: '/dataservice/interface-info/import-meta',
+    method: 'post',
+    data: data,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}

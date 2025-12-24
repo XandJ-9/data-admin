@@ -25,6 +25,14 @@ def set_area_border(ws,start_row,end_row,start_col,end_col):
         for col in range(start_col,end_col+1):
             ws.cell(row=row,column=col).border = DefaultStyle['border']
 
+def build_interface_workbook_bytes(interface: InterfaceInfo, fields) -> bytes:
+    """构建 Excel 并返回二进制内容"""
+    wb = make_interface_workbook(interface, fields)
+    import io
+    output = io.BytesIO()
+    wb.save(output)
+    return output.getvalue()
+
 def make_interface_workbook(interface: InterfaceInfo, fields):
     """
     生成样式化的接口导出工作簿：
@@ -37,15 +45,17 @@ def make_interface_workbook(interface: InterfaceInfo, fields):
     ws.title = "report"
 
     template_info = [
-        {'position': 'A1', 'name': '模块名称'},
-        {'position': 'C1', 'name': '报表名称'},
-        {'position': 'E1', 'name': '报表平台'},
+        {'position': 'A1', 'name': '报表平台'},
+        {'position': 'C1', 'name': '模块名称'},
+        {'position': 'E1', 'name': '报表名称'},
+        {'position': 'G1', 'name': '报表代码'},
         {'position': 'A2', 'name': '接口名称'},
         {'position': 'C2', 'name': '接口代码'},
         {'position': 'E2', 'name': '日期选项'},
         {'position': 'G2', 'name': '二级表头'},
         {'position': 'I2', 'name': '需要登录'},
         {'position': 'K2', 'name': '告警方式'},
+        {'position': 'M2', 'name': '接口状态'},
         {'position': 'A3', 'name': '数据库类型'},
         {'position': 'C3', 'name': '数据库名称'},
         {'position': 'E3', 'name': '接口sql'},
@@ -141,10 +151,162 @@ def make_interface_workbook(interface: InterfaceInfo, fields):
     ws['P1'] = 'report'
     return wb
 
-def build_interface_workbook_bytes(interface: InterfaceInfo, fields) -> bytes:
-    """构建 Excel 并返回二进制内容"""
-    wb = make_interface_workbook(interface, fields)
-    import io
-    output = io.BytesIO()
-    wb.save(output)
-    return output.getvalue()
+def parse_interface_workbook(wb: Workbook) -> list[tuple[InterfaceInfo, list[InterfaceField]]]:
+    """
+    解析 Excel 中的接口定义（基本信息 + 字段列表）
+    支持批量导入：每个 Sheet 解析为一个接口
+    """
+    results = []
+    
+    # 辅助函数：解析 Yes/No
+    def parse_yes_no(val):
+        if not val:
+            return '0'
+        return '1' if '是' in str(val) else '0'
+        
+    # 辅助函数：解析报警类型
+    def parse_alarm_type(val):
+        if not val:
+            return '0'
+        val_str = str(val)
+        # 映射表：根据 InterfaceInfo.ALARM_TYPE_CHOICES
+        mapping = {
+            '否': '0', '邮件': '1', '短信': '2', '钉钉': '3', 
+            '企业微信': '4', '电话': '5', '飞书': '6'
+        }
+        return mapping.get(val_str, '0')
+
+    # 辅助函数：解析参数类型
+    def parse_para_type(val):
+        if not val:
+            return '1' # 默认输入参数
+        return '2' if '输出' in str(val) else '1'
+
+    # 辅助函数：解析数据类型
+    def parse_data_type(val):
+        if not val:
+            return '15' # 默认文本
+        # 映射表 InterfaceField.DATA_TYPE_CHOICES
+        mapping = {
+            '字符': '1', '整数': '2', '小数': '3', '百分比': '4',
+            '无格式整数': '5', '无格式小数': '6', '无格式百分比': '7',
+            '1位百分比': '8', '1位小数': '9', '年份': '10',
+            '日期': '11', '月份': '12', '单选': '13', '多选': '14',
+            '文本': '15'
+        }
+        return mapping.get(str(val), '15')
+
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        
+        # 简单校验：检查 A1 是否为 "报表平台"
+        if ws['A1'].value != '报表平台':
+            continue
+
+        # 1. 解析基本信息
+        info = InterfaceInfo()
+        # B2: 接口名称
+        info.interface_name = ws['B2'].value
+        # D2: 接口代码
+        info.interface_code = ws['D2'].value
+        
+        # 如果没有名称或代码，跳过
+        if not info.interface_name or not info.interface_code:
+            continue
+            
+        # F2: 日期选项
+        info.is_date_option = parse_yes_no(ws['F2'].value)
+        # H2: 二级表头
+        info.is_second_table = parse_yes_no(ws['H2'].value)
+        # J2: 需要登录
+        info.is_login_visit = parse_yes_no(ws['J2'].value)
+        # L2: 告警方式
+        info.alarm_type = parse_alarm_type(ws['L2'].value)
+        
+        # B3: 数据库类型
+        info.interface_db_type = ws['B3'].value or 'mysql'
+        # D3: 数据库名称
+        info.interface_db_name = ws['D3'].value or ''
+        # F3: 接口sql
+        info.interface_sql = ws['F3'].value or ''
+        
+        # B4: 是否分页
+        info.is_paging = parse_yes_no(ws['B4'].value)
+        # D4: 是否合计
+        info.is_total = parse_yes_no(ws['D4'].value)
+        # F4: 合计sql
+        info.total_sql = ws['F4'].value or ''
+        
+        # 2. 解析字段列表 (从第 6 行开始)
+        fields = []
+        row_idx = 6
+        max_row = ws.max_row
+        
+        while row_idx <= max_row:
+            # 如果没有参数名称(B列)和参数代码(C列)，视为结束或空行
+            para_name = ws.cell(row=row_idx, column=2).value
+            para_code = ws.cell(row=row_idx, column=3).value
+            
+            if not para_name and not para_code:
+                row_idx += 1
+                continue
+                
+            field = InterfaceField()
+            # A列: 序号/位置 -> interface_para_position
+            pos_val = ws.cell(row=row_idx, column=1).value
+            try:
+                field.interface_para_position = int(pos_val)
+            except:
+                field.interface_para_position = (row_idx - 5) * 10
+                
+            field.interface_para_name = para_name or ''
+            field.interface_para_code = para_code or ''
+            
+            # D列: 参数类型
+            field.interface_para_type = parse_para_type(ws.cell(row=row_idx, column=4).value)
+            # E列: 数据类型
+            field.interface_data_type = parse_data_type(ws.cell(row=row_idx, column=5).value)
+            # F列: 是否展示
+            field.interface_show_flag = parse_yes_no(ws.cell(row=row_idx, column=6).value)
+            # G列: 是否导出
+            field.interface_export_flag = parse_yes_no(ws.cell(row=row_idx, column=7).value)
+            
+            # H列: 参数接口代码
+            field.interface_para_interface_code = ws.cell(row=row_idx, column=8).value
+            # I列: 参数默认值
+            val = ws.cell(row=row_idx, column=9).value
+            field.interface_para_default = str(val) if val is not None else ''
+            # J列: 级联参数
+            field.interface_cascade_para = ws.cell(row=row_idx, column=10).value
+            # K列: 父表头名称
+            field.interface_parent_name = ws.cell(row=row_idx, column=11).value
+            # L列: 父表头位置
+            p_pos = ws.cell(row=row_idx, column=12).value
+            try:
+                field.interface_parent_position = int(p_pos) if p_pos is not None else None
+            except:
+                field.interface_parent_position = None
+                
+            # M列: 是否合并行 (rowspan) -> 这里逻辑有点特殊，model里是 1=是, 0=否
+            # 但 excel 可能是 '是'/'否'
+            rowspan_val = ws.cell(row=row_idx, column=13).value
+            if rowspan_val == '是' or rowspan_val == 1:
+                field.interface_para_rowspan = 1
+            else:
+                field.interface_para_rowspan = 0
+                
+            # N列: 是否显示备注 -> interface_show_desc (model definition seems to imply show_flag type choice, but field name suggests desc)
+            # Checking model: interface_show_desc = models.CharField(..., choices=SHOW_FLAG_CHOICES)
+            field.interface_show_desc = parse_yes_no(ws.cell(row=row_idx, column=14).value)
+            
+            # O列: 参数描述
+            field.interface_para_desc = ws.cell(row=row_idx, column=15).value
+            
+            fields.append(field)
+            row_idx += 1
+            
+        results.append((info, fields))
+        
+    return results
+
+

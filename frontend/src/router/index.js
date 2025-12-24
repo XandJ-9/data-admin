@@ -207,6 +207,20 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
+  },
+  {
+    path: '/dataservice/interface',
+    component: Layout,
+    hidden: true,
+    permissions: ['dataservice:interface:list'],
+    children: [
+      {
+        path: 'detail/:interfaceId(\\d+)',
+        component: () => import('@/views/dataservice/interface/detail/index'),
+        name: 'InterfaceDetail',
+        meta: { title: '接口明细', activeMenu: '/dataservice/interface' }
+      }
+    ]
   }
 ]
 

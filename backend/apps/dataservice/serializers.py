@@ -30,7 +30,7 @@ class InterfaceInfoSerializer(BaseModelSerializer):
     reportId = serializers.IntegerField(source='report_id', required=False, allow_null=True)
     interfaceName = serializers.CharField(source='interface_name')
     interfaceCode = serializers.CharField(source='interface_code')
-    interfaceDesc = serializers.CharField(source='interface_desc', required=False, allow_blank=True)
+    interfaceDesc = serializers.CharField(source='interface_desc', required=False, allow_blank=True, allow_null=True)
     interfaceDbType = serializers.CharField(source='interface_db_type')
     interfaceDbName = serializers.CharField(source='interface_db_name')
     interfaceSql = serializers.CharField(source='interface_sql', required=False, allow_blank=True)
@@ -41,7 +41,7 @@ class InterfaceInfoSerializer(BaseModelSerializer):
     isSecondTable = serializers.CharField(source='is_second_table')
     isLoginVisit = serializers.CharField(source='is_login_visit')
     alarmType = serializers.CharField(source='alarm_type')
-    userName = serializers.CharField(source='user_name', required=False, allow_blank=True)
+    userName = serializers.CharField(source='user_name', required=False, allow_blank=True, allow_null=True)
     interfaceDatasource = serializers.IntegerField(source='interface_datasource', required=False, allow_null=True)
 
     class Meta:
