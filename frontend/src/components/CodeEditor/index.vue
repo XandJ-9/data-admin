@@ -14,9 +14,13 @@ import { onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import ace from 'ace-builds/src-noconflict/ace'
 import 'ace-builds/src-noconflict/ext-language_tools'
 import 'ace-builds/src-noconflict/mode-sql'
+import 'ace-builds/src-noconflict/mode-python'
+import 'ace-builds/src-noconflict/mode-sh'
 import 'ace-builds/src-noconflict/theme-github'
 // 预加载当前语言的 snippets，避免运行时动态加载导致 basePath 提示
 import 'ace-builds/src-noconflict/snippets/sql'
+import 'ace-builds/src-noconflict/snippets/python'
+import 'ace-builds/src-noconflict/snippets/sh'
 // 可选：如需 worker，可启用以下导入；默认禁用 worker 以减少资源
 // import 'ace-builds/src-noconflict/worker-sql'
 
@@ -58,6 +62,8 @@ let _aceLoaded = false
 function getAceMode(lang) {
   const l = String(lang || '').toLowerCase()
   if (l.includes('sql')) return 'ace/mode/sql'
+  if (l.includes('python')) return 'ace/mode/python'
+  if (l.includes('sh') || l.includes('shell')) return 'ace/mode/sh'
   return 'ace/mode/sql'
 }
 
@@ -95,8 +101,13 @@ function initEditor() {
     wrap: true,
     enableBasicAutocompletion: true,
     enableLiveAutocompletion: true,
-    enableSnippets: true
+    enableSnippets: true,
+    readOnly: false
   })
+  // 确保编辑器可编辑
+  editor.setReadOnly(false)
+  editor.resize()
+  
   // 关闭 worker（如需启用，请同时引入对应 worker）
   try { editor.session.setOptions({ useWorker: false }) } catch (_) {}
   // 占位提示

@@ -133,6 +133,28 @@ export const constantRoutes = [
         hidden: true
       }
     ]
+  },
+  {
+    path: '/datastudio',
+    component: Layout,
+    hidden: false,
+    redirect: '/datastudio/index',
+    meta: { title: '数据开发', icon: 'code' },
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/datastudio/index.vue'),
+        name: 'DataStudio',
+        meta: { title: '任务列表', icon: 'list' }
+      },
+      {
+        path: 'task-detail/:id',
+        component: () => import('@/views/datastudio/TaskDetail.vue'),
+        name: 'DataStudioTaskDetail',
+        meta: { title: '任务详情', activeMenu: '/datastudio/index' },
+        hidden: true
+      }
+    ]
   }
 ]
 

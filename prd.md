@@ -498,13 +498,20 @@
 - 用户选择要创建的任务类型（数据采集，hive计算，spark/sparkSQL计算，flink计算，python脚本，shell脚本等）
 - 针对用户选择的任务类型，前端会展示对应的任务详情编辑页面
     - 数据采集任务：配置数据来源（数据库、文件等）、数据目标（数据库、文件等）、同步策略（全量、增量等），可复用前端组件（frontend\src\views\dataintegration\components\SyncConfigDetail.vue）
-    - hive计算任务：配置hive sql语句、计算目标（数据库、文件等）
-    - spark/sparkSQL计算任务：配置spark/sparkSQL sql语句、计算目标（数据库、文件等）
-    - flink计算任务：配置flink sql语句
-    - python脚本任务：配置python脚本
-    - shell脚本任务：配置shell脚本
+    - spark计算任务：封装组件来提交spark任务的参数，任务参数包括：应用名称、主类、jar包路径、参数等
+    - sparkSQL计算任务：配置spark sql语句，需要封装组件
+    - hive计算任务：配置hive sql语句, 需要封装组件
+    - flink计算任务：配置flink sql语句，需要封装组件
+    - python脚本任务：配置python脚本，需要封装组件
+    - shell脚本任务：配置shell脚本，需要封装组件
 
+## 模块设计
+  - 前端视图目录：frontend/src/views/datastudio/，负责展示任务详情编辑页面
+  - 后端应用目录：backend/apps/datastudio/，负责处理前端请求，管理任务详情
 
+## 其他约束
+- 前端风格一致
+- 后端遵循已有开发规范，公共类或方法复用
 
 
 # 数据运维模块

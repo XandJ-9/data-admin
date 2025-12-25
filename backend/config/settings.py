@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.dataintegration',
     'apps.monitor',
     'apps.datataskmonitor',
+    'apps.datastudio',
 ]
 
 MIDDLEWARE = [
