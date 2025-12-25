@@ -178,3 +178,4 @@ class DictDataViewSet(BaseViewSet, ExportExcelMixin):
         serializer = self.get_serializer(qs, many=True)
         cache.set(cache_key, serializer.data, timeout=3600)
         return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
+        

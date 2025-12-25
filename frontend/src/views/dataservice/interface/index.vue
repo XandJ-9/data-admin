@@ -465,9 +465,15 @@ function runExecute() {
   }
   execLoading.value = true
   executeInterfaceById(id, { params: paramsObj || {}, pageSize: execForm.value.pageSize, offset: execForm.value.offset }).then(res => {
-    const rows = res.data?.rows
-    execRows.value = rows
-    execColumns.value = rows.length ? Object.keys(rows[0]) : []
+      const rows = res.data?.rows
+      execColumns.value = res.data?.columns || []
+      execRows.value = rows.map(item => {
+          const rowObj = {}
+          execColumns.value.forEach((col, index) => {
+              rowObj[col] = item[index]
+          })
+          return rowObj
+      })
   }).catch(err => {
     proxy.$modal.msgError(err?.msg || '执行失败')
   }).finally(() => {

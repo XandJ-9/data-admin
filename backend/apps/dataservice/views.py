@@ -246,6 +246,7 @@ class InterfaceInfoViewSet(BaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='export')
     def export_by_id(self, request, pk=None):
+        obj = self.get_object()
         # 复用 execute 逻辑，取结果并导出为 CSV
         exec_resp = self.execute_by_id(request, pk, execute_type='2')
         if isinstance(exec_resp, Response) and getattr(exec_resp, 'status_code', 200) != 200:
@@ -254,7 +255,7 @@ class InterfaceInfoViewSet(BaseViewSet):
         columns = data.get('columns', None)
         rows = data.get('rows', None)
         # 写 CSV
-        filename = f"interface_{pk}_export.csv"
+        filename = f"接口数据导出-{obj.interface_name}.csv"
         resp = self.csv_response(columns, rows, filename, bom=False)
         return resp
 

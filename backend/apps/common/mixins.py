@@ -1,7 +1,7 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from urllib.parse import quote
-from .excel import ExcelUtil
+from apps.utils import ExcelUtil
 
 class BaseViewMixin:
     # 通用响应封装
@@ -34,7 +34,7 @@ class BaseViewMixin:
                 row = {k: v for k, v in zip(headers, r)}
                 writer.writerow(row)
         resp = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
-        resp['Content-Disposition'] = f'attachment; filename="{quote(filename)}"'
+        resp['Content-Disposition'] = f'attachment; filename={quote(filename)}'
         return resp
 
     def excel_response(self, filename, workbook):
@@ -50,7 +50,7 @@ class BaseViewMixin:
         except Exception as e:
             return self.error(f'导出 Excel 失败：{e}')
         resp = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        resp['Content-Disposition'] = f'attachment; filename="{quote(filename)}"'
+        resp['Content-Disposition'] = f'attachment; filename={quote(filename)}'
         return resp
 
 class ExportExcelMixin(BaseViewMixin):
