@@ -500,8 +500,8 @@
     - 数据采集任务：配置数据来源（数据库、文件等）、数据目标（数据库、文件等）、同步策略（全量、增量等），可复用前端组件（frontend\src\views\dataintegration\components\SyncConfigDetail.vue）
     - spark计算任务：封装组件来提交spark任务的参数，任务参数包括：应用名称、主类、jar包路径、参数等
     - sparkSQL计算任务：配置spark sql语句，需要封装组件
-    - hive计算任务：配置hive sql语句, 需要封装组件
-    - flink计算任务：配置flink sql语句，需要封装组件
+    - hiveSQL计算任务：配置hive sql语句, 需要封装组件
+    - flinkSQL计算任务：配置flink sql语句，需要封装组件
     - python脚本任务：配置python脚本，需要封装组件
     - shell脚本任务：配置shell脚本，需要封装组件
 
