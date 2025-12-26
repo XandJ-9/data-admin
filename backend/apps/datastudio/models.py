@@ -6,7 +6,9 @@ class DataStudioTask(BaseModel):
         ('data_integration', '数据采集'),
         ('hive', 'Hive计算'),
         ('spark', 'Spark计算'),
+        ('spark_sql', 'SparkSQL计算'),
         ('flink', 'Flink计算'),
+        ('flink_sql', 'FlinkSQL计算'),
         ('python', 'Python脚本'),
         ('shell', 'Shell脚本'),
     )

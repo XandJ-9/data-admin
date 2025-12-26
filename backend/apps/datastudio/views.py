@@ -2,15 +2,17 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from apps.common.pagination import StandardPagination
 from .models import DataStudioTask
-from .serializers import DataStudioTaskSerializer
+from .serializers import DataStudioTaskSerializer,DataStudioTaskUpdateSerializer,DataStudioTaskRetrieveSerializer,DataStudioTaskCreateSerializer
 
 from apps.system.views import BaseViewSet
 
 class DataStudioTaskViewSet(BaseViewSet):
     queryset = DataStudioTask.objects.all()
     serializer_class = DataStudioTaskSerializer
+    create_serializer_class = DataStudioTaskCreateSerializer
+    update_serializer_class = DataStudioTaskUpdateSerializer
+    retrieve_serializer_class = DataStudioTaskRetrieveSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardPagination
     
     def get_queryset(self):
         queryset = super().get_queryset()

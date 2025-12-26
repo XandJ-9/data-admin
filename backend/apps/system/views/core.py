@@ -45,7 +45,8 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
 
     @audit_log
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        serializer_class = getattr(self, 'create_serializer_class', None) or self.get_serializer_class()
+        serializer = serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return self.ok()
@@ -54,7 +55,8 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer_class = getattr(self, 'update_serializer_class', None) or self.get_serializer_class()
+        serializer = serializer_class(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return self.ok()
@@ -71,8 +73,10 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
     # 统一数据详情响应包装
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        data = self.get_serializer(instance).data
-        return self.data(data)
+        # data = self.get_serializer(instance).data
+        serializer_class = getattr(self, 'retrieve_serializer_class', None) or self.get_serializer_class()
+        serializer = serializer_class(instance)
+        return self.data(serializer.data)
 
     @audit_log
     def partial_update(self, request, *args, **kwargs):

@@ -94,8 +94,6 @@ function applyDefaultMapping() {
           }
       })
   }
-  
-  console.log('default mapping', mapped, props.mappings)
 }
 
 function addMappingRow() {

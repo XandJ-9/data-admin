@@ -66,7 +66,7 @@ import { reactive, ref, watch, onMounted, getCurrentInstance } from 'vue'
 import Crontab from '@/components/Crontab'
 import SyncConfigDetail from './components/SyncConfigDetail'
 import { useRoute, useRouter } from 'vue-router'
-import { addTask, updateTask, getTask } from '@/api/dataintegration'
+import { addTask, updateTask, getTask, listTasks } from '@/api/dataintegration'
 import useTagsViewStore from '@/store/modules/tagsView'
 
 const route = useRoute()
@@ -89,6 +89,29 @@ const taskForm = reactive({
   }
 })
 
+function addScheduleGroupOption(group) {
+  const v = (group ?? '').toString().trim()
+  if (!v) return
+  if (!scheduleGroups.value.includes(v)) scheduleGroups.value.push(v)
+}
+
+async function loadScheduleGroups() {
+  try {
+    const res = await listTasks({ pageNum: 1, pageSize: 1000 })
+    const rows = res?.rows || []
+    const set = new Set()
+    rows.forEach((t) => {
+      const g = t?.schedule?.group
+      const v = (g ?? '').toString().trim()
+      if (v) set.add(v)
+    })
+    scheduleGroups.value = Array.from(set)
+    addScheduleGroupOption(taskForm.schedule.group)
+  } catch (_) {
+    addScheduleGroupOption(taskForm.schedule.group)
+  }
+}
+
 function goBack() {
   const visitedViews = tagsViewStore.visitedViews
   const view = visitedViews.find(v => v.path === route.path)
@@ -106,12 +129,22 @@ async function handleSave() {
     proxy.$modal.msgError('请输入任务名称')
     return
   }
+  if (!taskForm.type) {
+    proxy.$modal.msgError('缺少任务类型')
+    return
+  }
+  if (taskForm.schedule?.type === 'cron' && !taskForm.schedule?.cronExpr) {
+    proxy.$modal.msgError('请输入cron表达式')
+    return
+  }
   
   try {
+    const schedule = { ...(taskForm.schedule || {}) }
+    if (schedule.type !== 'cron') schedule.cronExpr = ''
     const payload = {
       taskName: taskForm.name,
       taskType: taskForm.type,
-      schedule: taskForm.schedule,
+      schedule,
       detail: taskForm.detail
     }
     const id = route.params.id
@@ -125,7 +158,7 @@ async function handleSave() {
       goBack()
     }
   } catch (e) {
-    console.error(e)
+    proxy.$modal.msgError(e?.msg || e?.message || '保存失败')
   }
 }
 
@@ -138,9 +171,24 @@ function crontabFill(value) {
   taskForm.schedule.cronExpr = value
 }
 
-onMounted(() => {
+watch(
+  () => taskForm.schedule?.type,
+  (type) => {
+    if (type !== 'cron') taskForm.schedule.cronExpr = ''
+  }
+)
+
+watch(
+  () => taskForm.schedule?.group,
+  (group) => {
+    addScheduleGroupOption(group)
+  }
+)
+
+onMounted(async () => {
   const id = route.params.id
   taskForm.type = route.query.type
+  await loadScheduleGroups()
   if (id && id !== 'new') {
     getTask(id).then(res => {
       const data = res.data || {}
@@ -148,7 +196,8 @@ onMounted(() => {
       taskForm.name = data.taskName || ''
       taskForm.schedule = data.schedule || { type: 'manual', cronExpr: '', group: '' }
       taskForm.detail = data.detail || {}
-    }).catch(e => {
+      addScheduleGroupOption(taskForm.schedule.group)
+    }).catch(() => {
         proxy.$modal.msgError('获取任务详情失败')
         goBack()
     })

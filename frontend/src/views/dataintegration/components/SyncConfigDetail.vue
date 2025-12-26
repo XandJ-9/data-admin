@@ -122,7 +122,7 @@ const ensureDefaults = () => {
     // Note: Mutating d in place (which is detail.value) might trigger deep watch
     // but explicit assignment ensures emit works if useVModel relies on it.
     if (changed) {
-      detail.value = { ...d } // spread to create new reference to ensure update triggers
+        detail.value = { ...d } // spread to create new reference to ensure update triggers
     }
 }
 

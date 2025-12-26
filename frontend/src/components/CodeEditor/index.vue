@@ -17,6 +17,8 @@ import 'ace-builds/src-noconflict/mode-sql'
 import 'ace-builds/src-noconflict/mode-python'
 import 'ace-builds/src-noconflict/mode-sh'
 import 'ace-builds/src-noconflict/theme-github'
+import 'ace-builds/src-noconflict/theme-monokai'
+import 'ace-builds/src-noconflict/theme-xcode'
 // 预加载当前语言的 snippets，避免运行时动态加载导致 basePath 提示
 import 'ace-builds/src-noconflict/snippets/sql'
 import 'ace-builds/src-noconflict/snippets/python'
@@ -28,7 +30,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   language: { type: String, default: 'sql' },
   height: { type: String, default: '240px' },
-  theme: { type: String, default: 'github' },
+  theme: { type: String, default: 'xcode' },
   placeholder: { type: String, default: '' }
 })
 const emit = defineEmits(['update:modelValue', 'change'])

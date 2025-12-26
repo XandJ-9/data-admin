@@ -20,11 +20,24 @@ class DataTask(BaseModel):
         ('success', '成功'),
         ('idle', '空闲'),
     )
+    ENABLE_CHOICES = (
+        ('0', '启用'),
+        ('1', '禁用'),
+    )
 
+    source_task = models.OneToOneField(
+        'datastudio.DataStudioTask',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='ops_task',
+        verbose_name='来源任务',
+    )
     task_name = models.CharField(max_length=128, verbose_name='任务名称')
     task_type = models.CharField(max_length=20, choices=TASK_TYPES, verbose_name='任务类型')
     schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPES, default='cron', verbose_name='调度类型')
     schedule_conf = models.CharField(max_length=256, verbose_name='调度配置', help_text='Cron表达式或间隔时间(秒)')
+    enabled = models.CharField(max_length=1, choices=ENABLE_CHOICES, default='0', verbose_name='启用状态')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='idle', verbose_name='任务状态')
     last_run_time = models.DateTimeField(null=True, blank=True, verbose_name='上次运行时间')
     next_run_time = models.DateTimeField(null=True, blank=True, verbose_name='下次运行时间')

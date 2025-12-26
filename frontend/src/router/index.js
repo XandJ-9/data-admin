@@ -111,7 +111,6 @@ export const constantRoutes = [
 //       }
 //     ]
 //   },
-// },
   {
     path: '/datataskmonitor',
     component: Layout,
@@ -138,13 +137,14 @@ export const constantRoutes = [
     path: '/datastudio',
     component: Layout,
     hidden: false,
+    alwaysShow: true,
     redirect: '/datastudio/index',
     meta: { title: '数据开发', icon: 'code' },
     children: [
       {
         path: 'index',
         component: () => import('@/views/datastudio/index.vue'),
-        name: 'DataStudio',
+        name: 'DataStudioTasks',
         meta: { title: '任务列表', icon: 'list' }
       },
       {

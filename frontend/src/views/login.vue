@@ -78,7 +78,7 @@ const { proxy } = getCurrentInstance()
 
 const loginForm = ref({
   username: "admin",
-  password: "admin123",
+  password: import.meta.env.VITE_APP_DEFAULT_LOGIN_PASSWORD || "",
   rememberMe: false,
   code: "",
   uuid: ""
@@ -146,7 +146,7 @@ function getCode() {
       loginForm.value.uuid = res.uuid
     }
   }).catch(
-    console.log("getCodeImg error")
+    // console.log("getCodeImg error")
   )
 }
 
