@@ -88,8 +88,8 @@ function exportRows(t, p) {
     return
   }
   const payload = { dataSourceId: t.dataSourceId, sql: t.sqlText, params: (p && p.params) || t.templateParams || {} }
-  payload.pageSize = 10000
-  payload.offset = 0
+  if (p && typeof p.pageSize !== 'undefined') payload.pageSize = p.pageSize
+  if (p && typeof p.offset !== 'undefined') payload.offset = p.offset
   exportQuery(payload).then(res => {
     // const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
     const blob = new Blob([res.data])

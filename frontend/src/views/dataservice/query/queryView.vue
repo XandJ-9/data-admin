@@ -102,7 +102,7 @@ watch(() => props.templateParams, v => {
   tplParams.value = Object.entries(v || {}).map(([k, val]) => ({ key: k, value: String(val) }))
 })
 function emitRun() { emit('run', { pageSize: innerPageSize.value, offset: innerOffset.value, params: toParams() }) }
-function emitExport() { emit('export', { params: toParams() }) }
+function emitExport() { emit('export', { pageSize: innerPageSize.value, offset: innerOffset.value, params: toParams() }) }
 function emitPrev() {
   const newOffset = Number(innerOffset.value) - Number(innerPageSize.value)
   innerOffset.value = newOffset > 0 ? newOffset : 0

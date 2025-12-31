@@ -19,10 +19,11 @@ class DataServiceQueryLogSerializer(BaseModelSerializer):
     status = serializers.CharField()
     durationMs = serializers.IntegerField(source='duration_ms')
     errorMsg = serializers.CharField(source='error_msg', required=False, allow_blank=True)
+    queryType = serializers.CharField(source='query_type', required=False, allow_blank=True)
 
     class Meta:
         model = QueryLog
-        fields = ['logId', 'dataSourceName', 'userName', 'sqlText', 'status', 'durationMs', 'errorMsg', 'createTime']
+        fields = ['logId', 'dataSourceName', 'userName', 'sqlText', 'status', 'durationMs', 'errorMsg', 'queryType']
 
 
 class InterfaceInfoSerializer(BaseModelSerializer):

@@ -35,10 +35,12 @@ def _build_info(ds: DataSource):
         'params': ds.params or {},
     }
 
-def _render_sql(sql_raw: str, params_map: dict):
-    return Template(sql_raw).render(Context(params_map)) if params_map else sql_raw
+def _render_sql(sql_raw: str, params_map: dict, default_map: dict = {}):
+    context_map = {**default_map, **(params_map or {})}
+    # return Template(sql_raw).render(Context(context_map)) if params_map else sql_raw
+    return Template(sql_raw).render(Context(context_map))
 
-def _log_query(ds: DataSource, sql_text: str, status_flag: str, start: float, error_msg: str, user: User):
+def _log_query(ds: DataSource, sql_text: str, status_flag: str, start: float, error_msg: str, user: User, query_type: str = 'sql'):
     duration = int((time.perf_counter() - start) * 1000)
     try:
         QueryLog.objects.create(
@@ -48,6 +50,7 @@ def _log_query(ds: DataSource, sql_text: str, status_flag: str, start: float, er
             status=status_flag,
             duration_ms=duration,
             error_msg=str(error_msg or ''),
+            query_type=query_type
         )
     except Exception:
         pass
@@ -137,17 +140,12 @@ class QueryServiceView(BaseViewMixin, ViewSet):
         try:
             res = ex.execute_query(
                 sql=rendered_sql,
-                page_size=10000,
-                offset=0,
+                page_size=vd.get('pageSize', 10000),
+                offset=vd.get('offset', 0),
             )
         except Exception as e:
             status_flag = 'fail'
             error_msg = str(e)
-            duration = int((time.perf_counter() - start) * 1000)
-            try:
-                _log_query(ds, rendered_sql, status_flag, start, error_msg, request.user)
-            except Exception:
-                pass
             ex.close()
             return self.error(error_msg)
         finally:
@@ -225,7 +223,7 @@ class InterfaceInfoViewSet(BaseViewSet):
         except Exception as e:
             status_flag = 'fail'
             error_msg = str(e)
-            _log_query(ds, sql_raw, status_flag, start, error_msg, request.user)
+            _log_query(ds, sql_raw, status_flag, start, error_msg, request.user, query_type='interface')
             ex.close()
             return self.error(error_msg)
         # 执行查询
@@ -241,7 +239,7 @@ class InterfaceInfoViewSet(BaseViewSet):
             error_msg = str(e)
             return self.error(error_msg)
         finally:
-            _log_query(ds, rendered_sql, status_flag, start, error_msg, request.user)
+            _log_query(ds, rendered_sql, status_flag, start, error_msg, request.user, query_type='interface')
             ex.close()
 
     @action(detail=True, methods=['post'], url_path='export')

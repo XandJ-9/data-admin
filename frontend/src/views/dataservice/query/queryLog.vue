@@ -26,6 +26,13 @@
         </template>
       </el-table-column>
       <el-table-column prop="durationMs" label="耗时(ms)" width="120" />
+      <el-table-column prop="queryType" label="查询类型" width="120">
+        <template #default="scope">
+          <span v-if="scope.row.queryType === 'sql'">SQL查询</span>
+          <span v-else-if="scope.row.queryType === 'interface'">接口查询</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="sqlText" label="SQL" min-width="200">
         <template #default="scope">
           <div v-if="scope.row.sqlText">

@@ -6,12 +6,18 @@ from apps.datasource.models import DataSource
 
 
 class QueryLog(BaseModel):
+    QUERY_TYPE = (
+        ('sql', 'SQL查询'),
+        ('interface', '接口查询')
+    )
+
     data_source = models.ForeignKey(DataSource, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='数据源')
     sql_text = models.TextField(verbose_name='SQL语句')
     username = models.CharField(max_length=64, verbose_name='用户名')
     status = models.CharField(max_length=10, choices=[('success', '成功'), ('fail', '失败')], default='success', verbose_name='执行状态')
     duration_ms = models.IntegerField(default=0, verbose_name='耗时(ms)')
     error_msg = models.CharField(max_length=500, blank=True, default='', verbose_name='错误信息')
+    query_type = models.CharField(max_length=50, verbose_name='查询类型', null=True, blank=True)
 
     class Meta:
         db_table = 'dataservice_query_log'
