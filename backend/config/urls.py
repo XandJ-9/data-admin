@@ -40,4 +40,4 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 
-]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]+ static('/data-api' + settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

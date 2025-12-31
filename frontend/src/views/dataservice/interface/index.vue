@@ -481,34 +481,6 @@ function runExecute() {
   })
 }
 
-function handleExport(row) {
-  const id = row?.interfaceId
-  if (!id) return
-  let paramsObj = null
-  if (execForm.value.paramsJson && execForm.value.paramsJson.trim()) {
-    try {
-      paramsObj = JSON.parse(execForm.value.paramsJson)
-    } catch (e) {
-      // 不阻塞导出，使用空参数
-      paramsObj = null
-    }
-  }
-  exportInterfaceById(id, { params: paramsObj || {}, pageSize: 1000, offset: 0 }).then(res => {
-    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `interface_${id}_export.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-    proxy.$modal.msgSuccess('导出成功')
-  }).catch(err => {
-    proxy.$modal.msgError(err?.msg || '导出失败')
-  })
-}
-
 function exportFromDialog() {
   const id = execForm.value.interfaceId
   if (!id) return
