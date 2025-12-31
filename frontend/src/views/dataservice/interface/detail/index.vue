@@ -26,6 +26,9 @@
         <el-descriptions-item label="报警类型">
           <dict-tag :options="alarm_type_options" :value="detail.alarmType" />
         </el-descriptions-item>
+        <el-descriptions-item label="接口状态">
+          <dict-tag :options="enable_options" :value="detail.enable" />
+        </el-descriptions-item>
         <el-descriptions-item label="接口SQL">
           <el-button type="primary" link @click="openSql">查看SQL</el-button>
         </el-descriptions-item>
@@ -233,6 +236,12 @@ const yes_no_options = [
   { value: '1', label: '是' },
   { value: '0', label: '否' },
 ]
+
+const enable_options = [
+  { value: '1', label: '启用' },
+  { value: '0', label: '禁用' },
+]
+
 const alarm_type_options = [
   { value: '0', label: '否' },
   { value: '1', label: '邮件' },

@@ -60,7 +60,7 @@ class InterfaceInfo(BaseModel):
     is_second_table = models.CharField(default='0', max_length=1, choices=IS_SECODN_TABLE_CHOICE, verbose_name='二级表头')
     is_login_visit = models.CharField(default='0', max_length=1, choices=IS_LOGIN_VISIT_CHOICE, verbose_name='是否登陆验证')
     alarm_type = models.CharField(default='0', max_length=1, choices=ALARM_TYPE_CHOICES, verbose_name='报警类型')
-
+    enable = models.CharField(default='1', verbose_name='是否启用', choices=(('1', '启用'), ('0', '禁用')), max_length=1)
     user_name = models.CharField(max_length=255, verbose_name='用户名称', null=True, blank=True)
     interface_datasource = models.IntegerField(verbose_name='数据源ID', null=True, blank=True)
 

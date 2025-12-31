@@ -179,6 +179,13 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="接口状态" prop="enable">
+              <el-select v-model="form.enable" placeholder="请选择接口状态">
+                <el-option v-for="dict in enable_options" :key="dict.value" :label="dict.label" :value="dict.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
           <el-col :span="24">
             <el-form-item label="接口描述" prop="interfaceDesc">
               <el-input v-model="form.interfaceDesc" type="textarea" :rows="2" placeholder="请输入接口描述" />
@@ -254,6 +261,11 @@ const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
 const yes_no_options = [
   { value: '1', label: '是' },
   { value: '0', label: '否' },
+]
+
+const enable_options = [
+  { value: '1', label: '启用' },
+  { value: '0', label: '禁用' },
 ]
 const alarm_type_options = [
   { value: '0', label: '否' },

@@ -51,7 +51,7 @@ class InterfaceInfoSerializer(BaseModelSerializer):
             'interfaceId', 'reportId', 'interfaceName', 'interfaceCode', 'interfaceDesc',
             'interfaceDbType', 'interfaceDbName', 'interfaceSql', 'isTotal', 'totalSql',
             'isPaging', 'isDateOption', 'isSecondTable', 'isLoginVisit', 'alarmType',
-            'userName', 'interfaceDatasource'
+            'userName', 'interfaceDatasource','enable'
         ]
 
 

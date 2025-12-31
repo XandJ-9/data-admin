@@ -80,6 +80,7 @@ def make_interface_workbook(interface: InterfaceInfo, fields):
     ws['F2'] = '是' if interface.is_date_option == '1' else '否'
     ws['H2'] = '是' if interface.is_second_table == '1' else '否'
     ws['J2'] = '是' if interface.is_login_visit == '1' else '否'
+    ws['N2'] = interface.get_enable_display()
     # 报警类型显示值
     try:
         ws['L2'] = interface.get_alarm_type_display()
@@ -164,6 +165,10 @@ def parse_interface_workbook(wb: Workbook) -> list[tuple[InterfaceInfo, list[Int
             return '0'
         return '1' if '是' in str(val) else '0'
         
+    def parse_enable(val):
+        if not val:
+            return '1'
+        return '1' if '启用' in str(val) else '0'
     # 辅助函数：解析报警类型
     def parse_alarm_type(val):
         if not val:
@@ -222,7 +227,8 @@ def parse_interface_workbook(wb: Workbook) -> list[tuple[InterfaceInfo, list[Int
         info.is_login_visit = parse_yes_no(ws['J2'].value)
         # L2: 告警方式
         info.alarm_type = parse_alarm_type(ws['L2'].value)
-        
+        # N2: 接口状态
+        info.enable = parse_enable(ws['N2'].value)
         # B3: 数据库类型
         info.interface_db_type = ws['B3'].value or 'mysql'
         # D3: 数据库名称
@@ -304,7 +310,7 @@ def parse_interface_workbook(wb: Workbook) -> list[tuple[InterfaceInfo, list[Int
             
             fields.append(field)
             row_idx += 1
-            
+        
         results.append((info, fields))
         
     return results

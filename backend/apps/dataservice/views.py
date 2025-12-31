@@ -309,6 +309,9 @@ class InterfaceInfoViewSet(BaseViewSet):
                             'is_second_table': info.is_second_table,
                             'is_login_visit': info.is_login_visit,
                             'alarm_type': info.alarm_type,
+                            'enable': info.enable,
+                            'user_name': info.user_name,
+                            # 'interface_datasource': info.interface_datasource, # 不更新数据源，避免误改
                             'del_flag': '0' # 确保未删除
                         }
                     )
