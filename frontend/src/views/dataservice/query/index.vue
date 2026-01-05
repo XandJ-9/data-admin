@@ -114,9 +114,11 @@ function applyResult(t, data) {
   t.columns = cols
   t.rows = rows.map(r => {
     const obj = {}
-    for (let i = 0; i < cols.length; i++) obj[cols[i]] = r[i]
+    // for (let i = 0; i < cols.length; i++) obj[cols[i]] = r[i]
+    for (let i = 0; i < cols.length; i++) obj[i] = r[i]
     return obj
   })
+  console.log("rows",rows)
   t.next = next
 }
 
