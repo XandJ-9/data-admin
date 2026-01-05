@@ -63,7 +63,7 @@ import 'ace-builds/src-noconflict/theme-github'
 import 'ace-builds/src-noconflict/theme-xcode'
 
 const aceOptions = {
-  fontSize: 14,
+  fontSize: 16,
   showPrintMargin: false,
   wrap: true,
   enableBasicAutocompletion: true,

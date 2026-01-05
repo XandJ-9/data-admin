@@ -1,5 +1,5 @@
 <template>
-  <el-table :data="rows" style="margin-top: 16px" border stripe height="calc(100vh - 400px)">
+  <el-table :data="rows" style="margin-top: 16px" border stripe>
     <el-table-column v-for="col,idx in columns" :key="idx" :prop="idx+''" :label="col" :min-width="columnWidth(col)" show-overflow-tooltip>
       <template #header>
         <el-tooltip :content="col" placement="top" :show-after="500">
