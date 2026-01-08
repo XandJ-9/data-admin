@@ -30,7 +30,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="dataSourceName" label="数据源" />
-      <el-table-column prop="databaseName" label="原始数据库" />
+      <el-table-column prop="databaseName" label="数据库" />
       <el-table-column prop="createTime" label="创建同步时间" />
       <el-table-column prop="updateTime" label="修改同步时间" />
       <el-table-column prop="createBy" label="采集人" />
@@ -95,7 +95,7 @@
         <el-form-item label="表描述" prop="comment">
           <el-input v-model="form.comment" type="textarea" :rows="3" placeholder="可选" />
         </el-form-item>
-        <el-form-item label="原始数据库" prop="databaseName">
+        <el-form-item label="数据库" prop="databaseName">
           <el-input v-model="form.databaseName" placeholder="可选，例如：public 或 db01" />
         </el-form-item>
       </el-form>

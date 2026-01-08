@@ -96,7 +96,7 @@
       </el-table>
 
       <h5 style="margin: 20px 0 10px 0; font-weight: bold;">响应参数</h5>
-      <el-table v-loading="fieldLoading" :data="displayOutputFieldList" border>
+      <el-table v-loading="fieldLoading" :data="displayOutputFieldList" border :cell-style="() => {}">
         <el-table-column label="参数编码" prop="interfaceParaCode" :show-overflow-tooltip="true" />
         <el-table-column label="参数名称" prop="interfaceParaName" :show-overflow-tooltip="true" />
         <el-table-column label="参数位置" prop="interfaceParaPosition" width="90" />
@@ -148,6 +148,7 @@
       :total="outputFieldList.length"
       :page="pageNum"
       :limit="pageSize"
+      :autoScroll="false"
       @update:page="val => (pageNum = val)"
       @update:limit="val => (pageSize = val)"
     />

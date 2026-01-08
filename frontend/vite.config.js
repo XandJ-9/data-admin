@@ -3,6 +3,7 @@ import path from 'path'
 import createVitePlugins from './vite/plugins'
 
 const baseUrl = 'http://localhost:8000' // 后端接口
+// const baseUrl = 'http://bitest.qiyucloud.com.cn:80' // 后端接口
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
@@ -52,11 +53,20 @@ export default defineConfig(({ mode, command }) => {
       open: true,
       proxy: {
           // https://cn.vitejs.dev/config/#server-proxy
-        //   [`${VITE_APP_BASE_API}/media`]: {
-        //     target: baseUrl,
-        //     changeOrigin: true,
-        //     rewrite: (p) => p.replace(`${VITE_APP_BASE_API}`, '')
-        //   },
+          [`${VITE_APP_BASE_API}/docs`]: {
+            target: baseUrl,
+            changeOrigin: true,
+            rewrite: (p) => p.replace(`${VITE_APP_BASE_API}`, '/api')
+          },
+          [`${VITE_APP_BASE_API}/schema`]: {
+            target: baseUrl,
+            changeOrigin: true,
+            rewrite: (p) => p.replace(`${VITE_APP_BASE_API}`, '/api')
+          },
+          '/api': {
+            target: baseUrl,
+            changeOrigin: true
+          },
           [`${VITE_APP_BASE_API}`]: {
           target: baseUrl,
           changeOrigin: true,

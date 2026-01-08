@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.generic import TemplateView
+from django.views.decorators.clickjacking import xframe_options_exempt
+from rest_framework.permissions import AllowAny
 
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from django.conf import settings
@@ -37,7 +39,8 @@ urlpatterns = [
     path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     path('data-api/datastudio/', include('apps.datastudio.urls')),
     path('data-api/captcha/', include('captcha.urls')),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    # swagger api
+    path('api/schema/', xframe_options_exempt(SpectacularAPIView.as_view(permission_classes=[AllowAny])), name='schema'),
+    path('api/docs/', xframe_options_exempt(SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[AllowAny])), name='swagger-ui'),
 
 ]+ static('/data-api' + settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
