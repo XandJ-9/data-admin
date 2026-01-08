@@ -98,6 +98,8 @@ class QueryServiceView(BaseViewMixin, ViewSet):
             )
             return self.data(res)
         except Exception as e:
+            import traceback
+            traceback.print_exception(e)
             status_flag = 'fail'
             error_msg = str(e)
             return self.error(error_msg)
@@ -260,13 +262,13 @@ class InterfaceInfoViewSet(BaseViewSet):
     @action(detail=True, methods=['post'], url_path='export-meta')
     def export_meta(self, request, pk=None):
         # 使用样式化 Excel 生成器导出接口定义（基本信息 + 字段列表）
-        try:
-            interface = InterfaceInfo.objects.get(id=pk, del_flag='0')
-        except InterfaceInfo.DoesNotExist:
-            return self.not_found('接口不存在')
+        # try:
+        #     interface = InterfaceInfo.objects.get(id=pk, del_flag='0')
+        # except InterfaceInfo.DoesNotExist:
+        #     return self.not_found('接口不存在')
 
+        interface = self.get_object()
         fields = InterfaceField.objects.filter(interface=interface, del_flag='0').order_by('interface_para_position')
-
         wb = make_interface_workbook(interface, list(fields))
 
         filename = f"{interface.interface_name}.xlsx"
@@ -274,7 +276,7 @@ class InterfaceInfoViewSet(BaseViewSet):
     
     @action(detail=False, methods=['post'], url_path='import-meta')
     def import_meta(self, request):
-        """导入接口定义 Excel (支持批量)"""
+        """导入接口定义 Excel """
         file = request.FILES.get('file')
         if not file:
             return self.error('请上传 Excel 文件')

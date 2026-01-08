@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from captcha.models import CaptchaStore
 from captcha.views import captcha_image
 import base64
+from django.shortcuts import get_list_or_404, get_object_or_404
 from django.db.models import Q
 from django.core.cache import cache
 
@@ -33,6 +34,45 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
                 pass
         return qs
     
+    def get_object(self):
+        """
+        Returns the object the view is displaying.
+
+        You may want to override this if you need to provide non-standard
+        queryset lookups.  Eg if objects are referenced using multiple
+        keyword arguments in the url conf.
+        
+        重写get_object方法，支持多个对象删除
+        传入参数value1,value2,value3,...
+        """
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # Perform the lookup filtering.
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+
+        assert lookup_url_kwarg in self.kwargs, (
+            'Expected view %s to be called with a URL keyword argument '
+            'named "%s". Fix your URL conf, or set the `.lookup_field` '
+            'attribute on the view correctly.' %
+            (self.__class__.__name__, lookup_url_kwarg)
+        )
+
+        url_value = self.kwargs[lookup_url_kwarg].split(',') if len(self.kwargs[lookup_url_kwarg].split(',')) > 1 else self.kwargs[lookup_url_kwarg]
+        if isinstance(url_value, list):
+            filter_kwargs = {self.lookup_field+'__in': url_value}
+            objs = get_list_or_404(queryset, **filter_kwargs)
+            for obj in objs:
+                self.check_object_permissions(self.request, obj)
+            return objs
+        else:
+            filter_kwargs = {self.lookup_field: url_value}
+            obj = get_object_or_404(queryset, **filter_kwargs)
+
+            # May raise a permission denied
+            self.check_object_permissions(self.request, obj)
+
+            return obj
+
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
@@ -61,14 +101,24 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
         self.perform_update(serializer)
         return self.ok()
 
+
     @audit_log
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if hasattr(instance, 'del_flag'):
-            instance.del_flag = '1'
-            instance.save(update_fields=['del_flag'])
-            return self.ok()
-        return super().destroy(request, *args, **kwargs)
+
+        def _delete(obj):
+            if hasattr(obj, 'del_flag'):
+                obj.del_flag = '1'
+                obj.save(update_fields=['del_flag'])
+
+        if isinstance(instance, list):
+            for obj in instance:
+                _delete(obj)
+            return self.ok() 
+        else:
+            _delete(instance)
+        return self.ok()
+        # return super().destroy(request, *args, **kwargs)
 
     # 统一数据详情响应包装
     def retrieve(self, request, *args, **kwargs):

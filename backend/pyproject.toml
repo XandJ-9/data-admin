@@ -28,8 +28,6 @@ dependencies = [
   "trino",
   "pyhive>=0.7.0",
   "openpyxl>=3.1.5",
+  "paramiko>=4.0.0",
+  "dotenv>=0.9.9",
 ]
-
-[tool.uv]
-dev-dependencies = []
-

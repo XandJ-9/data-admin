@@ -133,17 +133,19 @@ def make_interface_workbook(interface: InterfaceInfo, fields):
             f.interface_para_code,
             getattr(f, 'get_interface_para_type_display', lambda: f.interface_para_type)(),
             getattr(f, 'get_interface_data_type_display', lambda: f.interface_data_type)(),
-            '是' if f.interface_show_flag == '1' else '否',
-            '是' if f.interface_export_flag == '1' else '否',
+            # '是' if f.interface_show_flag == '1' else '否',
+            getattr(f, 'get_interface_show_flag_display', lambda: f.interface_show_flag)(),
+            # '是' if f.interface_export_flag == '1' else '否',
+            getattr(f, 'get_interface_show_flag_display', lambda: f.interface_show_flag)(),
             f.interface_para_interface_code or '',
             f.interface_para_default or '',
             f.interface_cascade_para or '',
             f.interface_parent_name or '',
-            f.interface_parent_position if f.interface_parent_position is not None else '',
+            f.interface_parent_position or '',
             # 跨行显示
-            getattr(f, 'get_interface_para_rowspan_display', lambda: f.interface_para_rowspan)() if f.interface_para_rowspan is not None else '',
-            f.interface_show_desc or '',
-            f.interface_para_desc or '',
+            getattr(f, 'get_interface_para_rowspan_display', lambda: f.interface_para_rowspan)(),
+            getattr(f, 'get_interface_show_desc_display', lambda: f.interface_show_desc)(),
+            getattr(f, 'get_interface_para_desc_display', lambda: f.interface_para_desc)(),
         ]
         for col_index, val in enumerate(values):
             ws.cell(row=row_index + 6, column=1 + col_index).value = val

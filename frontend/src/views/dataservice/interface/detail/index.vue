@@ -96,7 +96,7 @@
       </el-table>
 
       <h5 style="margin: 20px 0 10px 0; font-weight: bold;">响应参数</h5>
-      <el-table v-loading="fieldLoading" :data="outputFieldList">
+      <el-table v-loading="fieldLoading" :data="outputFieldList" border>
         <el-table-column label="参数编码" prop="interfaceParaCode" :show-overflow-tooltip="true" />
         <el-table-column label="参数名称" prop="interfaceParaName" :show-overflow-tooltip="true" />
         <el-table-column label="参数位置" prop="interfaceParaPosition" width="90" />
@@ -110,6 +110,7 @@
              {{ dataTypeMap[scope.row.interfaceDataType] || scope.row.interfaceDataType }}
           </template>
         </el-table-column>
+        <el-table-column label="字段描述" prop="interfaceParaDesc" width="120"/>
         <el-table-column label="默认值" prop="interfaceParaDefault" :show-overflow-tooltip="true" />
         <el-table-column label="显示" prop="interfaceShowFlag" width="90">
           <template #default="scope">
@@ -121,6 +122,10 @@
             <dict-tag :options="yes_no_options" :value="scope.row.interfaceExportFlag" />
           </template>
         </el-table-column>
+        <el-table-column label="父级表头名称" prop="interfaceParentName" width="120"/>
+        <el-table-column label="父级表头位置" prop="interfaceParentPosition" width="120"/>
+        <el-table-column label="是否合并" prop="interfaceParaRowspan" width="120"/>
+        <el-table-column label="是否显示备注" prop="interfaceShowDesc" width="120"/>
         <el-table-column label="操作" align="center" width="200" fixed="right">
           <template #default="scope">
             <el-button link type="primary" icon="Edit" @click="openFieldEdit(scope.row)" v-hasPermi="['dataservice:interface-field:edit']">修改</el-button>

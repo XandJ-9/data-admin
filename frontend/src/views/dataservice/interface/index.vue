@@ -26,7 +26,7 @@
         <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['dataservice:interface:add']">新增</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="success" plain icon="Edit" :disabled="single" @click="handleUpdate" v-hasPermi="['dataservice:interface:edit']">修改</el-button>
+        <!-- <el-button type="success" plain icon="Edit" :disabled="single" @click="handleUpdate" v-hasPermi="['dataservice:interface:edit']">修改</el-button> -->
       </el-col>
       <el-col :span="1.5">
         <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
@@ -41,6 +41,9 @@
         >
           <el-button type="info" plain icon="Upload" v-hasPermi="['dataservice:interface:import']">导入</el-button>
         </el-upload>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button type="success" plain icon="Download" :disabled="multiple" @click="handleExport" v-hasPermi="['dataservice:interface:export']">导出</el-button>
       </el-col>
       <right-toolbar :showSearch="showSearch" @update:showSearch="val => (showSearch = val)" @queryTable="getList" />
     </el-row>
@@ -84,10 +87,10 @@
       </el-table-column>
       <el-table-column label="操作" align="center" width="200" fixed="right">
         <template #default="scope">
-          <el-button link size="small" type="primary" icon="View" @click="openDetail(scope.row)">查看明细</el-button>
+          <el-button link size="small" type="primary" icon="View" @click="openDetail(scope.row)">明细</el-button>
+          <el-button link size="small" type="primary" icon="Coin" @click="openExecute(scope.row)" v-hasPermi="['dataservice:interface:execute']">查询</el-button>
           <el-button link size="small" type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['dataservice:interface:edit']">修改</el-button>
-          <el-button link size="small" type="primary" icon="Coin" @click="openExecute(scope.row)" v-hasPermi="['dataservice:interface:execute']">执行查询</el-button>
-          <el-button link size="small" type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
+          <!-- <el-button link size="small" type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['dataservice:interface:remove']">删除</el-button> -->
           <!-- <el-button link size="small" type="warning" icon="Download" @click="handleExport(scope.row)" v-hasPermi="['dataservice:interface:export']">导出数据</el-button> -->
         </template>
       </el-table-column>
@@ -306,6 +309,50 @@ function customUpload(option) {
   })
 }
 
+// 导出接口信息
+function handleExport() {
+    // 验证是否选择了接口
+    if (ids.value.length == 0) {
+        proxy.$modal.msgWarning('请先选择要导出的接口')
+        return
+    }
+
+    // 验证导出数量
+    if (ids.value.length > 10) {
+        proxy.$modal.msgWarning('一次最多只能导出10个接口，请减少选择数量')
+        return
+    }
+
+    // 显示加载提示
+    proxy.$modal.loading(`正在导出 ${ids.value.length} 个接口的元数据，请稍候...`)
+
+    // 执行导出
+    let successCount = 0
+    let failCount = 0
+    const total = ids.value.length
+
+    ids.value.forEach(id => {
+        proxy.download('/dataservice/interface-info/' + id + '/export-meta', {}, `interface_${id}_meta.xlsx`)
+            .then(() => {
+                successCount++
+            })
+            .catch(() => {
+                failCount++
+            })
+            .finally(() => {
+                // 当所有导出请求完成后
+                if (successCount + failCount === total) {
+                    proxy.$modal.closeLoading()
+                    if (failCount === 0) {
+                        proxy.$modal.msgSuccess(`成功导出 ${successCount} 个接口元数据`)
+                    } else {
+                        proxy.$modal.msgWarning(`导出完成：成功 ${successCount} 个，失败 ${failCount} 个`)
+                    }
+                }
+            })
+    })
+}
+
 // 执行查询弹窗与结果
 const execOpen = ref(false)
 const execTitle = ref('执行查询')
@@ -435,7 +482,7 @@ function submitForm() {
 
 function handleDelete(row) {
   const idsParam = row?.interfaceId || ids.value
-  proxy.$modal.confirm('是否确认删除编号为"' + idsParam + '"的数据项？').then(function() {
+  proxy.$modal.confirm('是否确认删除' + idsParam.length + '个数据项？').then(function() {
     return delInterfaceInfo(idsParam)
   }).then(() => {
     getList()

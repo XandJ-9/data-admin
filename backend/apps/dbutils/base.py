@@ -39,7 +39,7 @@ class DataSourceExecutor:
                 _sql, paginated = self.build_pagination_sql(_sql, int(page_size), int(offset))
         cur = self.conn.cursor()
         try:
-            cur.execute(_sql, params or [])
+            cur.execute(_sql, params)
             if cur.description:
                 cols = [d[0] for d in cur.description]
                 rows = cur.fetchall()
