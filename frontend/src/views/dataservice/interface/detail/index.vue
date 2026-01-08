@@ -96,7 +96,7 @@
       </el-table>
 
       <h5 style="margin: 20px 0 10px 0; font-weight: bold;">响应参数</h5>
-      <el-table v-loading="fieldLoading" :data="outputFieldList" border>
+      <el-table v-loading="fieldLoading" :data="displayOutputFieldList" border>
         <el-table-column label="参数编码" prop="interfaceParaCode" :show-overflow-tooltip="true" />
         <el-table-column label="参数名称" prop="interfaceParaName" :show-overflow-tooltip="true" />
         <el-table-column label="参数位置" prop="interfaceParaPosition" width="90" />
@@ -124,8 +124,16 @@
         </el-table-column>
         <el-table-column label="父级表头名称" prop="interfaceParentName" width="120"/>
         <el-table-column label="父级表头位置" prop="interfaceParentPosition" width="120"/>
-        <el-table-column label="是否合并" prop="interfaceParaRowspan" width="120"/>
-        <el-table-column label="是否显示备注" prop="interfaceShowDesc" width="120"/>
+        <el-table-column label="是否合并" prop="interfaceParaRowspan" width="120">
+          <template #default="scope">
+            <dict-tag :options="yes_no_options" :value="scope.row.interfaceParaRowspan" />
+          </template>
+        </el-table-column>
+        <el-table-column label="是否显示备注" prop="interfaceShowDesc" width="120">
+          <template #default="scope">
+            <dict-tag :options="yes_no_options" :value="scope.row.interfaceShowDesc" />
+          </template>
+        </el-table-column>
         <el-table-column label="操作" align="center" width="200" fixed="right">
           <template #default="scope">
             <el-button link type="primary" icon="Edit" @click="openFieldEdit(scope.row)" v-hasPermi="['dataservice:interface-field:edit']">修改</el-button>
@@ -134,6 +142,15 @@
         </el-table-column>
       </el-table>
     </div>
+
+    <pagination
+      v-show="outputFieldList.length > 0"
+      :total="outputFieldList.length"
+      :page="pageNum"
+      :limit="pageSize"
+      @update:page="val => (pageNum = val)"
+      @update:limit="val => (pageSize = val)"
+    />
 
     <!-- 字段新增/修改弹窗 -->
     <el-dialog :title="fieldTitle" v-model="fieldOpen" width="700px" append-to-body>
@@ -286,10 +303,19 @@ const inputFieldList = computed(() => {
     .sort((a, b) => (a.interfaceParaPosition || 0) - (b.interfaceParaPosition || 0))
 })
 
+
+const pageSize = ref(20)
+const pageNum = ref(1)
+
 const outputFieldList = computed(() => {
   return (fieldList.value || [])
     .filter(item => item.interfaceParaType === '2')
-    .sort((a, b) => (a.interfaceParaPosition || 0) - (b.interfaceParaPosition || 0))
+      .sort((a, b) => (a.interfaceParaPosition || 0) - (b.interfaceParaPosition || 0))
+})
+
+const displayOutputFieldList = computed(() => {
+    return outputFieldList.value.slice(pageSize.value * (pageNum.value-1), pageSize.value * pageNum.value )
+
 })
 
 const fieldTitle = ref('')
