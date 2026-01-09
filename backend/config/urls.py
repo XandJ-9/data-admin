@@ -39,7 +39,7 @@ urlpatterns = [
     path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     path('data-api/datastudio/', include('apps.datastudio.urls')),
     path('data-api/captcha/', include('captcha.urls')),
-    # swagger api
+    # swagger api 
     path('api/schema/', xframe_options_exempt(SpectacularAPIView.as_view(permission_classes=[AllowAny])), name='schema'),
     path('api/docs/', xframe_options_exempt(SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[AllowAny])), name='swagger-ui'),
 
