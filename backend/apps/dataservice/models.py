@@ -64,6 +64,13 @@ class InterfaceInfo(BaseModel):
     user_name = models.CharField(max_length=255, verbose_name='用户名称', null=True, blank=True)
     interface_datasource = models.IntegerField(verbose_name='数据源ID', null=True, blank=True)
 
+    ## 添加报表归属信息
+    report_name = models.CharField(max_length=255, verbose_name='报表名称', null=True, blank=True)
+    report_code = models.CharField(max_length=255, verbose_name='报表编码', null=True, blank=True)
+    module_name = models.CharField(max_length=255, verbose_name='模块名称', null=True, blank=True)
+    platform_name = models.CharField(max_length=255, verbose_name='业务平台', null=True, blank=True)
+
+
     class Meta:
         db_table = 'dataservice_interface_info'
         verbose_name = '数据接口信息'

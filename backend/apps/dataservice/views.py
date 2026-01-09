@@ -314,7 +314,12 @@ class InterfaceInfoViewSet(BaseViewSet):
                             'enable': info.enable,
                             'user_name': info.user_name,
                             # 'interface_datasource': info.interface_datasource, # 不更新数据源，避免误改
-                            'del_flag': '0' # 确保未删除
+                            'del_flag': '0', # 确保未删除
+                            # 报表归属信息
+                            'platform_name': info.platform_name,
+                            'module_name': info.module_name,
+                            'report_name': info.report_name,
+                            'report_code': info.report_code,
                         }
                     )
                     

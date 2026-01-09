@@ -70,10 +70,11 @@ def make_interface_workbook(interface: InterfaceInfo, fields):
         cell.fill = DefaultStyle['fill']
         cell.border = DefaultStyle['border']
 
-    # 顶部信息填充（报告信息暂无，置空）
-    ws['B1'] = ''
-    ws['D1'] = ''
-    ws['F1'] = ''
+    # 顶部信息填充（报告归属信息）
+    ws['B1'] = interface.platform_name or ''
+    ws['D1'] = interface.module_name or ''
+    ws['F1'] = interface.report_name or ''
+    ws['H1'] = interface.report_code or ''
 
     ws['B2'] = interface.interface_name
     ws['D2'] = interface.interface_code
@@ -212,6 +213,14 @@ def parse_interface_workbook(wb: Workbook) -> list[tuple[InterfaceInfo, list[Int
 
         # 1. 解析基本信息
         info = InterfaceInfo()
+        # B1: 平台名称
+        info.platform_name = ws['B1'].value
+        # D1: 模块信息
+        info.module_name = ws['D1'].value
+        # F1
+        info.report_name = ws['F1'].value
+        # H1
+        info.report_code = ws['H1'].value
         # B2: 接口名称
         info.interface_name = ws['B2'].value
         # D2: 接口代码

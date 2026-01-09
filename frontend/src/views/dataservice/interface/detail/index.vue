@@ -11,6 +11,10 @@
         <el-descriptions-item label="接口编码">{{ detail.interfaceCode }}</el-descriptions-item>
         <el-descriptions-item label="数据库类型">{{ detail.interfaceDbType }}</el-descriptions-item>
         <el-descriptions-item label="数据库名称">{{ detail.interfaceDbName }}</el-descriptions-item>
+        <el-descriptions-item label="业务平台">{{ detail.platformName }}</el-descriptions-item>
+        <el-descriptions-item label="模块名称">{{ detail.moduleName }}</el-descriptions-item>
+        <el-descriptions-item label="报表名称">{{ detail.reportName }}</el-descriptions-item>
+        <el-descriptions-item label="报表编码">{{ detail.reportCode }}</el-descriptions-item>
         <el-descriptions-item label="分页">
           <dict-tag :options="yes_no_options" :value="detail.isPaging" />
         </el-descriptions-item>

@@ -44,6 +44,10 @@ class InterfaceInfoSerializer(BaseModelSerializer):
     alarmType = serializers.CharField(source='alarm_type')
     userName = serializers.CharField(source='user_name', required=False, allow_blank=True, allow_null=True)
     interfaceDatasource = serializers.IntegerField(source='interface_datasource', required=False, allow_null=True)
+    reportName = serializers.CharField(source='report_name', required=False, allow_blank=True, allow_null=True)
+    reportCode = serializers.CharField(source='report_code', required=False, allow_blank=True, allow_null=True)
+    moduleName = serializers.CharField(source='module_name', required=False, allow_blank=True, allow_null=True)
+    platformName = serializers.CharField(source='platform_name', required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = InterfaceInfo
@@ -51,7 +55,8 @@ class InterfaceInfoSerializer(BaseModelSerializer):
             'interfaceId', 'reportId', 'interfaceName', 'interfaceCode', 'interfaceDesc',
             'interfaceDbType', 'interfaceDbName', 'interfaceSql', 'isTotal', 'totalSql',
             'isPaging', 'isDateOption', 'isSecondTable', 'isLoginVisit', 'alarmType',
-            'userName', 'interfaceDatasource','enable'
+            'userName', 'interfaceDatasource','enable','reportName','reportCode',
+            'moduleName','platformName'
         ]
 
 

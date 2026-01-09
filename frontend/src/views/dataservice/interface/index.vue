@@ -55,6 +55,10 @@
       <el-table-column label="接口编码" prop="interfaceCode" width="200" :show-overflow-tooltip="true" />
       <el-table-column label="数据库类型" prop="interfaceDbType" width="120" />
       <el-table-column label="数据库名称" prop="interfaceDbName" :show-overflow-tooltip="true" />
+      <el-table-column label="业务平台" prop="platformName" width="120" :show-overflow-tooltip="true" />
+      <el-table-column label="模块名称" prop="moduleName" width="120" :show-overflow-tooltip="true" />
+      <el-table-column label="报表名称" prop="reportName" width="120" :show-overflow-tooltip="true" />
+      <el-table-column label="报表编码" prop="reportCode" width="120" :show-overflow-tooltip="true" />
       <el-table-column label="分页" prop="isPaging" width="80">
         <template #default="scope">
           <dict-tag :options="yes_no_options" :value="scope.row.isPaging" />
@@ -202,6 +206,26 @@
           <el-col :span="24">
             <el-form-item label="合计SQL" prop="totalSql">
               <el-input v-model="form.totalSql" type="textarea" :rows="3" placeholder="可选：合计 SQL" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="业务平台" prop="platformName">
+              <el-input v-model="form.platformName" placeholder="请输入业务平台" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="模块名称" prop="moduleName">
+              <el-input v-model="form.moduleName" placeholder="请输入模块名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="报表编码" prop="reportCode">
+              <el-input v-model="form.reportCode" placeholder="请输入报表编码" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="报表名称" prop="reportName">
+              <el-input v-model="form.reportName" placeholder="请输入报表名称" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -434,6 +458,10 @@ function reset() {
     alarmType: '0',
     userName: undefined,
     interfaceDatasource: undefined,
+    platformName: undefined,
+    moduleName: undefined,
+    reportCode: undefined,
+    reportName: undefined,
   }
   proxy.resetForm('formRef')
 }
