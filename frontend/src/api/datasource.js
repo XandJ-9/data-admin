@@ -66,7 +66,7 @@ export function testDatasourceByBody(data) {
 
 export function listDatabases(data) {
   return request({
-    url: '/datasource/databases',
+    url: '/datameta/collection/databases',
     method: 'post',
     data: data,
     headers: {
@@ -77,7 +77,7 @@ export function listDatabases(data) {
 
 export function listTables(data) {
   return request({
-    url: '/datasource/tables',
+    url: '/datameta/collection/tables',
     method: 'post',
     data: data,
     headers: {
@@ -88,7 +88,7 @@ export function listTables(data) {
 
 export function listColumns(data) {
   return request({
-    url: '/datasource/columns',
+    url: '/datameta/collection/columns',
     method: 'post',
     data: data,
     headers: {
@@ -98,7 +98,7 @@ export function listColumns(data) {
 }
 export function collectMeta(data) {
   return request({
-    url: '/datasource/collect',
+    url: '/datameta/collection/collect',
     method: 'post',
     data: data
   })
@@ -106,8 +106,38 @@ export function collectMeta(data) {
 
 export function collectMetaTable(data) {
   return request({
-    url: '/datasource/collect-table',
+    url: '/datameta/collection/collect-table',
     method: 'post',
     data: data
+  })
+}
+
+// 异步整库采集
+export function collectMetaAsync(data) {
+  return request({
+    url: '/datameta/collection/collect-async',
+    method: 'post',
+    data: data
+  })
+}
+
+// 查询采集状态
+export function getCollectStatus(taskId) {
+  return request({
+    url: '/datameta/collection/collect-status',
+    method: 'get',
+    params: { taskId },
+    headers: {
+      'repeatSubmit': false
+    }
+  })
+}
+
+// 取消采集
+export function cancelCollect(taskId) {
+  return request({
+    url: '/datameta/collection/collect-cancel',
+    method: 'post',
+    data: { taskId }
   })
 }

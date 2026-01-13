@@ -1,15 +1,16 @@
-from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 from django.db import transaction
 
 from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
 
 from apps.datasource.models import DataSource
+from apps.dbutils import list_tables, get_table_schema, get_table_info, list_tables_info, get_databases
+
 from .models import MetaTable, MetaColumn
 from .serializers import MetaTableSerializer, MetaColumnSerializer
+from .collectors import start_collection_task, cancel_collection_task, get_task_status
 
 
 
@@ -59,6 +60,7 @@ class MetaTableViewSet(BaseViewSet):
             qs = qs.filter(update_time__lte=u_end)
         return qs
 
+
 class MetaColumnViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = MetaColumn.objects.filter(del_flag='0').order_by('order')
@@ -79,4 +81,225 @@ class MetaColumnViewSet(BaseViewSet):
         if database:
             qs = qs.filter(table__database=database)
         return qs
+
+
+class DataCollectionViewSet(BaseViewSet):
+    """数据采集接口 - 从 datasource 迁移"""
+    permission_classes = [IsAuthenticated, HasRolePermission]
+
+    def _load_ds(self, ds_id):
+        try:
+            return DataSource.objects.get(pk=int(ds_id), del_flag='0')
+        except Exception:
+            return None
+
+    def _build_info(self, ds):
+        return {
+            'type': ds.db_type,
+            'host': ds.host,
+            'port': ds.port,
+            'username': ds.username,
+            'password': ds.password,
+            'database': ds.db_name,
+            'params': ds.params or {},
+        }
+
+    def _collect_table(self, info, ds_id, table):
+        # 获取表级详细信息
+        tinfo = get_table_info(info, table) or {}
+        comment = tinfo.get('comment') or ''
+        database_name = tinfo.get('databaseName') or ''
+
+        obj, created = MetaTable.objects.update_or_create(
+            data_source_id=ds_id,
+            table_name=table,
+            database=database_name,
+            defaults={'comment': comment, 'del_flag': '0'}
+        )
+
+        user = getattr(getattr(self, 'request', None), 'user', None)
+        if user and getattr(user, 'username', None):
+            if created:
+                obj.create_by = user.username
+                obj.save(update_fields=['create_by'])
+            else:
+                obj.update_by = user.username
+                obj.save(update_fields=['update_by', 'update_time'])
+
+        MetaColumn.objects.filter(data_source_id=ds_id, table=obj).delete()
+
+        cols = get_table_schema(info, table)
+        for c in cols:
+            col, c_created = MetaColumn.objects.update_or_create(
+                data_source_id=ds_id,
+                table=obj,
+                name=c.get('name'),
+                defaults={
+                    'order': c.get('order') or 0,
+                    'type': c.get('type') or '',
+                    'notnull': bool(c.get('notnull')),
+                    'default': str(c.get('default') or ''),
+                    'primary': bool(c.get('primary')),
+                    'comment': c.get('comment') or '',
+                    'del_flag': '0'
+                }
+            )
+            if user and getattr(user, 'username', None):
+                if c_created:
+                    col.create_by = user.username
+                    col.save(update_fields=['create_by'])
+                else:
+                    col.update_by = user.username
+                    col.save(update_fields=['update_by', 'update_time'])
+
+    @action(detail=False, methods=['post'], url_path='tables')
+    def tables(self, request):
+        """获取数据源表列表"""
+        ds_id = request.data.get('dataSourceId')
+        dbname = request.data.get('databaseName')
+        if not ds_id:
+            return self.error('缺少参数 dataSourceId')
+        ds = self._load_ds(ds_id)
+        if not ds:
+            return self.not_found('数据源不存在')
+        info = self._build_info(ds)
+        if dbname:
+            info['database'] = dbname
+        try:
+            rows = list_tables_info(info)
+            return self.raw_response({'rows': rows, 'total': len(rows)})
+        except Exception as e:
+            return self.error(str(e))
+
+    @action(detail=False, methods=['post'], url_path='columns')
+    def columns(self, request):
+        """获取表字段列表"""
+        ds_id = request.data.get('dataSourceId')
+        table = request.data.get('tableName')
+        dbname = request.data.get('databaseName')
+        if not ds_id or not table:
+            return self.error('缺少参数 dataSourceId 或 tableName')
+        ds = self._load_ds(ds_id)
+        if not ds:
+            return self.not_found('数据源不存在')
+        info = self._build_info(ds)
+        if dbname:
+            info['database'] = dbname
+        try:
+            cols = get_table_schema(info, table)
+            rows = [
+                {
+                    'order': c.get('order') or 0,
+                    'name': c.get('name'),
+                    'type': c.get('type') or '',
+                    'notnull': bool(c.get('notnull')),
+                    'default': str(c.get('default') or ''),
+                    'primary': bool(c.get('primary')),
+                    'comment': c.get('comment') or '',
+                }
+                for c in cols
+            ]
+            return self.raw_response({'rows': rows, 'total': len(rows)})
+        except Exception as e:
+            return self.error(str(e))
+
+    @action(detail=False, methods=['post'], url_path='databases')
+    def databases(self, request):
+        """获取数据库列表"""
+        ds_id = request.data.get('dataSourceId')
+        if not ds_id:
+            return self.error('缺少参数 dataSourceId')
+        ds = self._load_ds(ds_id)
+        if not ds:
+            return self.not_found('数据源不存在')
+        info = self._build_info(ds)
+        try:
+            dbs = get_databases(info)
+            return self.raw_response({'data': dbs})
+        except Exception as e:
+            return self.error(str(e))
+
+    @action(detail=False, methods=['post'], url_path='collect')
+    def collect(self, request):
+        """同步整库采集"""
+        ds_id = request.data.get('dataSourceId')
+        dbname = request.data.get('databaseName')
+        if not ds_id:
+            return self.error('缺少参数 dataSourceId')
+        ds = self._load_ds(ds_id)
+        if not ds:
+            return self.not_found('数据源不存在')
+        info = self._build_info(ds)
+        if dbname:
+            info['database'] = dbname
+        try:
+            tbls = list_tables(info)
+            with transaction.atomic():
+                for t in tbls:
+                    self._collect_table(info, ds.id, t)
+            return self.ok('采集完成')
+        except Exception as e:
+            return self.error(str(e))
+
+    @action(detail=False, methods=['post'], url_path='collect-table')
+    def collect_table(self, request):
+        """单表采集"""
+        ds_id = request.data.get('dataSourceId')
+        dbname = request.data.get('databaseName')
+        table = request.data.get('tableName')
+        if not ds_id or not table:
+            return self.error('缺少参数 dataSourceId 或 tableName')
+        ds = self._load_ds(ds_id)
+        if not ds:
+            return self.not_found('数据源不存在')
+        info = self._build_info(ds)
+        if dbname:
+            info['database'] = dbname
+        try:
+            with transaction.atomic():
+                self._collect_table(info, ds.id, table)
+            return self.ok('采集完成')
+        except Exception as e:
+            return self.error(str(e))
+
+    @action(detail=False, methods=['post'], url_path='collect-async')
+    def collect_async(self, request):
+        """异步整库采集"""
+        ds_id = request.data.get('dataSourceId')
+        dbname = request.data.get('databaseName')
+        if not ds_id:
+            return self.error('缺少参数 dataSourceId')
+        ds = self._load_ds(ds_id)
+        if not ds:
+            return self.not_found('数据源不存在')
+        user = getattr(request, 'user', None)
+        task = start_collection_task(ds_id, dbname or '', user)
+        if not task:
+            return self.error('启动采集任务失败，该数据源可能已有任务在运行')
+        return self.data({
+            'taskId': task.task_id,
+            'message': '采集任务已启动'
+        }, msg='任务已启动')
+
+    @action(detail=False, methods=['get'], url_path='collect-status')
+    def collect_status(self, request):
+        """查询采集任务状态"""
+        task_id = request.query_params.get('taskId')
+        if not task_id:
+            return self.error('缺少参数 taskId')
+        status = get_task_status(task_id)
+        if not status:
+            return self.not_found('任务不存在')
+        return self.data(status)
+
+    @action(detail=False, methods=['post'], url_path='collect-cancel')
+    def collect_cancel(self, request):
+        """取消采集任务"""
+        task_id = request.data.get('taskId')
+        if not task_id:
+            return self.error('缺少参数 taskId')
+        success = cancel_collection_task(task_id)
+        if not success:
+            return self.error('任务不存在或未在运行')
+        return self.ok('任务已取消')
 
