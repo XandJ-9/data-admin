@@ -120,13 +120,13 @@ export const constantRoutes = [
     children: [
       {
         path: 'index',
-        component: () => import('@/views/datataskmonitor/index.vue'),
+        component: () => import('@/views/data/taskmonitor/index.vue'),
         name: 'DataTask',
         meta: { title: '任务运维', icon: 'list' }
       },
       {
         path: 'log',
-        component: () => import('@/views/datataskmonitor/log.vue'),
+        component: () => import('@/views/data/taskmonitor/log.vue'),
         name: 'TaskLog',
         meta: { title: '任务日志', icon: 'log' },
         hidden: true
@@ -143,16 +143,30 @@ export const constantRoutes = [
     children: [
       {
         path: 'index',
-        component: () => import('@/views/datastudio/index.vue'),
+        component: () => import('@/views/data/studio/index.vue'),
         name: 'DataStudioTasks',
         meta: { title: '任务列表', icon: 'list' }
       },
       {
         path: 'task-detail/:id',
-        component: () => import('@/views/datastudio/TaskDetail.vue'),
+        component: () => import('@/views/data/studio/TaskDetail.vue'),
         name: 'DataStudioTaskDetail',
         meta: { title: '任务详情', activeMenu: '/datastudio/index' },
         hidden: true
+      }
+    ]
+  },
+  {
+    path: '/dataservice/interface',
+    component: Layout,
+    hidden: true,
+    permissions: ['dataservice:interface:list'],
+    children: [
+      {
+        path: 'detail/:interfaceId(\\d+)',
+        component: () => import('@/views/data/service/interface/detail/index'),
+        name: 'InterfaceDetail',
+        meta: { title: '接口明细', activeMenu: '/dataservice/interface' }
       }
     ]
   }
@@ -227,20 +241,6 @@ export const dynamicRoutes = [
         component: () => import('@/views/tool/gen/editTable'),
         name: 'GenEdit',
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
-      }
-    ]
-  },
-  {
-    path: '/dataservice/interface',
-    component: Layout,
-    hidden: true,
-    permissions: ['dataservice:interface:list'],
-    children: [
-      {
-        path: 'detail/:interfaceId(\\d+)',
-        component: () => import('@/views/dataservice/interface/detail/index'),
-        name: 'InterfaceDetail',
-        meta: { title: '接口明细', activeMenu: '/dataservice/interface' }
       }
     ]
   }

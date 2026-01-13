@@ -51,7 +51,7 @@ import { getCurrentInstance } from 'vue';
 import useTagsViewStore from '@/store/modules/tagsView';
 
 // Import Components
-import SyncConfigDetail from '@/views/dataintegration/components/SyncConfigDetail.vue';
+import SyncConfigDetail from '@/views/data/integration/components/SyncConfigDetail.vue';
 import HiveConfig from './components/HiveConfig.vue';
 import SparkConfig from './components/SparkConfig.vue';
 import SparkSqlConfig from './components/SparkSqlConfig.vue';
