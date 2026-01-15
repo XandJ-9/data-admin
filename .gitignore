@@ -11,10 +11,9 @@ wheels/
 
 # Deployment files
 deploy/
-deploy.py
-deploy.ini
-bootstrap.sh
-.env
+
+
 
 # local settings
 .claude/
+.env
