@@ -24,7 +24,7 @@
       lang="sql"
       theme="xcode"
       :options="aceOptions"
-      style="height:240px;border:1px solid var(--el-border-color);border-radius:4px;"
+      style="height:450px;border:1px solid var(--el-border-color);border-radius:4px;"
     />
     
     <el-dialog v-model="showTpl" title="模板参数" width="500px">

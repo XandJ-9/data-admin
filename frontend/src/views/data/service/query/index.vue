@@ -25,7 +25,7 @@
             {{ key }} = {{ val }}
           </el-tag>
         </div>
-        <query-result :columns="t.columns" :rows="t.rows" />
+        <query-result v-if="t.columns.length > 0" :columns="t.columns" :rows="t.rows" />
       </el-tab-pane>
       <el-tab-pane :name="addKey" label="新增查询">
             <template #label>
@@ -40,6 +40,7 @@
 import { Plus } from '@element-plus/icons-vue';
 import { listDatasource } from '@/api/datasource'
 import { executeQuery, exportQuery } from '@/api/dataservice'
+import { scrollTo } from '@/utils/scroll-to'
 import QueryView from './queryView.vue'
 import QueryResult from './queryResult.vue'
 const { proxy } = getCurrentInstance()
@@ -78,7 +79,10 @@ function runQuery(t, p) {
   if (p && typeof p.pageSize !== 'undefined') payload.pageSize = p.pageSize
   if (p && typeof p.offset !== 'undefined') payload.offset = p.offset
   executeQuery(payload).then(res => {
-    applyResult(t, res.data)
+      applyResult(t, res.data)
+      proxy.$modal.msgSuccess('查询成功')
+      // 查询成功，向下滚动30%
+      scrollTo(300)
   }).finally(() => (t.running = false))
 }
 
