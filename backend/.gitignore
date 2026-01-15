@@ -9,9 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-deploy.py
-deploy.ini
-bootstrap.sh
+# deploy.py
+# deploy.ini
+# bootstrap.sh
 .env
 
 db.sqlite3
