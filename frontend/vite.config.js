@@ -5,11 +5,11 @@ import createVitePlugins from './vite/plugins'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
-    const { VITE_APP_ENV, VITE_APP_BASE_URL, VITE_APP_BASE_API, VITE_APP_BASE_BACKEND_URL } = env
+    console.log('=== 所有环境变量 ===')
+    console.log(JSON.stringify(env, null, 2))
+    const { VITE_APP_BASE_URL, VITE_APP_BASE_API, VITE_APP_BASE_BACKEND_URL } = env
     const baseUrl = VITE_APP_BASE_BACKEND_URL || 'http://localhost:8000'
-    console.log('当前环境：', VITE_APP_ENV)
-    console.log('前端路径：', VITE_APP_BASE_URL)
-    console.log('接口地址：', VITE_APP_BASE_API)
+
   return {
     // 部署生产环境和开发环境下的URL。
     // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
