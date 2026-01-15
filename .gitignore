@@ -15,3 +15,6 @@ deploy.py
 deploy.ini
 bootstrap.sh
 .env
+
+# local settings
+.claude/
