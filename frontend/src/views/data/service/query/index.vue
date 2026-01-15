@@ -118,7 +118,6 @@ function applyResult(t, data) {
     for (let i = 0; i < cols.length; i++) obj[i] = r[i]
     return obj
   })
-  console.log("rows",rows)
   t.next = next
 }
 

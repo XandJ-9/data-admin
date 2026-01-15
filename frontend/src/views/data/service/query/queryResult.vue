@@ -1,6 +1,6 @@
 <template>
-  <el-table :data="rows" style="margin-top: 16px" border stripe>
-    <el-table-column v-for="col,idx in columns" :key="idx" :prop="idx+''" :label="col" :min-width="columnWidth(col)" show-overflow-tooltip>
+  <el-table :data="rows" style="margin-top: 16px" stripe highlight-current-row border>
+    <el-table-column v-for="col,idx in columns" :key="idx" :prop="idx+''" :label="col" :width="columnWidth(idx)" show-overflow-tooltip>
       <template #header>
         <el-tooltip :content="col" placement="top" :show-after="500">
           <span style="display:inline-block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
@@ -13,20 +13,19 @@
 </template>
 
 <script setup>
-import { calculateColumnWidth } from '@/utils'
 const { proxy } = getCurrentInstance()
 const props = defineProps({
   columns: { type: Array, default: () => [] },
   rows: { type: Array, default: () => [] }
 })
-function columnWidth(columnName) {
-  if ((props.rows || []).length === 0) return 200
-  let maxWidth = 100
-  props.rows.forEach(item => {
-    const val = item[columnName]
-    const width = (proxy?.calculateColumnWidth || calculateColumnWidth)(val, { minWidth: 100, maxWidth: 300 })
-    maxWidth = width
-  })
-  return maxWidth
+function columnWidth(colIdx) {
+    if ((props.rows || []).length === 0) return 200
+    let maxWidth = 200
+    props.rows.forEach(item => {
+        const val = item[colIdx]
+        const width = proxy.calculateColumnWidth(val, { minWidth: 100, maxWidth: 500 })
+        maxWidth = width
+    })
+    return maxWidth
 }
 </script>
