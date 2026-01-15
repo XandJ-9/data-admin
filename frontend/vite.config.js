@@ -2,13 +2,11 @@ import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import createVitePlugins from './vite/plugins'
 
-const baseUrl = 'http://localhost:8000' // 后端接口
-// const baseUrl = 'http://bitest.qiyucloud.com.cn:80' // 后端接口
-
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
-    const { VITE_APP_ENV, VITE_APP_BASE_URL, VITE_APP_BASE_API } = env
+    const { VITE_APP_ENV, VITE_APP_BASE_URL, VITE_APP_BASE_API, VITE_APP_BASE_BACKEND_URL } = env
+    const baseUrl = VITE_APP_BASE_BACKEND_URL || 'http://localhost:8000'
     console.log('当前环境：', VITE_APP_ENV)
     console.log('前端路径：', VITE_APP_BASE_URL)
     console.log('接口地址：', VITE_APP_BASE_API)
