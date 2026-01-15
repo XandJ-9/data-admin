@@ -61,9 +61,18 @@
                <svg-icon :icon-class="scope.row.icon" />
             </template>
          </el-table-column>
+         <el-table-column prop="menuType" label="菜单类型" width="80">
+            <template #default="scope">
+                    <el-tag v-if="scope.row.menuType==='M'" type="primary">目录</el-tag>
+                    <el-tag v-else-if="scope.row.menuType==='C'" type="success">菜单</el-tag>
+                    <el-tag v-else-if="scope.row.menuType==='F'" type="warning">按钮</el-tag>
+            </template>
+         </el-table-column>
          <el-table-column prop="orderNum" label="排序" width="60"></el-table-column>
-         <el-table-column prop="perms" label="权限标识" :show-overflow-tooltip="true"></el-table-column>
+         <el-table-column prop="path" label="路径" :show-overflow-tooltip="true"></el-table-column>
          <el-table-column prop="component" label="组件路径" :show-overflow-tooltip="true"></el-table-column>
+         <el-table-column prop="routeName" label="路由名称" :show-overflow-tooltip="true"></el-table-column>
+         <el-table-column prop="perms" label="权限标识" :show-overflow-tooltip="true"></el-table-column>
          <el-table-column prop="status" label="状态" width="80">
             <template #default="scope">
                <dict-tag :options="sys_normal_disable" :value="scope.row.status" />

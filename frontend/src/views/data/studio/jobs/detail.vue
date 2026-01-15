@@ -4,7 +4,7 @@
             <template #header>
                 <div class="card-header">
                     <span>{{ title }}</span>
-                    <el-button style="float: right; padding: 3px 0" text @click="handleBack">返回</el-button>
+                    <el-button type="success" @click="handleBack">返回</el-button>
                 </div>
             </template>
 
@@ -43,7 +43,7 @@
     </div>
 </template>
 
-<script setup name="DataStudioTaskDetail">
+<script setup name="JobDetail">
 import { ref, reactive, toRefs, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { addTask, getTask, updateTask } from "@/api/datastudio";
@@ -199,10 +199,18 @@ function handleBack() {
   const view = visitedViews.find(v => v.path === route.path)
   if (view) {
     tagsViewStore.delView(view).then(() => {
-        router.push({ name: 'DataStudioTasks' })
+        router.push({ name: 'JobList' })
     })
   } else {
-      router.push({ name: 'DataStudioTasks' })
+      router.push({ name: 'JobList' })
   }
 }
 </script>
+
+<style scoped>
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+</style>

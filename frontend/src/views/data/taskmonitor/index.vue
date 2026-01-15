@@ -283,7 +283,7 @@
   </div>
 </template>
 
-<script setup name="DataTask">
+<script setup name="Taskmonitor">
 import { listTask, getTask, updateTask, startTask, pauseTask, listAlertRule, addAlertRule, updateAlertRule, delAlertRule, listAlertRecord, handleAlert } from "@/api/datataskmonitor";
 import { parseTime } from "@/utils/ruoyi";
 import { useRouter } from "vue-router";
@@ -441,7 +441,7 @@ function handleEnabledChange(row) {
 
 function openSourceTask(row) {
   if (!row?.sourceTaskId) return;
-  router.push(`/datastudio/task-detail/${row.sourceTaskId}`);
+    router.push({name: 'JobDetail', params: { id: row.sourceTaskId }})
 }
 
 const currentTask = ref(null);

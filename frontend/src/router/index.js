@@ -85,91 +85,50 @@ export const constantRoutes = [
     ]
   },
 //   {
-//     path: '/dataintegration',
+//     path: '/datataskmonitor',
 //     component: Layout,
-//     redirect: '/dataintegration/home',
-//     meta: { title: '数据集成', icon: 'link' },
+//     hidden: false,
+//     redirect: '/datataskmonitor/index',
+//     meta: { title: '数据运维', icon: 'monitor' },
 //     children: [
 //       {
-//         path: 'home',
-//         name: 'DataIntegrationHome',
-//         component: () => import('@/views/dataintegration/index.vue'),
-//         meta: { title: '数据集成首页', icon: 'guide' }
+//         path: 'index',
+//         component: () => import('@/views/data/taskmonitor/index.vue'),
+//         name: 'DataTask',
+//         meta: { title: '任务运维', icon: 'list' }
 //       },
 //       {
-//         path: 'tasks',
-//         name: 'DataIntegrationTasks',
-//         component: () => import('@/views/dataintegration/taskList.vue'),
-//         meta: { title: '同步任务列表', icon: 'list' }
+//         path: 'log',
+//         component: () => import('@/views/data/taskmonitor/log.vue'),
+//         name: 'TaskLog',
+//         meta: { title: '任务日志', icon: 'log' },
+//         hidden: false
+//       }
+//     ]
+//   },
+//   {
+//     path: '/datastudio',
+//     component: Layout,
+//     hidden: false,
+//     alwaysShow: true,
+//     redirect: '/datastudio/index',
+//     meta: { title: '数据开发', icon: 'code' },
+//     children: [
+//       {
+//         path: 'index',
+//         component: () => import('@/views/data/studio/index.vue'),
+//         name: 'DataStudioTasks',
+//         meta: { title: '任务列表', icon: 'list' }
 //       },
 //       {
-//         path: 'task/:id',
-//         name: 'DataIntegrationTaskDetail',
-//         component: () => import('@/views/dataintegration/taskDetail.vue'),
-//         meta: { title: '任务详情', icon: 'edit' },
+//         path: 'task-detail/:id',
+//         component: () => import('@/views/data/studio/TaskDetail.vue'),
+//         name: 'DataStudioTaskDetail',
+//         meta: { title: '任务详情', activeMenu: '/datastudio/index' },
 //         hidden: true
 //       }
 //     ]
 //   },
-  {
-    path: '/datataskmonitor',
-    component: Layout,
-    hidden: false,
-    redirect: '/datataskmonitor/index',
-    meta: { title: '数据运维', icon: 'monitor' },
-    children: [
-      {
-        path: 'index',
-        component: () => import('@/views/data/taskmonitor/index.vue'),
-        name: 'DataTask',
-        meta: { title: '任务运维', icon: 'list' }
-      },
-      {
-        path: 'log',
-        component: () => import('@/views/data/taskmonitor/log.vue'),
-        name: 'TaskLog',
-        meta: { title: '任务日志', icon: 'log' },
-        hidden: true
-      }
-    ]
-  },
-  {
-    path: '/datastudio',
-    component: Layout,
-    hidden: false,
-    alwaysShow: true,
-    redirect: '/datastudio/index',
-    meta: { title: '数据开发', icon: 'code' },
-    children: [
-      {
-        path: 'index',
-        component: () => import('@/views/data/studio/index.vue'),
-        name: 'DataStudioTasks',
-        meta: { title: '任务列表', icon: 'list' }
-      },
-      {
-        path: 'task-detail/:id',
-        component: () => import('@/views/data/studio/TaskDetail.vue'),
-        name: 'DataStudioTaskDetail',
-        meta: { title: '任务详情', activeMenu: '/datastudio/index' },
-        hidden: true
-      }
-    ]
-  },
-  {
-    path: '/dataservice/interface',
-    component: Layout,
-    hidden: true,
-    permissions: ['dataservice:interface:list'],
-    children: [
-      {
-        path: 'detail/:interfaceId(\\d+)',
-        component: () => import('@/views/data/service/interface/detail/index'),
-        name: 'InterfaceDetail',
-        meta: { title: '接口明细', activeMenu: '/dataservice/interface' }
-      }
-    ]
-  }
 ]
 
 // 动态路由，基于用户权限动态去加载

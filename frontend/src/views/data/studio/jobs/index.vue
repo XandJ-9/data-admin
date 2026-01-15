@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
-      <el-form-item label="任务名称" prop="name">
+      <el-form-item label="作业名称" prop="name">
         <el-input
           v-model="queryParams.name"
           placeholder="请输入任务名称"
@@ -87,7 +87,7 @@
   </div>
 </template>
 
-<script setup name="DataStudio">
+<script setup name="JobList">
 import { listTasks, delTask } from "@/api/datastudio";
 import { ref, reactive, toRefs, getCurrentInstance } from 'vue';
 import { useRouter } from 'vue-router';
@@ -148,12 +148,12 @@ function resetQuery() {
 
 /** 新增按钮操作 */
 function handleAdd() {
-  router.push({ name: 'DataStudioTaskDetail', params: { id: 'new' } });
+  router.push({ name: 'JobDetail', params: { id: 'new' } });
 }
 
 /** 修改按钮操作 */
 function handleUpdate(row) {
-  router.push({ name: 'DataStudioTaskDetail', params: { id: row.taskId }});
+  router.push({ name: 'JobDetail', params: { id: row.taskId }});
 }
 
 /** 删除按钮操作 */

@@ -521,7 +521,8 @@ function handleDelete(row) {
 function openDetail(row) {
   const id = row?.interfaceId
   if (!id) return
-  router.push('/dataservice/interface/detail/' + id)
+    //   router.push('/dataservice/interface/detail/' + id)
+    router.push({ name: 'InterfaceDetail', params: { interfaceId: id } })
 }
 
 function loadDatasourceOptions() {
