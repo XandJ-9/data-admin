@@ -82,7 +82,8 @@ export function listTables(data) {
     data: data,
     headers: {
       'repeatSubmit': false
-    }
+      },
+    timeout: 60000
   })
 }
 

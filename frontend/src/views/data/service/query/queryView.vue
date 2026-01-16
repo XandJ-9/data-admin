@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="query-view-container">
     <el-form :inline="true" label-width="80px">
       <el-form-item label="数据源">
         <el-select v-model="innerDsId" placeholder="选择数据源" style="width: 260px">
@@ -24,9 +24,17 @@
       lang="sql"
       theme="xcode"
       :options="aceOptions"
-      style="height:450px;border:1px solid var(--el-border-color);border-radius:4px;"
+      :style="{height: editorHeight + 'px', border:'1px solid var(--el-border-color)', borderRadius:'4px'}"
     />
-    
+
+    <!-- 模板参数预览 -->
+    <div v-if="Object.keys(currentParams).length > 0" class="param-preview">
+      <span style="margin-right:6px;color:#909399;font-size:12px;">模板参数:</span>
+      <el-tag v-for="(val, key) in currentParams" :key="key" type="info" effect="plain" size="small" style="margin:2px;">
+        {{ key }} = {{ val }}
+      </el-tag>
+    </div>
+
     <el-dialog v-model="showTpl" title="模板参数" width="500px">
       <div>
         <el-button size="小" @click="addParam">新增参数</el-button>
@@ -41,7 +49,7 @@
         <el-button type="primary" @click="saveParams">保存</el-button>
       </template>
     </el-dialog>
-    
+
     <el-dialog v-model="showMaximize" title="SQL编辑" width="80%" top="5vh" :close-on-click-modal="false">
       <VAceEditor
         v-model:value="innerSql"
@@ -79,7 +87,8 @@ const props = defineProps({
   pageSize: { type: Number, default: 50 },
   offset: { type: Number, default: 0 },
   next: { type: Object, default: null },
-  templateParams: { type: Object, default: () => ({}) }
+  templateParams: { type: Object, default: () => ({}) },
+  editorHeight: { type: Number, default: 450 }
 })
 const emit = defineEmits(['update:dataSourceId', 'update:sqlText', 'update:pageSize', 'update:offset', 'update:templateParams', 'run', 'export'])
 const innerDsId = ref(props.dataSourceId)
@@ -90,6 +99,11 @@ const next = computed(() => props.next)
 const showTpl = ref(false)
 const showMaximize = ref(false)
 const tplParams = ref(Object.entries(props.templateParams || {}).map(([k,v]) => ({ key: k, value: String(v) })))
+const currentParams = computed(() => {
+  const obj = {}
+  tplParams.value.forEach(p => { if (p.key) obj[p.key] = p.value })
+  return obj
+})
 watch(innerDsId, v => emit('update:dataSourceId', v))
 watch(innerSql, v => emit('update:sqlText', v))
 watch(innerPageSize, v => emit('update:pageSize', v))
@@ -99,8 +113,8 @@ watch(() => props.sqlText, v => { innerSql.value = v })
 watch(() => props.pageSize, v => { innerPageSize.value = v })
 watch(() => props.offset, v => { innerOffset.value = v })
 watch(() => props.templateParams, v => {
-  tplParams.value = Object.entries(v || {}).map(([k, val]) => ({ key: k, value: String(val) }))
-})
+  tplParams.value = Object.entries(v || {}).map(([k, val]) => ({ key: k, value: String(val) })
+)})
 function emitRun() { emit('run', { pageSize: innerPageSize.value, offset: innerOffset.value, params: toParams() }) }
 function emitExport() { emit('export', { pageSize: innerPageSize.value, offset: innerOffset.value, params: toParams() }) }
 function emitPrev() {
@@ -125,3 +139,14 @@ function toParams() {
 }
 function saveParams() { toParams(); showTpl.value = false }
 </script>
+
+<style scoped>
+.query-view-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.param-preview {
+  margin: 8px 0 4px 0;
+}
+</style>

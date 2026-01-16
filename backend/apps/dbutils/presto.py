@@ -124,51 +124,32 @@ class PrestoExecutor(DataSourceExecutor):
         self.connect()
         cur = self.conn.cursor()
         try:
-            try:
-                cur.execute(
-                    """
-                    SELECT table_name, table_schema, COALESCE(table_comment,'')
-                    FROM information_schema.tables
-                    WHERE table_schema = %s
-                    ORDER BY table_name
-                    """,
-                    (self.schema,)
-                )
-                rs = cur.fetchall()
-                rows = []
-                for tname, schema, comment in rs:
-                    ctime, utime = self._get_table_times(schema, tname)
-                    rows.append({
-                        'tableName': tname,
-                        'databaseName': f"{self.catalog}.{schema}",
-                        'comment': comment or '',
-                        'createTime': ctime,
-                        'updateTime': utime
-                    })
-                return rows
-            except Exception:
-                cur.execute(
-                    """
-                    SELECT table_name, table_schema
-                    FROM information_schema.tables
-                    WHERE table_schema = %s
-                    ORDER BY table_name
-                    """,
-                    (self.schema,)
-                )
-                rs = cur.fetchall()
-                rows = []
-                for tname, schema in rs:
-                    comment = self._get_table_comment(schema, tname)
-                    ctime, utime = self._get_table_times(schema, tname)
-                    rows.append({
-                        'tableName': tname,
-                        'databaseName': f"{self.catalog}.{schema}",
-                        'comment': comment,
-                        'createTime': ctime,
-                        'updateTime': utime
-                    })
-                return rows
+            cur.execute(
+                """
+                SELECT table_name, table_schema
+                FROM information_schema.tables
+                WHERE table_schema = %s
+                ORDER BY table_name
+                """,
+                (self.schema,)
+            )
+            rs = cur.fetchall()
+            rows = []
+            for tname, schema in rs:
+                comment = '' # self._get_table_comment(schema, tname)
+                ctime, utime = ('','') #self._get_table_times(schema, tname)
+                rows.append({
+                    'tableName': tname,
+                    'databaseName': f"{self.catalog}.{schema}",
+                    'comment': comment,
+                    'createTime': ctime,
+                    'updateTime': utime
+                })
+            return rows
+        except Exception as e:
+            # 出错时关闭连接，便于后续重试，并抛出明确错误信息
+            self.close()
+            raise RuntimeError(f"查询数据表失败: {e}")
         finally:
             cur.close()
 

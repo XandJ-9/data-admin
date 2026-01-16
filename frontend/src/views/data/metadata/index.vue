@@ -161,9 +161,7 @@ function openColumns(row) {
   const params = {
     dataSourceId: row.dataSourceId,
     tableName: row.tableName,
-    databaseName: row.databaseName,
-    pageNum: 1,
-    pageSize: 1000
+    databaseName: row.databaseName
   }
   listMetaColumns(params).then(res => {
     columns.value = res.rows || []
