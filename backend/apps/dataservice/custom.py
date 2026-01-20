@@ -142,7 +142,7 @@ def make_interface_workbook(interface: InterfaceInfo, fields):
             f.interface_para_default or '',
             f.interface_cascade_para or '',
             f.interface_parent_name or '',
-            f.interface_parent_position or '',
+            f.interface_parent_position or '0',
             # 跨行显示
             getattr(f, 'get_interface_para_rowspan_display', lambda: f.interface_para_rowspan)(),
             getattr(f, 'get_interface_show_desc_display', lambda: f.interface_show_desc)(),
@@ -300,9 +300,9 @@ def parse_interface_workbook(wb: Workbook) -> list[tuple[InterfaceInfo, list[Int
             # L列: 父表头位置
             p_pos = ws.cell(row=row_idx, column=12).value
             try:
-                field.interface_parent_position = int(p_pos) if p_pos is not None else None
+                field.interface_parent_position = int(p_pos) if p_pos is not None else 0
             except:
-                field.interface_parent_position = None
+                field.interface_parent_position = 0
                 
             # M列: 是否合并行 (rowspan) -> 这里逻辑有点特殊，model里是 1=是, 0=否
             # 但 excel 可能是 '是'/'否'
