@@ -1,5 +1,5 @@
 <template>
-  <el-table :data="rows" style="margin-top: 16px" stripe highlight-current-row border>
+  <el-table :data="rows" style="margin-top: 16px" stripe highlight-current-row border :height="resultHeight">
     <el-table-column v-for="col,idx in columns" :key="idx" :prop="idx+''" :label="col" :width="columnWidth(idx)" show-overflow-tooltip>
       <template #header>
         <el-tooltip :content="col" placement="top" :show-after="500">
@@ -16,7 +16,8 @@
 const { proxy } = getCurrentInstance()
 const props = defineProps({
   columns: { type: Array, default: () => [] },
-  rows: { type: Array, default: () => [] }
+  rows: { type: Array, default: () => [] },
+  resultHeight: { type: Number, default: 300 },
 })
 function columnWidth(colIdx) {
     if ((props.rows || []).length === 0) return 200

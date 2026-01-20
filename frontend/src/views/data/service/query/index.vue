@@ -26,8 +26,9 @@
 
           <resizable-splitter v-if="t.columns.length > 0" @resize="onResizeSplitter" />
 
+            <!-- :style="{ height: resultHeight + 'px', overflow: 'auto' }" -->
           <div v-if="t.columns.length > 0" class="query-result-wrapper" :style="{ height: resultHeight + 'px', overflow: 'auto' }">
-            <query-result :columns="t.columns" :rows="t.rows" />
+            <query-result :columns="t.columns" :rows="t.rows" :result-height="resultHeight"/>
           </div>
         </div>
       </el-tab-pane>
@@ -75,7 +76,7 @@ function onResizeSplitter(newSize) {
   queryViewHeight.value = newSize
   const remainingHeight = tabHeight.value - newSize - 8 // 8px for splitter
   resultHeight.value = Math.max(100, remainingHeight)
-  editorHeight.value = Math.max(100, queryViewHeight.value - 150)
+  editorHeight.value = Math.max(100, queryViewHeight.value - 100)
 }
 
 // 重置高度
@@ -114,8 +115,7 @@ function runQuery(t, p) {
   executeQuery(payload).then(res => {
       applyResult(t, res.data)
       proxy.$modal.msgSuccess('查询成功')
-      // 重置结果框高度
-      resetHeights()
+      onResizeSplitter(100) // 调整高度以显示结果
       // 查询成功，向下滚动30%
       scrollTo(300)
   }).finally(() => (t.running = false))
