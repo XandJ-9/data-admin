@@ -34,7 +34,7 @@ def custom_exception_handler(exc, context):
     Custom DRF exception handler that wraps all errors with {code, message}.
     """
     response = exception_handler(exc, context)
-    traceback.print_exc()
+    # traceback.print_exc()
     if response is not None:
         message = _first_error_message(response.data)
         # Fallback when message is empty

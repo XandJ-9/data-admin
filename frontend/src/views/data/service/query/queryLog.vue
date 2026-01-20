@@ -91,7 +91,6 @@ function showSqlDetail(sql) {
 }
 
 function getList() {
-  query.pageNum = 1
   listQueryLog(query).then(res => {
     list.value = res.rows || []
     total.value = res.total || 0

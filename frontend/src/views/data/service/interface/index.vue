@@ -4,10 +4,10 @@
     <!-- 搜索栏 -->
     <el-form v-if="showSearch" :model="queryParams" ref="queryRef" :inline="true">
       <el-form-item label="接口名称" prop="interfaceName">
-        <el-input v-model="queryParams.interfaceName" placeholder="请输入接口名称" clearable style="width: 200px" @keyup.enter="handleQuery" />
+        <el-input v-model="queryParams.interfaceName" placeholder="请输入接口名称" clearable style="width: 200px" @keyup.enter="getList" />
       </el-form-item>
       <el-form-item label="接口编码" prop="interfaceCode">
-        <el-input v-model="queryParams.interfaceCode" placeholder="请输入接口编码" clearable style="width: 200px" @keyup.enter="handleQuery" />
+        <el-input v-model="queryParams.interfaceCode" placeholder="请输入接口编码" clearable style="width: 200px" @keyup.enter="getList" />
       </el-form-item>
       <el-form-item label="数据库类型" prop="interfaceDbType">
         <el-select v-model="queryParams.interfaceDbType" placeholder="请选择数据库类型" clearable style="width: 200px">
@@ -15,7 +15,7 @@
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
+        <el-button type="primary" icon="Search" @click="getList">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
@@ -423,14 +423,11 @@ function getList() {
   })
 }
 
-function handleQuery() {
-  queryParams.value.pageNum = 1
-  getList()
-}
 
 function resetQuery() {
-  proxy.resetForm('queryRef')
-  handleQuery()
+    proxy.resetForm('queryRef')
+    queryParams.value.pageNum = 1
+    getList()
 }
 
 function handleSelectionChange(selection) {

@@ -10,12 +10,12 @@
       <el-form-item label="数据源">
         <el-input v-model="filterDataSourceName" placeholder="支持模糊匹配" style="width: 220px" />
       </el-form-item> 
-      <el-form-item label="创建时间">
+      <!-- <el-form-item label="创建时间">
         <el-date-picker v-model="createRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 300px" />
       </el-form-item>
       <el-form-item label="修改时间">
         <el-date-picker v-model="updateRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 300px" />
-      </el-form-item>
+      </el-form-item> -->
       <el-form-item>
         <el-button type="primary" @click="queryTables">查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
