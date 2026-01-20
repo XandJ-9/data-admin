@@ -16,6 +16,15 @@ export function listMetaColumns(query) {
   })
 }
 
+// 获取所有字段（用于字段查找模式）
+export function listAllMetaColumns() {
+  return request({
+    url: '/datameta/meta-column',
+    method: 'get',
+    params: { pageNum: 1, pageSize: 10000 }
+  })
+}
+
 // 新增元数据表
 export function addMetaTable(data) {
   return request({

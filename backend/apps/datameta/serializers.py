@@ -17,15 +17,19 @@ class MetaTableSerializer(BaseModelSerializer):
 
 class MetaColumnSerializer(BaseModelSerializer):
     tableName = serializers.CharField(source='table.table_name')
+    tableId = serializers.IntegerField(source='table.id')
     dataSourceId = serializers.IntegerField(source='data_source_id')
+    dataSourceName = serializers.CharField(source='data_source.name', read_only=True, required=False)
+    databaseName = serializers.CharField(source='table.database', read_only=True, required=False)
     columnIndex = serializers.IntegerField(source='order')
-    name = serializers.CharField()
-    type = serializers.CharField()
-    notnull = serializers.BooleanField()
-    default = serializers.CharField()
-    primary = serializers.BooleanField()
-    comment = serializers.CharField(required=False, allow_blank=True)
+    columnName = serializers.CharField(source='name')
+    dataType = serializers.CharField(source='type')
+    isNullable = serializers.BooleanField(source='notnull')
+    defaultValue = serializers.CharField(source='default')
+    isPrimary = serializers.BooleanField(source='primary')
+    columnComment = serializers.CharField(source='comment', required=False, allow_blank=True)
 
     class Meta:
         model = MetaColumn
-        fields = ['id', 'dataSourceId', 'tableName', 'columnIndex', 'name', 'type', 'notnull', 'default', 'primary', 'comment']
+        fields = ['id', 'tableId', 'dataSourceId', 'dataSourceName', 'tableName', 'databaseName',
+                  'columnIndex', 'columnName', 'dataType', 'isNullable', 'defaultValue', 'isPrimary', 'columnComment']

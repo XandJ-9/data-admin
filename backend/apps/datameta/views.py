@@ -63,7 +63,7 @@ class MetaTableViewSet(BaseViewSet):
 
 class MetaColumnViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = MetaColumn.objects.filter(del_flag='0').order_by('order')
+    queryset = MetaColumn.objects.filter(del_flag='0').select_related('table', 'data_source').order_by('table__table_name', 'order')
     serializer_class = MetaColumnSerializer
 
     def get_queryset(self):
@@ -81,6 +81,14 @@ class MetaColumnViewSet(BaseViewSet):
         if database:
             qs = qs.filter(table__database=database)
         return qs
+
+    def list(self, request, *args, **kwargs):
+        """支持大分页的列表接口"""
+        # 字段查找模式可能需要返回所有数据，允许更大的 pageSize
+        page_size = int(request.query_params.get('pageSize') or 10000)
+        if page_size > 10000:
+            page_size = 10000
+        return super().list(request, *args, **kwargs)
 
 
 class DataCollectionViewSet(BaseViewSet):
