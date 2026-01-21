@@ -247,7 +247,7 @@
 </template>
 
 <script setup name="InterfaceDetail">
-import { getInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, exportInterfaceMeta } from '@/api/dataservice'
+import { getInterfaceInfo, listInterfaceFields, addInterfaceField, updateInterfaceField, delInterfaceField, exportInterfaceMeta } from '@/api/data/service'
 import { useRoute, useRouter } from 'vue-router'
 import { VAceEditor } from 'vue3-ace-editor'
 import 'ace-builds/src-noconflict/ext-language_tools'

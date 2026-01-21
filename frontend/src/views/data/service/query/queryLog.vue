@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { listQueryLog } from '@/api/dataservice'
+import { listQueryLog } from '@/api/data/service'
 const list = ref([])
 const total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10, userName: '', status: '' })

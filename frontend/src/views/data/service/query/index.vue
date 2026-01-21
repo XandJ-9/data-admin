@@ -2,8 +2,8 @@
   <div class="app-container">
     <el-tabs v-model="active" type="card" @tab-click="onTabClick" @tab-remove="removeTab" :before-leave="beforeLeave">
       <el-tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.title" :closable="tabs.length > 1">
-        <div class="tab-content" :style="{ height: tabHeight + 'px' }">
-          <div class="query-view-wrapper" :style="{ height: queryViewHeight + 'px' }">
+        <div class="tab-content" :style="{ height: getTabHeight(t) + 'px' }">
+          <div class="query-view-wrapper" :style="{ height: getQueryViewHeight(t) + 'px' }">
             <query-view
               :dataSourceId="t.dataSourceId"
               :sqlText="t.sqlText"
@@ -13,7 +13,7 @@
               :next="t.next"
               :ds-list="dsList"
               :running="t.running"
-              :editorHeight="editorHeight"
+              :editorHeight="getEditorHeight(t)"
               @update:dataSourceId="v => (t.dataSourceId = v)"
               @update:sqlText="v => (t.sqlText = v)"
               @update:pageSize="v => (t.pageSize = v)"
@@ -24,11 +24,11 @@
             />
           </div>
 
-          <resizable-splitter v-if="t.columns.length > 0" @resize="onResizeSplitter" />
+          <resizable-splitter v-if="t.columns.length > 0" @resize="(newSize) => onResizeSplitter(t, newSize)" />
 
             <!-- :style="{ height: resultHeight + 'px', overflow: 'auto' }" -->
-          <div v-if="t.columns.length > 0" class="query-result-wrapper" :style="{ height: resultHeight + 'px', overflow: 'auto' }">
-            <query-result :columns="t.columns" :rows="t.rows" :result-height="resultHeight"/>
+          <div v-if="t.columns.length > 0" class="query-result-wrapper" :style="{ height: getResultHeight(t) + 'px', overflow: 'auto' }">
+            <query-result :columns="t.columns" :rows="t.rows" :result-height="getResultHeight(t)"/>
           </div>
         </div>
       </el-tab-pane>
@@ -42,9 +42,10 @@
 </template>
 
 <script setup name="DataServiceQuery">
+import { getCurrentInstance } from 'vue'
 import { Plus } from '@element-plus/icons-vue';
-import { listDatasource } from '@/api/datasource'
-import { executeQuery, exportQuery } from '@/api/dataservice'
+import { listDatasource } from '@/api/data/source'
+import { executeQuery, exportQuery } from '@/api/data/service'
 import { scrollTo } from '@/utils/scroll-to'
 import QueryView from './queryView.vue'
 import QueryResult from './queryResult.vue'
@@ -56,32 +57,42 @@ const tabs = ref([])
 const dsList = ref([])
 const addKey = '__add__'
 
-// 高度管理
-const tabHeight = ref(600)
-const queryViewHeight = ref(450)
-const editorHeight = ref(400)
-const resultHeight = ref(300)
-
-// 初始化高度
-function initHeights() {
+// 获取默认高度配置
+function getDefaultHeights() {
   const windowHeight = window.innerHeight
-  tabHeight.value = Math.max(400, windowHeight - 200)
-  queryViewHeight.value = Math.floor(tabHeight.value * 1.0)
-  resultHeight.value = tabHeight.value - queryViewHeight.value - 8 // 8px for splitter
-  editorHeight.value = queryViewHeight.value - 100 // 减去表单和其他元素的高度
+  const tabHeight = Math.max(400, windowHeight - 200)
+  const queryViewHeight = Math.floor(tabHeight * 1.0)
+  const resultHeight = tabHeight - queryViewHeight - 8 // 8px for splitter
+  const editorHeight = queryViewHeight - 100 // 减去表单和其他元素的高度
+  return { tabHeight, queryViewHeight, resultHeight, editorHeight }
 }
 
-// 分割条拖拽调整
-function onResizeSplitter(newSize) {
-  queryViewHeight.value = newSize
-  const remainingHeight = tabHeight.value - newSize - 8 // 8px for splitter
-  resultHeight.value = Math.max(100, remainingHeight)
-  editorHeight.value = Math.max(100, queryViewHeight.value - 100)
+// 获取 tab 的各个高度
+function getTabHeight(tab) {
+  return tab.heights?.tabHeight ?? getDefaultHeights().tabHeight
 }
 
-// 重置高度
-function resetHeights() {
-  initHeights()
+function getQueryViewHeight(tab) {
+  return tab.heights?.queryViewHeight ?? getDefaultHeights().queryViewHeight
+}
+
+function getResultHeight(tab) {
+  return tab.heights?.resultHeight ?? getDefaultHeights().resultHeight
+}
+
+function getEditorHeight(tab) {
+  return tab.heights?.editorHeight ?? getDefaultHeights().editorHeight
+}
+
+// 分割条拖拽调整（针对指定 tab）
+function onResizeSplitter(tab, newSize) {
+  if (!tab.heights) {
+    tab.heights = { ...getDefaultHeights() }
+  }
+  tab.heights.queryViewHeight = newSize
+  const remainingHeight = tab.heights.tabHeight - newSize - 8 // 8px for splitter
+  tab.heights.resultHeight = Math.max(100, remainingHeight)
+  tab.heights.editorHeight = Math.max(100, tab.heights.queryViewHeight - 100)
 }
 
 function addTab() {
@@ -115,7 +126,11 @@ function runQuery(t, p) {
   executeQuery(payload).then(res => {
       applyResult(t, res.data)
       proxy.$modal.msgSuccess('查询成功')
-      onResizeSplitter(100) // 调整高度以显示结果
+      // 查询成功后自动调整当前 tab 的高度以显示结果
+      if (!t.heights) {
+        t.heights = { ...getDefaultHeights() }
+      }
+      onResizeSplitter(t, Math.floor(t.heights.tabHeight * 0.4))
       // 查询成功，向下滚动30%
       scrollTo(300)
   }).finally(() => (t.running = false))
@@ -185,7 +200,6 @@ function beforeLeave(activeName, oldActiveName) {
 
 
 onMounted(() => {
-  initHeights()
   getDsList()
   addTab()
 })
