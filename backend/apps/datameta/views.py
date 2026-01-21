@@ -80,6 +80,18 @@ class MetaColumnViewSet(BaseViewSet):
         database = self.request.query_params.get('databaseName')
         if database:
             qs = qs.filter(table__database=database)
+        # 字段名模糊查询
+        column_name = self.request.query_params.get('columnName')
+        if column_name:
+            qs = qs.filter(name__icontains=column_name)
+        # 字段描述模糊查询
+        column_comment = self.request.query_params.get('columnComment')
+        if column_comment:
+            qs = qs.filter(comment__icontains=column_comment)
+        # 数据源名称模糊查询
+        data_source_name = self.request.query_params.get('dataSourceName')
+        if data_source_name:
+            qs = qs.filter(data_source__name__icontains=data_source_name)
         return qs
 
     def list(self, request, *args, **kwargs):

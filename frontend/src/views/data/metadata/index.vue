@@ -23,7 +23,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table v-loading="loading" :data="displayTables" row-key="id" style="width: 100%; margin-top: 12px" border show-overflow-tooltip>
+      <el-table v-loading="loading" :data="displayTables" row-key="id" style="width: 100%; margin-top: 12px" fit border show-overflow-tooltip>
         <el-table-column prop="tableName" label="表名" />
         <el-table-column prop="comment" label="表描述">
           <template #default="scope">
@@ -36,13 +36,13 @@
         <el-table-column prop="updateTime" label="修改同步时间" />
         <el-table-column prop="createBy" label="采集人" />
         <el-table-column prop="updateBy" label="更新者" />
-        <!-- <el-table-column label="操作" width="260">
+        <el-table-column label="操作">
           <template #default="scope">
             <el-button size="small" @click="openColumns(scope.row)">查看列</el-button>
-            <el-button size="small" type="primary" @click="openEdit(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="confirmDelete(scope.row)">删除</el-button>
+            <!-- <el-button size="small" type="primary" @click="openEdit(scope.row)">编辑</el-button> -->
+            <!-- <el-button size="small" type="danger" @click="confirmDelete(scope.row)">删除</el-button> -->
           </template>
-        </el-table-column> -->
+        </el-table-column>
       </el-table>
     </template>
 
@@ -67,45 +67,45 @@
         </el-form-item>
       </el-form>
 
-      <el-table v-loading="columnLoading" :data="displayColumns" row-key="uniqueKey" style="width: 100%; margin-top: 12px" border show-overflow-tooltip>
-        <el-table-column prop="tableName" label="表名" width="180">
+      <el-table v-loading="columnLoading" :data="displayColumns" row-key="uniqueKey" style="width: 100%; margin-top: 12px" fit border show-overflow-tooltip>
+        <el-table-column prop="tableName" label="表名">
           <template #default="scope">
             <el-link type="primary" @click="goToTable(scope.row)">{{ scope.row.tableName }}</el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="columnName" label="字段名" width="180" />
-        <el-table-column prop="columnComment" label="字段描述" width="200">
+        <el-table-column prop="columnIndex" label="字段序号" align="center" />
+        <el-table-column prop="columnName" label="字段名"/>
+        <el-table-column prop="columnComment" label="字段描述">
           <template #default="scope">
             <div class="prewrap">{{ scope.row.columnComment }}</div>
           </template>
         </el-table-column>
-        <el-table-column prop="dataType" label="数据类型" width="120" />
-        <el-table-column prop="dataSourceName" label="数据源" width="180" />
-        <el-table-column prop="databaseName" label="数据库" width="150" />
-        <el-table-column prop="isPrimary" label="主键" width="80" align="center">
+        <el-table-column prop="dataType" label="数据类型"/>
+        <el-table-column prop="dataSourceName" label="数据源" />
+        <el-table-column prop="databaseName" label="数据库"/>
+        <el-table-column prop="isPrimary" label="主键" align="center">
           <template #default="scope">
             <el-tag :type="scope.row.isPrimary ? 'success' : 'info'" size="small">{{ scope.row.isPrimary ? '是' : '否' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="isNullable" label="可空" width="80" align="center">
+        <el-table-column prop="isNullable" label="可空" align="center">
           <template #default="scope">
             <el-tag :type="scope.row.isNullable ? 'info' : 'warning'" size="small">{{ scope.row.isNullable ? '是' : '否' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="defaultValue" label="默认值" width="120" />
-        <el-table-column prop="columnIndex" label="序号" width="70" align="center" />
+        <el-table-column prop="defaultValue" label="默认值" />
       </el-table>
     </template>
 
     <div style="display: flex; justify-content: flex-end; margin-top: 12px">
       <el-pagination
-        :current-page="viewMode === 'table' ? pageNum : columnPageNum"
-        :page-size="viewMode === 'table' ? pageSize : columnPageSize"
+        :current-page="pageNum"
+        :page-size="pageSize"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next, jumper"
         :total="viewMode === 'table' ? total : columnTotal"
-        @size-change="viewMode === 'table' ? handleSizeChange : handleColumnSizeChange"
-        @current-change="viewMode === 'table' ? handleCurrentChange : handleColumnCurrentChange"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
       />
     </div>
 
@@ -162,7 +162,7 @@
  </template>
 
  <script setup name="DataMeta">
-import { listMetaTables, listMetaColumns, addMetaTable, updateMetaTable, delMetaTable, listAllMetaColumns } from '@/api/datameta'
+import { listMetaTables, listMetaColumns, addMetaTable, updateMetaTable, delMetaTable } from '@/api/datameta'
 import { listDatasource } from '@/api/datasource'
 const { proxy } = getCurrentInstance()
 
@@ -172,8 +172,6 @@ const viewMode = ref('table')
 // 表查找相关
 const tables = ref([])
 const total = ref(0)
-const pageNum = ref(1)
-const pageSize = ref(10)
 const filterName = ref('')
 const filterDataSourceName = ref('')
 const filterDbName = ref('')
@@ -183,10 +181,8 @@ const displayTables = computed(() => tables.value)
 const loading = ref(false)
 
 // 字段查找相关
-const allColumns = ref([])
+const searchColumns = ref([])
 const columnTotal = ref(0)
-const columnPageNum = ref(1)
-const columnPageSize = ref(10)
 const columnFilter = ref({
   columnName: '',
   columnComment: '',
@@ -194,26 +190,12 @@ const columnFilter = ref({
   dataSourceName: ''
 })
 const columnLoading = ref(false)
+
+// 分页参数（统一）
+const pageNum = ref(1)
+const pageSize = ref(10)
 const displayColumns = computed(() => {
-  let data = allColumns.value
-  // 前端过滤
-  if (columnFilter.value.columnName) {
-    data = data.filter(col => col.columnName?.toLowerCase().includes(columnFilter.value.columnName.toLowerCase()))
-  }
-  if (columnFilter.value.columnComment) {
-    data = data.filter(col => col.columnComment?.toLowerCase().includes(columnFilter.value.columnComment.toLowerCase()))
-  }
-  if (columnFilter.value.tableName) {
-    data = data.filter(col => col.tableName?.toLowerCase().includes(columnFilter.value.tableName.toLowerCase()))
-  }
-  if (columnFilter.value.dataSourceName) {
-    data = data.filter(col => col.dataSourceName?.toLowerCase().includes(columnFilter.value.dataSourceName.toLowerCase()))
-  }
-  // 前端分页
-  columnTotal.value = data.length
-  const start = (columnPageNum.value - 1) * columnPageSize.value
-  const end = start + columnPageSize.value
-  return data.slice(start, end).map(col => ({
+  return searchColumns.value.map(col => ({
     ...col,
     uniqueKey: `${col.tableId}-${col.columnName}` // 用于 row-key
   }))
@@ -235,8 +217,12 @@ const dsOptions = ref([])
 
 // 视图模式切换
 function handleViewModeChange(mode) {
-  if (mode === 'column' && allColumns.value.length === 0) {
+  // 切换视图模式时重置分页参数
+  pageNum.value = 1
+  if (mode === 'column') {
     getColumns()
+  } else {
+    getTables()
   }
 }
 
@@ -261,11 +247,17 @@ function getTables() {
   }).finally(() => (loading.value = false))
 }
 
-// 获取所有字段数据（字段查找模式）
+// 获取字段数据（字段查找模式，使用后端分页和过滤）
 function getColumns() {
   columnLoading.value = true
-  listAllMetaColumns().then(res => {
-    allColumns.value = res.rows || []
+  const params = { pageNum: pageNum.value, pageSize: pageSize.value }
+  if (columnFilter.value.columnName) params.columnName = columnFilter.value.columnName
+  if (columnFilter.value.columnComment) params.columnComment = columnFilter.value.columnComment
+  if (columnFilter.value.tableName) params.tableName = columnFilter.value.tableName
+  if (columnFilter.value.dataSourceName) params.dataSourceName = columnFilter.value.dataSourceName
+  listMetaColumns(params).then(res => {
+    searchColumns.value = res.rows || []
+    columnTotal.value = Number(res.total || 0)
   }).finally(() => (columnLoading.value = false))
 }
 
@@ -284,8 +276,8 @@ function openColumns(row) {
 
 // 字段查找模式下的方法
 function queryColumns() {
-  columnPageNum.value = 1
-  // 前端过滤，computed 会自动更新
+  pageNum.value = 1
+  getColumns()
 }
 
 function resetColumnFilters() {
@@ -295,16 +287,8 @@ function resetColumnFilters() {
     tableName: '',
     dataSourceName: ''
   }
-  columnPageNum.value = 1
-}
-
-function handleColumnSizeChange(size) {
-  columnPageSize.value = size
-  columnPageNum.value = 1
-}
-
-function handleColumnCurrentChange(page) {
-  columnPageNum.value = page
+  pageNum.value = 1
+  getColumns()
 }
 
 // 从字段查找模式跳转到表查找模式
@@ -320,13 +304,20 @@ function goToTable(row) {
 // 表查找模式下的分页方法
 function handleSizeChange(size) {
   pageSize.value = size
-  pageNum.value = 1
-  getTables()
+  if (viewMode.value === 'table') {
+    getTables()
+  } else {
+    getColumns()
+  }
 }
 
 function handleCurrentChange(page) {
   pageNum.value = page
-  getTables()
+  if (viewMode.value === 'table') {
+    getTables()
+  } else {
+    getColumns()
+  }
 }
 
 function toISO(d) {
