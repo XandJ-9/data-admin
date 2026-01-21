@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { listTasks, delTask } from '@/api/dataintegration'
+import { listTasks, delTask } from '@/api/data/integration'
 const router = useRouter()
 const { proxy } = getCurrentInstance()
 

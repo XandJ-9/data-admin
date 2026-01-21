@@ -67,7 +67,7 @@
 </template>
 
 <script setup name="TaskLog">
-import { listTaskLog } from "@/api/datataskmonitor";
+import { listTaskLog } from "@/api/data/taskmonitor";
 import { parseTime } from "@/utils/ruoyi";
 import { useRoute, useRouter } from 'vue-router';
 

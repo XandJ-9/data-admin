@@ -66,7 +66,7 @@ import { reactive, ref, watch, onMounted, getCurrentInstance } from 'vue'
 import Crontab from '@/components/Crontab'
 import SyncConfigDetail from './components/SyncConfigDetail'
 import { useRoute, useRouter } from 'vue-router'
-import { addTask, updateTask, getTask, listTasks } from '@/api/dataintegration'
+import { addTask, updateTask, getTask, listTasks } from '@/api/data/integration'
 import useTagsViewStore from '@/store/modules/tagsView'
 
 const route = useRoute()

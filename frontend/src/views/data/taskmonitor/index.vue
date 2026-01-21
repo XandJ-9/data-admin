@@ -284,7 +284,7 @@
 </template>
 
 <script setup name="Taskmonitor">
-import { listTask, getTask, updateTask, startTask, pauseTask, listAlertRule, addAlertRule, updateAlertRule, delAlertRule, listAlertRecord, handleAlert } from "@/api/datataskmonitor";
+import { listTask, getTask, updateTask, startTask, pauseTask, listAlertRule, addAlertRule, updateAlertRule, delAlertRule, listAlertRecord, handleAlert } from "@/api/data/taskmonitor";
 import { parseTime } from "@/utils/ruoyi";
 import { useRouter } from "vue-router";
 

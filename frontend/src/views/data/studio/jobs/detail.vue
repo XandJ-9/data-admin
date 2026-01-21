@@ -46,7 +46,7 @@
 <script setup name="JobDetail">
 import { ref, reactive, toRefs, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { addTask, getTask, updateTask } from "@/api/datastudio";
+import { addTask, getTask, updateTask } from "@/api/data/studio";
 import { getCurrentInstance } from 'vue';
 import useTagsViewStore from '@/store/modules/tagsView';
 
