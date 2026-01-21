@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('remark', models.CharField(blank=True, default='', max_length=500, verbose_name='备注')),
             ],
             options={
-                'db_table': 'dataintegration_task',
+                'db_table': 'dataetl_task',
                 'verbose_name': '数据集成任务',
                 'verbose_name_plural': '数据集成任务',
             },

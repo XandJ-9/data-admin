@@ -34,7 +34,7 @@ urlpatterns = [
     path('data-api/datasource/', include('apps.datasource.urls')),
     path('data-api/dataservice/', include('apps.dataservice.urls')),
     path('data-api/datameta/', include('apps.datameta.urls')),
-    path('data-api/dataintegration/', include('apps.dataintegration.urls')),
+    path('data-api/dataetl/', include('apps.dataetl.urls')),
     path('data-api/monitor/', include('apps.monitor.urls')),
     path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     path('data-api/datastudio/', include('apps.datastudio.urls')),

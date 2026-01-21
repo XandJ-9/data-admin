@@ -128,7 +128,41 @@ export const constantRoutes = [
 //         hidden: true
 //       }
 //     ]
-//   },
+    //   },
+    {
+    path: '/data/etl',
+    component: Layout,
+    redirect: '/data/etl/tasks',
+    meta: { title: '数据ETL', icon: 'data-integration' },
+    children: [
+      {
+        name: 'ETLTaskList',
+        path: 'tasks',
+        component: () => import('@/views/data/etl/taskList'),
+        meta: { title: 'ETL任务', icon: 'list' }
+      },
+      {
+        name: 'ETLTaskSimpleCreate',
+        path: 'create',
+        component: () => import('@/views/data/etl/SimpleTaskCreate'),
+        meta: { title: '创建ETL任务', icon: 'plus' }
+      },
+      {
+        name: 'ETLTaskDetail',
+        path: 'detail/:id',
+        component: () => import('@/views/data/etl/taskDetail'),
+        meta: { title: '任务详情', activeMenu: '/data/etl/tasks' },
+        hidden: true
+      },
+      {
+        name: 'ETLExecutionDetail',
+        path: 'execution/:id',
+        component: () => import('@/views/data/etl/components/ExecutionMonitor'),
+        meta: { title: '执行详情', activeMenu: '/data/etl/tasks' },
+        hidden: true
+      }
+    ]
+  }
 ]
 
 // 动态路由，基于用户权限动态去加载
@@ -202,7 +236,7 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
-  }
+    }
 ]
 
 const router = createRouter({

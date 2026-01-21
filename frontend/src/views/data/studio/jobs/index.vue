@@ -88,7 +88,7 @@
 </template>
 
 <script setup name="JobList">
-import { listTasks, delTask } from "@/api/datastudio";
+import { listTasks, delTask } from "@/api/data/studio";
 import { ref, reactive, toRefs, getCurrentInstance } from 'vue';
 import { useRouter } from 'vue-router';
 

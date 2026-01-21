@@ -69,9 +69,9 @@
 </template>
 
 <script setup name="DataSourceMetadata">
-import { listDatasource } from '@/api/datasource'
+import { listDatasource } from '@/api/data/source'
 import { listTables, listColumns, collectMetaTable, listDatabases,
-         collectMetaAsync, getCollectStatus, cancelCollect } from '@/api/datasource'
+         collectMetaAsync, getCollectStatus, cancelCollect } from '@/api/data/source'
 const { proxy } = getCurrentInstance()
 
 const dsId = ref()

@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     'apps.datasource',
     'apps.dataservice',
     'apps.datameta',
-    'apps.dataintegration',
+    'apps.dataetl',
     'apps.monitor',
     'apps.datataskmonitor',
     'apps.datastudio',
