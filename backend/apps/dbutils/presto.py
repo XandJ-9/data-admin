@@ -78,8 +78,8 @@ class PrestoExecutor(DataSourceExecutor):
 
     def build_pagination_sql(self, sql, page_size, offset):
         if int(offset) > 0:
-            return f"{sql} OFFSET {int(offset)} LIMIT {int(page_size)}", True
-        return f"{sql} LIMIT {int(page_size)}", True
+            return f"{sql} OFFSET {int(offset)} LIMIT {int(page_size)}"
+        return f"{sql} LIMIT {int(page_size)}"
 
     def test_connection(self):
         # 覆盖基础实现：Presto/Trino 连接通常在第一次执行查询时才真正握手

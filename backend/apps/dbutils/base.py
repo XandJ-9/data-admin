@@ -36,7 +36,8 @@ class DataSourceExecutor:
         paginated = False
         if isinstance(page_size, int) and page_size > 0 and isinstance(offset, int) and offset >= 0:
             if not _sql.lower().startswith(('show', 'describe', 'explain')):
-                _sql, paginated = self.build_pagination_sql(_sql, int(page_size), int(offset))
+                _sql = self.build_pagination_sql(_sql, int(page_size), int(offset))
+                paginated = True
         cur = self.conn.cursor()
         try:
             cur.execute(_sql, params)
@@ -60,7 +61,7 @@ class DataSourceExecutor:
             cur.close()
 
     def build_pagination_sql(self, sql, page_size, offset):
-        return sql, False
+        return sql
 
     def list_tables(self):
         raise NotImplementedError
@@ -95,7 +96,7 @@ class DataSourceExecutor:
         if not s_raw:
             raise ValueError('SQL不能为空')
         # 移除注释并转换为小写
-        s = '\n'.join([line for line in s_raw.split('\n') if not line.strip().startswith('--')]).strip().lower()
+        s = '\n'.join([line for line in s_raw.split('\n') if not line.strip().startswith('--')]).strip()
         allowed_prefixes = ('select', 'with', 'show', 'describe', 'explain')
         if s == '':
             raise ValueError('SQL不能为空')
