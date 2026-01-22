@@ -135,4 +135,4 @@ class PostgresExecutor(DataSourceExecutor):
             cur.close()
 
     def build_pagination_sql(self, sql, page_size, offset):
-        return f"{sql} LIMIT {int(page_size)} OFFSET {int(offset)}", True
+        return f"{sql} LIMIT {int(page_size)} OFFSET {int(offset)}"
