@@ -16,8 +16,9 @@ from typing import Dict, Any, Tuple
 from datetime import datetime
 
 from django.conf import settings
+from django.utils import timezone
 from .base import BaseExecutor
-from apps.dataetl.models import TaskExecutionLog
+from apps.datataskmonitor.models import TaskExecution
 
 
 class DataXExecutor(BaseExecutor):
@@ -71,9 +72,13 @@ class DataXExecutor(BaseExecutor):
             if not self.task.source_table or not self.task.target_table:
                 return False, "源表和目标表不能为空"
 
-            # 2. 验证多库采集配置
-            if self.task.is_multi_db_task and not self.task.source_databases:
-                return False, "多库采集任务必须指定源数据库列表"
+            # 2. 验证场景配置
+            scenario = self.task.scenario
+            if scenario in ['biz_to_stg', 'db_to_db'] and not self.task.source_datasource:
+                return False, f"场景 {scenario} 需要源数据源"
+
+            if scenario in ['warehouse_to_biz', 'db_to_db'] and not self.task.target_datasource:
+                return False, f"场景 {scenario} 需要目标数据源"
 
             # 3. 验证数据源连接（可选，耗时较长）
             # from apps.dbutils.factory import get_executor
@@ -93,22 +98,34 @@ class DataXExecutor(BaseExecutor):
             执行结果字典
         """
         try:
+            # 记录开始
+            self.add_log('INFO', '开始执行DataX任务')
+
             # 1. 生成DataX JSON配置
             datax_config = self._build_datax_config()
+            self.add_log('DEBUG', f'DataX配置生成成功')
 
             # 2. 保存配置文件
-            config_path = os.path.join('/tmp', f"datax_job_{self.execution_log.execution_id}.json")
+            execution_id = self.task_execution.id
+            config_path = os.path.join('/tmp', f"datax_job_{execution_id}.json")
             with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(datax_config, f, ensure_ascii=False, indent=2)
 
             # 3. 准备日志文件路径
-            log_path = os.path.join(self.DATAX_LOG_DIR, f"{self.execution_log.execution_id}.log")
+            log_path = os.path.join(self.DATAX_LOG_DIR, f"{execution_id}.log")
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-            # 4. 构建DataX命令
-            cmd = f"python {self.DATAX_HOME}/bin/datax.py {config_path} > {log_path} 2>&1"
+            # 4. 更新进度
+            self.update_progress(10, '准备DataX配置', '初始化')
 
-            # 5. 执行DataX命令（设置2小时超时）
+            # 5. 构建DataX命令
+            cmd = f"python {self.DATAX_HOME}/bin/datax.py {config_path} > {log_path} 2>&1"
+            self.add_log('INFO', f'执行命令: {cmd}')
+
+            # 6. 更新进度
+            self.update_progress(20, '开始数据同步', '执行中')
+
+            # 7. 执行DataX命令（设置2小时超时）
             result = subprocess.run(
                 cmd,
                 shell=True,
@@ -117,36 +134,44 @@ class DataXExecutor(BaseExecutor):
                 text=True
             )
 
-            # 6. 解析执行结果
+            # 8. 更新进度
+            self.update_progress(90, '解析执行结果', '完成中')
+
+            # 9. 解析执行结果
             stats = self._parse_datax_output(log_path)
+
+            self.add_log('INFO', f'DataX执行完成: 读取={stats.get("totalReadRecords", 0)}, 写入={stats.get("totalWriteRecords", 0)}')
 
             return {
                 'status': 'success' if result.returncode == 0 else 'failed',
                 'rows_read': stats.get('totalReadRecords', 0),
                 'rows_written': stats.get('totalWriteRecords', 0),
-                'rows_error': stats.get('totalErrorRecords', 0),
-                'bytes_transferred': stats.get('totalTransferBytes', 0),
-                'log_path': log_path,
+                'rows_failed': stats.get('totalErrorRecords', 0),
+                'bytes_processed': stats.get('totalTransferBytes', 0),
+                'log_file_path': log_path,
                 'error_message': stats.get('errorMessage', ''),
             }
 
         except subprocess.TimeoutExpired:
+            self.add_log('ERROR', 'DataX执行超时（2小时）')
             return {
                 'status': 'failed',
                 'error_message': 'DataX execution timeout after 2 hours',
-                'log_path': log_path if 'log_path' in locals() else '',
+                'log_file_path': log_path if 'log_path' in locals() else '',
             }
         except Exception as e:
+            self.add_log('ERROR', f'DataX执行异常: {str(e)}')
             return {
                 'status': 'failed',
                 'error_message': str(e),
-                'log_path': log_path if 'log_path' in locals() else '',
+                'log_file_path': log_path if 'log_path' in locals() else '',
             }
         finally:
             # 清理临时配置文件
             if 'config_path' in locals() and os.path.exists(config_path):
                 try:
                     os.remove(config_path)
+                    self.add_log('DEBUG', '清理临时配置文件')
                 except:
                     pass
 
@@ -207,49 +232,41 @@ class DataXExecutor(BaseExecutor):
 
     def _build_reader_params(self) -> Dict:
         """
-        构建reader参数 - 支持多库采集
+        构建reader参数
 
         Returns:
             reader参数字典
         """
+        if not self.task.source_datasource:
+            raise ValueError("源数据源不能为空")
+
         params = {
             "username": self.task.source_datasource.username,
             "password": self.task.source_datasource.password,
             "column": self._get_source_columns(),
             "splitPk": "",
-        }
-
-        # 【5000+租户优化】多库采集任务
-        if self.task.is_multi_db_task and self.task.source_databases:
-            # 为每个租户库创建一个connection配置
-            params["connection"] = []
-            for db_name in self.task.source_databases:
-                params["connection"].append({
-                    "jdbcUrl": [self._build_jdbc_url(
-                        self.task.source_datasource.db_type,
-                        self.task.source_datasource.host,
-                        self.task.source_datasource.port,
-                        db_name
-                    )],
-                    "table": [self.task.source_table]
-                })
-            # 多库采集时设置并发度
-            params["concurrency"] = self.task.concurrency or 10
-        else:
-            # 单库采集（原有逻辑）
-            params["connection"] = [{
+            "connection": [{
                 "jdbcUrl": [self._build_jdbc_url(
                     self.task.source_datasource.db_type,
                     self.task.source_datasource.host,
                     self.task.source_datasource.port,
-                    self.task.source_datasource.db_name
+                    self.task.source_database or self.task.source_datasource.db_name
                 )],
                 "table": [self.task.source_table]
             }]
+        }
 
         # 增量策略
-        if self.task.incremental_strategy != 'full':
+        if self.task.sync_mode != 'full':
             params["where"] = self._build_incremental_where()
+
+        # 过滤条件
+        if self.task.source_filter:
+            existing_where = params.get("where", "")
+            if existing_where:
+                params["where"] = f"({existing_where}) AND ({self.task.source_filter})"
+            else:
+                params["where"] = self.task.source_filter
 
         return params
 
@@ -260,6 +277,9 @@ class DataXExecutor(BaseExecutor):
         Returns:
             writer参数字典
         """
+        if not self.task.target_datasource:
+            raise ValueError("目标数据源不能为空")
+
         params = {
             "username": self.task.target_datasource.username,
             "password": self.task.target_datasource.password,
@@ -269,18 +289,12 @@ class DataXExecutor(BaseExecutor):
                     self.task.target_datasource.db_type,
                     self.task.target_datasource.host,
                     self.task.target_datasource.port,
-                    self.task.target_datasource.db_name
+                    self.task.target_database or self.task.target_datasource.db_name
                 )],
                 "table": [self.task.target_table]
             }],
-            "writeMode": "insert",  # 或 replace/update
+            "writeMode": "insert",
         }
-
-        # 分区配置
-        if self.task.target_partition:
-            partition_expr = self._build_partition_expr()
-            if partition_expr:
-                params["partition"] = partition_expr
 
         return params
 
@@ -296,21 +310,29 @@ class DataXExecutor(BaseExecutor):
 
         field = self.task.incremental_field
 
-        # 从上一次执行日志中获取最大值
-        last_execution = TaskExecutionLog.objects.filter(
-            task=self.task,
+        # 从上一次成功执行中获取最大值
+        # 查找同类型任务的上一次成功执行
+        last_execution = TaskExecution.objects.filter(
+            task_type='etl',
+            task_id=self.task.id,
             status='success'
-        ).order_by('-create_time').first()
+        ).order_by('-start_time').first()
 
         if not last_execution:
             return f"{field} IS NOT NULL"  # 首次全量
 
-        # 根据字段类型构建条件
-        last_value = last_execution.execution_params.get(f'last_{field}')
-        if last_value:
-            return f"{field} > '{last_value}'"
+        # 从ETL执行详情中获取上次执行的增量值
+        try:
+            etl_details = last_execution.etl_details
+            if etl_details and hasattr(etl_details, 'task_config_snapshot'):
+                snapshot = etl_details.task_config_snapshot
+                last_value = snapshot.get('last_incremental_value')
+                if last_value:
+                    return f"{field} > '{last_value}'"
+        except Exception:
+            pass
 
-        return "1=0"
+        return f"{field} IS NOT NULL"
 
     def _get_source_columns(self) -> list:
         """
@@ -319,8 +341,8 @@ class DataXExecutor(BaseExecutor):
         Returns:
             字段名列表
         """
-        if self.task.field_mapping:
-            return [m['source'] for m in self.task.field_mapping]
+        if self.task.field_mappings:
+            return [m['source'] for m in self.task.field_mappings]
         return ["*"]
 
     def _get_target_columns(self) -> list:
@@ -330,23 +352,17 @@ class DataXExecutor(BaseExecutor):
         Returns:
             字段名列表
         """
-        if self.task.field_mapping:
-            return [m['target'] for m in self.task.field_mapping]
+        if self.task.field_mappings:
+            return [m['target'] for m in self.task.field_mappings]
         return ["*"]
 
     def _build_partition_expr(self) -> str:
         """
-        构建分区表达式
+        构建分区表达式（新模型不使用分区配置，返回空）
 
         Returns:
             分区表达式字符串
         """
-        partition_config = self.task.target_partition
-        if partition_config.get('type') == 'date':
-            field = partition_config.get('field', 'ds')
-            format_str = partition_config.get('format', 'yyyyMMdd')
-            # 使用业务日期变量
-            return f"{field}='${{bizdate}}'"
         return ""
 
     def _build_transformers(self) -> list:
@@ -357,7 +373,7 @@ class DataXExecutor(BaseExecutor):
             转换规则列表
         """
         transformers = []
-        for mapping in self.task.field_mapping:
+        for mapping in self.task.field_mappings:
             if mapping.get('source') != mapping.get('target'):
                 # DataX的Groovy转换器
                 transformers.append({

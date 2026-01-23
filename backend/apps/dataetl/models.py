@@ -37,6 +37,12 @@ class ETLTask(BaseModel):
         ('scheduled', '定时执行'),
     )
 
+    # 执行方式（新的字段，用于区分手动/调度执行）
+    EXECUTION_MODE_CHOICES = (
+        ('manual', '手动执行'),
+        ('scheduled', '定时执行'),
+    )
+
     # ========== 基础信息 ==========
     name = models.CharField(max_length=255, verbose_name='任务名称', unique=True)
     scenario = models.CharField(
@@ -46,6 +52,13 @@ class ETLTask(BaseModel):
         help_text='决定任务的默认配置和执行方式'
     )
     status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='0', verbose_name='状态')
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=EXECUTION_MODE_CHOICES,
+        default='manual',
+        verbose_name='执行方式',
+        help_text='手动执行或定时执行'
+    )
     remark = models.TextField(blank=True, default='', verbose_name='备注')
 
     # ========== 数据源配置 ==========
@@ -168,6 +181,18 @@ class ETLTask(BaseModel):
         help_text='存储扩展配置，如分区信息、写入模式等'
     )
 
+    # ========== 任务依赖 ==========
+    depends_on_tasks = models.ManyToManyField(
+        'self',
+        through='ETLTaskDependency',
+        through_fields=('successor', 'predecessor'),
+        symmetrical=False,
+        related_name='dependent_tasks',
+        blank=True,
+        verbose_name='依赖任务',
+        help_text='此任务依赖的其他任务（必须先完成依赖任务才能执行此任务）'
+    )
+
     class Meta:
         db_table = 'etl_task'
         verbose_name = 'ETL任务'
@@ -184,7 +209,10 @@ class ETLTask(BaseModel):
 
 
 class ETLExecution(BaseModel):
-    """ETL任务执行记录"""
+    """
+    ETL任务执行记录
+    ETL特定的执行详情，链接到通用的TaskExecution
+    """
 
     STATUS_CHOICES = (
         ('pending', '等待中'),
@@ -194,35 +222,45 @@ class ETLExecution(BaseModel):
         ('cancelled', '已取消'),
     )
 
+    # 链接到通用的TaskExecution
+    execution = models.OneToOneField(
+        'datataskmonitor.TaskExecution',
+        on_delete=models.CASCADE,
+        related_name='etl_details',
+        verbose_name='通用执行记录',
+        null=True,  # 暂时允许为空以便迁移
+        blank=True
+    )
+
     task = models.ForeignKey(
         ETLTask,
         on_delete=models.CASCADE,
         related_name='executions',
         verbose_name='任务'
     )
+
+    # ETL特定的统计信息（通用统计已移至TaskExecution）
+    rows_read = models.BigIntegerField(default=0, verbose_name='源表行数')
+    rows_written = models.BigIntegerField(default=0, verbose_name='目标表行数')
+    rows_failed = models.IntegerField(default=0, verbose_name='拒绝行数')
+
+    # 保留旧字段用于向后兼容（新数据应使用TaskExecution中的对应字段）
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='状态')
-
-    # 执行统计
-    rows_read = models.BigIntegerField(default=0, verbose_name='读取行数')
-    rows_written = models.BigIntegerField(default=0, verbose_name='写入行数')
-    rows_failed = models.IntegerField(default=0, verbose_name='失败行数')
-
-    # 时间统计
     start_time = models.DateTimeField(null=True, blank=True, verbose_name='开始时间')
     end_time = models.DateTimeField(null=True, blank=True, verbose_name='结束时间')
     duration = models.IntegerField(default=0, verbose_name='执行时长(秒)')
-
-    # 进度信息
     progress = models.IntegerField(default=0, verbose_name='进度百分比')
+
+    # 当前阶段
     current_stage = models.CharField(max_length=255, blank=True, default='', verbose_name='当前阶段')
 
-    # 执行日志
+    # 执行日志（保留用于向后兼容，新日志应使用TaskExecutionLog）
     logs = models.JSONField(default=list, blank=True, verbose_name='执行日志')
 
     # 错误信息
     error_message = models.TextField(blank=True, default='', verbose_name='错误信息')
 
-    # 执行参数快照
+    # 执行参数快照（保存任务执行时的配置）
     execution_snapshot = models.JSONField(default=dict, blank=True, verbose_name='执行参数快照')
 
     class Meta:
@@ -242,6 +280,41 @@ class ETLExecution(BaseModel):
     @property
     def is_running(self):
         return self.status == 'running'
+
+
+class ETLTaskDependency(BaseModel):
+    """
+    ETL任务依赖关系
+    定义任务执行的前后依赖关系：successor 依赖于 predecessor（predecessor 必须先完成）
+    """
+
+    predecessor = models.ForeignKey(
+        ETLTask,
+        on_delete=models.CASCADE,
+        related_name='dependency_successors',
+        verbose_name='前置任务',
+        help_text='需要先完成的任务'
+    )
+    successor = models.ForeignKey(
+        ETLTask,
+        on_delete=models.CASCADE,
+        related_name='dependency_predecessors',
+        verbose_name='后置任务',
+        help_text='依赖前置任务的任务'
+    )
+
+    class Meta:
+        db_table = 'etl_task_dependency'
+        verbose_name = 'ETL任务依赖'
+        verbose_name_plural = 'ETL任务依赖'
+        unique_together = [['predecessor', 'successor']]
+        indexes = [
+            models.Index(fields=['predecessor']),
+            models.Index(fields=['successor']),
+        ]
+
+    def __str__(self):
+        return f"{self.successor.name} 依赖 {self.predecessor.name}"
 
 
 class ETLTemplate(BaseModel):

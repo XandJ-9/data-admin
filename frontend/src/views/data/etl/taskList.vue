@@ -247,9 +247,9 @@
             {{ formatNumber(row.rowsRead) }} / {{ formatNumber(row.rowsWritten) }}
           </template>
         </el-table-column>
-        <el-table-column prop="duration" label="时长" width="100">
+        <el-table-column prop="durationFormatted" label="时长" width="100">
           <template #default="{ row }">
-            {{ formatDuration(row.duration) }}
+            {{ row.durationFormatted || formatDuration(row.durationSeconds) }}
           </template>
         </el-table-column>
         <el-table-column prop="progress" label="进度" width="80">
@@ -257,7 +257,7 @@
             {{ row.progress }}%
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="执行时间" min-width="160" />
+        <el-table-column prop="startTime" label="执行时间" min-width="160" />
         <el-table-column label="操作" width="100">
           <template #default="{ row }">
             <el-button link type="primary" @click="handleViewExecution(row)">
@@ -277,7 +277,8 @@ import {
   Search, Refresh, Plus, Right, VideoPlay, View, Edit, Delete,
   CircleCheck, CircleClose, Loading, Clock
 } from '@element-plus/icons-vue'
-import { listTasks, executeTask, deleteTask, getTaskExecutions, updateTask } from '@/api/data/etl'
+import { listTasks, executeTask, deleteTask, updateTask } from '@/api/data/etl'
+import { listTaskExecutions } from '@/api/taskMonitor'
 
 const router = useRouter()
 
@@ -377,7 +378,8 @@ async function handleDelete(row) {
 
 async function handleViewExecutions(row) {
   try {
-    const res = await getTaskExecutions(row.id)
+    // 使用通用执行监控API，过滤出ETL任务的执行记录
+    const res = await listTaskExecutions({ taskId: row.id, taskType: 'etl' })
     executions.value = res.rows || []
     executionsDialogVisible.value = true
   } catch (error) {

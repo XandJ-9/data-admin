@@ -84,68 +84,45 @@ export const constantRoutes = [
       }
     ]
   },
-//   {
-//     path: '/datataskmonitor',
-//     component: Layout,
-//     hidden: false,
-//     redirect: '/datataskmonitor/index',
-//     meta: { title: '数据运维', icon: 'monitor' },
-//     children: [
-//       {
-//         path: 'index',
-//         component: () => import('@/views/data/taskmonitor/index.vue'),
-//         name: 'DataTask',
-//         meta: { title: '任务运维', icon: 'list' }
-//       },
-//       {
-//         path: 'log',
-//         component: () => import('@/views/data/taskmonitor/log.vue'),
-//         name: 'TaskLog',
-//         meta: { title: '任务日志', icon: 'log' },
-//         hidden: false
-//       }
-//     ]
-//   },
-//   {
-//     path: '/datastudio',
-//     component: Layout,
-//     hidden: false,
-//     alwaysShow: true,
-//     redirect: '/datastudio/index',
-//     meta: { title: '数据开发', icon: 'code' },
-//     children: [
-//       {
-//         path: 'index',
-//         component: () => import('@/views/data/studio/index.vue'),
-//         name: 'DataStudioTasks',
-//         meta: { title: '任务列表', icon: 'list' }
-//       },
-//       {
-//         path: 'task-detail/:id',
-//         component: () => import('@/views/data/studio/TaskDetail.vue'),
-//         name: 'DataStudioTaskDetail',
-//         meta: { title: '任务详情', activeMenu: '/datastudio/index' },
-//         hidden: true
-//       }
-//     ]
-    //   },
+  {
+    path: '/data/taskmonitor',
+    component: Layout,
+    hidden: false,
+    redirect: '/data/taskmonitor/index',
+    meta: { title: '数据运维', icon: 'monitor' },
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/data/taskmonitor/index.vue'),
+        name: 'DataTask',
+        meta: { title: '任务运维', icon: 'list' }
+      },
+      {
+        path: 'log',
+        component: () => import('@/views/data/taskmonitor/log.vue'),
+        name: 'TaskLog',
+        meta: { title: '任务日志', icon: 'log' },
+        hidden: false
+      }
+    ]
+  },
     {
     path: '/data/etl',
     component: Layout,
-    redirect: '/data/etl/tasks',
+    redirect: '/data/etl/scenarios',
     meta: { title: '数据ETL', icon: 'data-integration' },
     children: [
       {
         name: 'ETLTaskList',
         path: 'tasks',
         component: () => import('@/views/data/etl/taskList'),
-        meta: { title: 'ETL任务', icon: 'list' }
+        meta: { title: '任务列表', icon: 'list' }
       },
       {
         name: 'ETLTaskSimpleCreate',
-        path: 'create',
-        component: () => import('@/views/data/etl/SimpleTaskCreate'),
-        meta: { title: '创建ETL任务', icon: 'plus' }
+        path: 'scenarios',
+        component: () => import('@/views/data/etl/index'),
+        meta: { title: '新增任务', icon: 'example' }
       },
       {
         name: 'ETLTaskDetail',

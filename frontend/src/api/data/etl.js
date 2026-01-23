@@ -137,3 +137,100 @@ export function applyTemplate(id) {
     method: 'post'
   })
 }
+
+// ========== 依赖管理 API ==========
+
+// 获取任务的所有依赖
+export function getDependencies(taskId) {
+  return request({
+    url: `/dataetl/tasks/${taskId}/dependencies/`,
+    method: 'get'
+  })
+}
+
+// 添加任务依赖
+export function addDependency(taskId, data) {
+  return request({
+    url: `/dataetl/tasks/${taskId}/add_dependency/`,
+    method: 'post',
+    data
+  })
+}
+
+// 移除任务依赖
+export function removeDependency(taskId, data) {
+  return request({
+    url: `/dataetl/tasks/${taskId}/remove_dependency/`,
+    method: 'post',
+    data
+  })
+}
+
+// 检查任务是否可以执行
+export function checkDependencies(taskId) {
+  return request({
+    url: `/dataetl/tasks/${taskId}/check_dependencies/`,
+    method: 'get'
+  })
+}
+
+// 获取完整依赖链
+export function getDependencyChain(taskId) {
+  return request({
+    url: `/dataetl/tasks/${taskId}/dependency_chain/`,
+    method: 'get'
+  })
+}
+
+// ========== 通用执行监控 API ==========
+
+// 获取所有执行记录（通用）
+export function getAllTaskExecutions(params) {
+  return request({
+    url: '/task-monitor/executions/',
+    method: 'get',
+    params
+  })
+}
+
+// 获取执行记录详情（通用）
+export function getTaskExecution(id) {
+  return request({
+    url: `/task-monitor/executions/${id}/`,
+    method: 'get'
+  })
+}
+
+// 获取执行日志（通用）
+export function getTaskExecutionLogs(id, params) {
+  return request({
+    url: `/task-monitor/executions/${id}/logs/`,
+    method: 'get',
+    params
+  })
+}
+
+// 取消正在运行的任务
+export function cancelExecution(id) {
+  return request({
+    url: `/task-monitor/executions/${id}/cancel/`,
+    method: 'post'
+  })
+}
+
+// 获取ETL特定执行详情
+export function getETLExecutionDetails(id) {
+  return request({
+    url: `/task-monitor/executions/${id}/etl_details/`,
+    method: 'get'
+  })
+}
+
+// 获取执行日志列表
+export function listExecutionLogs(params) {
+  return request({
+    url: '/task-monitor/execution-logs/',
+    method: 'get',
+    params
+  })
+}

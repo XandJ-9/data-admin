@@ -3,15 +3,18 @@
     <!-- 步骤指示器 -->
     <div class="wizard-header">
       <el-steps :active="currentStep" finish-status="success" align-center>
-        <el-step title="选择数据源" :description="stepDescriptions[0]" />
-        <el-step title="配置映射" :description="stepDescriptions[1]" />
-        <el-step title="执行设置" :description="stepDescriptions[2]" />
+        <el-step
+          v-for="(title, index) in stepTitles"
+          :key="index"
+          :title="title"
+          :description="stepDescriptions[index]"
+        />
       </el-steps>
     </div>
 
     <!-- 步骤内容 -->
     <div class="wizard-content">
-      <!-- 步骤1: 数据源选择 -->
+      <!-- 步骤1: 数据源选择（使用场景组件） -->
       <transition name="fade" mode="out-in">
         <div v-if="currentStep === 0" key="step1" class="step-panel">
           <el-card shadow="never">
@@ -22,165 +25,16 @@
               </div>
             </template>
 
-            <el-form :model="formData" :rules="step1Rules" ref="step1FormRef" label-width="120px">
-              <!-- 场景1: 业务库 → STG -->
-              <template v-if="scenario === 'biz_to_stg'">
-                <el-form-item label="源业务库" prop="sourceDatasourceId" required>
-                  <datasource-select
-                    v-model="formData.sourceDatasourceId"
-                    @change="handleSourceChange"
-                    placeholder="请选择业务数据库"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="源表" prop="sourceTable" required>
-                  <table-select
-                    v-model="formData.sourceTable"
-                    :datasource-id="formData.sourceDatasourceId"
-                    @change="handleSourceTableChange"
-                    placeholder="请选择要同步的表"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="过滤条件">
-                  <el-input
-                    v-model="formData.whereCondition"
-                    type="textarea"
-                    :rows="2"
-                    placeholder="可选，如：status = 1 AND create_time >= '2024-01-01'"
-                  />
-                  <div class="form-tip">只同步满足条件的数据，留空则同步全部数据</div>
-                </el-form-item>
-              </template>
-
-              <!-- 场景2: STG → ODS -->
-              <template v-else-if="scenario === 'stg_to_ods'">
-                <el-form-item label="STG表" prop="sourceTable" required>
-                  <hive-table-select
-                    v-model="formData.sourceTable"
-                    schema="stg"
-                    @change="handleSourceTableChange"
-                    placeholder="请选择STG层的表"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="清洗规则">
-                  <el-input
-                    v-model="formData.transformRules"
-                    type="textarea"
-                    :rows="3"
-                    placeholder="可选，如：去除空值、数据格式转换等规则"
-                  />
-                  <div class="form-tip">对STG数据进行清洗、去重、格式转换等处理</div>
-                </el-form-item>
-              </template>
-
-              <!-- 场景3: 数仓计算 -->
-              <template v-else-if="scenario === 'warehouse_transform'">
-                <el-form-item label="目标层级" prop="targetLayer" required>
-                  <el-radio-group v-model="formData.targetLayer">
-                    <el-radio label="dwd">DWD明细层</el-radio>
-                    <el-radio label="dws">DWS汇总层</el-radio>
-                    <el-radio label="ads">ADS应用层</el-radio>
-                  </el-radio-group>
-                  <div class="form-tip">选择计算结果要存储的目标层级</div>
-                </el-form-item>
-                <el-form-item label="SQL脚本" prop="sqlScript" required>
-                  <sql-editor
-                    v-model="formData.sqlScript"
-                    :height="300"
-                    placeholder="请输入Spark SQL语句，可以使用 {{ 参数名 }} 语法"
-                    language="sql"
-                  />
-                  <div class="form-tip">
-                    支持参数化查询，执行时会替换参数值
-                    <el-button link type="primary" size="small" @click="showSqlHelp">SQL帮助</el-button>
-                  </div>
-                </el-form-item>
-              </template>
-
-              <!-- 场景4: 数仓 → 业务库 -->
-              <template v-else-if="scenario === 'warehouse_to_biz'">
-                <el-form-item label="数仓表" prop="sourceTable" required>
-                  <hive-table-select
-                    v-model="formData.sourceTable"
-                    @change="handleSourceTableChange"
-                    placeholder="请选择要导出的数仓表"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="目标业务库" prop="targetDatasourceId" required>
-                  <datasource-select
-                    v-model="formData.targetDatasourceId"
-                    @change="handleTargetChange"
-                    placeholder="请选择目标业务数据库"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="目标表" prop="targetTable" required>
-                  <table-select
-                    v-model="formData.targetTable"
-                    :datasource-id="formData.targetDatasourceId"
-                    placeholder="请选择或输入目标表名"
-                    allow-create
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="写入模式">
-                  <el-radio-group v-model="formData.writeMode">
-                    <el-radio label="overwrite">覆盖模式</el-radio>
-                    <el-radio label="append">追加模式</el-radio>
-                  </el-radio-group>
-                  <div class="form-tip">覆盖：清空后写入；追加：保留原数据，新增数据</div>
-                </el-form-item>
-              </template>
-
-              <!-- 场景5: 数据库互相同步 -->
-              <template v-else-if="scenario === 'db_to_db'">
-                <el-form-item label="源数据库" prop="sourceDatasourceId" required>
-                  <datasource-select
-                    v-model="formData.sourceDatasourceId"
-                    @change="handleSourceChange"
-                    placeholder="请选择源数据库"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="源表" prop="sourceTable" required>
-                  <table-select
-                    v-model="formData.sourceTable"
-                    :datasource-id="formData.sourceDatasourceId"
-                    @change="handleSourceTableChange"
-                    placeholder="请选择源表"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="目标数据库" prop="targetDatasourceId" required>
-                  <datasource-select
-                    v-model="formData.targetDatasourceId"
-                    @change="handleTargetChange"
-                    placeholder="请选择目标数据库"
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="目标表" prop="targetTable" required>
-                  <table-select
-                    v-model="formData.targetTable"
-                    :datasource-id="formData.targetDatasourceId"
-                    placeholder="请选择或输入目标表名"
-                    allow-create
-                    style="width: 100%"
-                  />
-                </el-form-item>
-                <el-form-item label="过滤条件">
-                  <el-input
-                    v-model="formData.whereCondition"
-                    type="textarea"
-                    :rows="2"
-                    placeholder="可选，如：status = 1"
-                  />
-                </el-form-item>
-              </template>
-            </el-form>
+            <!-- 动态场景组件 -->
+            <component
+              :is="currentScenarioComponent"
+              v-model="formData"
+              ref="scenarioFormRef"
+              @source-change="handleSourceChange"
+              @source-table-change="handleSourceTableChange"
+              @target-change="handleTargetChange"
+              @show-sql-help="showSqlHelp"
+            />
           </el-card>
         </div>
 
@@ -378,19 +232,15 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   ArrowLeft, ArrowRight, VideoPlay, MagicStick, QuestionFilled, Refresh, Setting
 } from '@element-plus/icons-vue'
 import FieldMapping from '@/components/FieldMapping'
 import DataPreview from './DataPreview'
 import ConfigSummary from './ConfigSummary'
-import DatasourceSelect from './DatasourceSelect'
-import TableSelect from './TableSelect'
-import HiveTableSelect from './HiveTableSelect'
-import SqlEditor from './SqlEditor'
 import ScheduleSelect from './ScheduleSelect'
 import { SCENARIO_CONFIGS } from './scenarioConfig'
+import { getScenarioComponent, getScenarioInfo } from './scenarios'
 
 const props = defineProps({
   scenario: {
@@ -401,13 +251,12 @@ const props = defineProps({
 
 const emit = defineEmits(['submit', 'cancel'])
 
-const router = useRouter()
 const currentStep = ref(0)
 const submitting = ref(false)
 const showPreview = ref(false)
 const previewLoading = ref(false)
 
-const step1FormRef = ref()
+const scenarioFormRef = ref()
 const step3FormRef = ref()
 
 const formData = reactive({
@@ -442,16 +291,19 @@ const formData = reactive({
   concurrency: 1
 })
 
+// 当前场景组件
+const currentScenarioComponent = computed(() => {
+  return getScenarioComponent(props.scenario)
+})
+
+// 场景信息
+const scenarioInfo = computed(() => {
+  return getScenarioInfo(props.scenario)
+})
+
 // 步骤标题和描述
 const stepTitles = computed(() => {
-  const titles = {
-    biz_to_stg: ['选择业务库和表', '配置字段映射', '设置同步方式'],
-    stg_to_ods: ['选择STG表', '配置清洗规则和映射', '设置同步方式'],
-    warehouse_transform: ['编写计算SQL', '配置输出字段', '设置执行计划'],
-    warehouse_to_biz: ['选择数仓表和目标库', '配置字段映射', '设置执行方式'],
-    db_to_db: ['选择源库和目标库', '配置字段映射', '设置同步方式']
-  }
-  return titles[props.scenario] || ['选择数据源', '配置映射', '执行设置']
+  return scenarioInfo.value?.steps || ['选择数据源', '配置映射', '执行设置']
 })
 
 const stepDescriptions = computed(() => {
@@ -466,14 +318,7 @@ const stepDescriptions = computed(() => {
 })
 
 const scenarioLabel = computed(() => {
-  const labels = {
-    biz_to_stg: '业务库 → STG',
-    stg_to_ods: 'STG → ODS',
-    warehouse_transform: '数仓计算',
-    warehouse_to_biz: '数仓 → 业务库',
-    db_to_db: '库库同步'
-  }
-  return labels[props.scenario] || ''
+  return scenarioInfo.value?.name || ''
 })
 
 // 预览配置
@@ -484,33 +329,6 @@ const previewConfig = computed(() => ({
 }))
 
 // 表单验证规则
-const step1Rules = computed(() => {
-  const scenarioConfig = SCENARIO_CONFIGS[props.scenario] || {}
-  const requiredFields = scenarioConfig.requiredFields || []
-
-  const rules = {}
-  if (requiredFields.includes('sourceDatasourceId')) {
-    rules.sourceDatasourceId = [{ required: true, message: '请选择源数据源', trigger: 'change' }]
-  }
-  if (requiredFields.includes('sourceTable')) {
-    rules.sourceTable = [{ required: true, message: '请选择源表', trigger: 'change' }]
-  }
-  if (requiredFields.includes('targetDatasourceId')) {
-    rules.targetDatasourceId = [{ required: true, message: '请选择目标数据源', trigger: 'change' }]
-  }
-  if (requiredFields.includes('targetTable')) {
-    rules.targetTable = [{ required: true, message: '请选择目标表', trigger: 'change' }]
-  }
-  if (requiredFields.includes('targetLayer')) {
-    rules.targetLayer = [{ required: true, message: '请选择目标层级', trigger: 'change' }]
-  }
-  if (requiredFields.includes('sqlScript')) {
-    rules.sqlScript = [{ required: true, message: '请输入SQL脚本', trigger: 'blur' }]
-  }
-
-  return rules
-})
-
 const step3Rules = {
   taskName: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
   incrementalField: [{ required: true, message: '请选择增量字段', trigger: 'change' }]
@@ -586,14 +404,7 @@ function autoMapFields() {
 function generateTaskName() {
   const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const table = formData.sourceTable || 'table'
-  const scenarioNames = {
-    biz_to_stg: '业务库到STG',
-    stg_to_ods: 'STG到ODS',
-    warehouse_transform: '数仓计算',
-    warehouse_to_biz: '数仓到业务库',
-    db_to_db: '库库同步'
-  }
-  const scenarioName = scenarioNames[props.scenario] || '数据同步'
+  const scenarioName = scenarioInfo.value?.name || '数据同步'
   formData.taskName = `${scenarioName}_${table}_${timestamp}`
 }
 
@@ -609,11 +420,11 @@ function getFieldTypeHint(fieldName) {
 
 async function nextStep() {
   if (currentStep.value === 0) {
-    const valid = await step1FormRef.value?.validate().catch(() => false)
+    const valid = await scenarioFormRef.value?.validate().catch(() => false)
     if (!valid) return
 
     // 如果是数仓计算场景，跳过字段映射步骤
-    if (props.scenario === 'warehouse_transform') {
+    if (scenarioInfo.value?.skipMapping) {
       currentStep.value = 2
       return
     }
@@ -627,7 +438,7 @@ async function nextStep() {
 }
 
 function prevStep() {
-  if (currentStep.value === 2 && props.scenario === 'warehouse_transform') {
+  if (currentStep.value === 2 && scenarioInfo.value?.skipMapping) {
     currentStep.value = 0
   } else {
     currentStep.value--
@@ -641,7 +452,6 @@ async function submitWizard() {
   submitting.value = true
 
   try {
-    // 构建提交数据
     const submitData = buildSubmitData()
     emit('submit', submitData)
   } finally {

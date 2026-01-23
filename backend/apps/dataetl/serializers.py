@@ -3,7 +3,7 @@ ETL模块序列化器 - 简化版
 """
 from rest_framework import serializers
 from apps.system.serializers import BaseModelSerializer
-from .models import ETLTask, ETLExecution, ETLTemplate
+from .models import ETLTask, ETLExecution, ETLTemplate, ETLTaskDependency
 
 
 class ETLTaskSerializer(BaseModelSerializer):
@@ -11,6 +11,7 @@ class ETLTaskSerializer(BaseModelSerializer):
 
     scenario_display = serializers.CharField(source='get_scenario_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    execution_mode_display = serializers.CharField(source='get_execution_mode_display', read_only=True)  # 新增
     sync_mode_display = serializers.CharField(source='get_sync_mode_display', read_only=True)
     executor_type_display = serializers.CharField(source='get_executor_type_display', read_only=True)
     schedule_type_display = serializers.CharField(source='get_schedule_type_display', read_only=True)
@@ -26,6 +27,7 @@ class ETLTaskSerializer(BaseModelSerializer):
         model = ETLTask
         fields = [
             'id', 'name', 'scenario', 'scenario_display', 'status', 'status_display',
+            'execution_mode', 'execution_mode_display',  # 新增字段
             'remark', 'source_datasource', 'source_datasource_name', 'source_table',
             'source_database', 'source_filter', 'target_datasource', 'target_datasource_name',
             'target_table', 'target_database', 'target_layer', 'sync_mode', 'sync_mode_display',
@@ -203,3 +205,51 @@ class TablePreviewSerializer(serializers.Serializer):
     database = serializers.CharField(required=False, default='')
     where = serializers.CharField(required=False, default='')
     limit = serializers.IntegerField(required=False, default=10)
+
+
+class ETLTaskDependencySerializer(BaseModelSerializer):
+    """ETL任务依赖序列化器"""
+
+    predecessor_name = serializers.CharField(source='predecessor.name', read_only=True)
+    successor_name = serializers.CharField(source='successor.name', read_only=True)
+    predecessor_scenario = serializers.CharField(source='predecessor.scenario', read_only=True)
+    predecessor_status = serializers.CharField(source='predecessor.status', read_only=True)
+    predecessor_execution_mode = serializers.CharField(source='predecessor.execution_mode', read_only=True)
+
+    class Meta:
+        model = ETLTaskDependency
+        fields = [
+            'id', 'predecessor', 'predecessor_name', 'predecessor_scenario',
+            'predecessor_status', 'predecessor_execution_mode',
+            'successor', 'successor_name',
+            'create_time', 'update_time',
+        ]
+
+
+class ETLTaskDependencyCreateSerializer(serializers.Serializer):
+    """创建任务依赖序列化器"""
+
+    predecessor_id = serializers.IntegerField(required=True, help_text='前置任务ID')
+    successor_id = serializers.IntegerField(required=True, help_text='后置任务ID (当前任务ID)')
+
+    def validate(self, data):
+        predecessor_id = data.get('predecessor_id')
+        successor_id = data.get('successor_id')
+
+        if predecessor_id == successor_id:
+            raise serializers.ValidationError('任务不能依赖自己')
+
+        return data
+
+
+class DependencyCheckSerializer(serializers.Serializer):
+    """依赖检查结果序列化器"""
+
+    can_execute = serializers.BooleanField(read_only=True)
+    message = serializers.CharField(read_only=True, allow_blank=True, default='')
+    unsatisfied_dependencies = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+        allow_empty=True,
+        default=[]
+    )

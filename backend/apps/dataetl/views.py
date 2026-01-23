@@ -9,14 +9,18 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
-from .models import ETLTask, ETLExecution, ETLTemplate
+from .models import ETLTask, ETLExecution, ETLTemplate, ETLTaskDependency
 from .serializers import (
     ETLTaskSerializer,
     ETLTaskCreateSerializer,
     ETLExecutionSerializer,
     ETLExecutionListSerializer,
     ETLTemplateSerializer,
+    ETLTaskDependencySerializer,
+    ETLTaskDependencyCreateSerializer,
+    DependencyCheckSerializer,
 )
+from .services.dependency import DependencyService
 
 
 class ETLTaskViewSet(BaseViewSet):
@@ -221,6 +225,100 @@ class ETLTaskViewSet(BaseViewSet):
         return self.ok({
             'rows': serializer.data,
             'total': templates.count()
+        })
+
+    @action(detail=True, methods=['get'])
+    def dependencies(self, request, pk=None):
+        """获取任务的所有依赖"""
+        task = self.get_object()
+        dependencies = ETLTaskDependency.objects.filter(successor=task)
+
+        # 检查依赖是否满足
+        can_execute, unsatisfied = DependencyService.check_dependencies_satisfied(task.id)
+
+        serializer = ETLTaskDependencySerializer(dependencies, many=True)
+        return self.ok({
+            'rows': serializer.data,
+            'total': dependencies.count(),
+            'can_execute': can_execute,
+            'unsatisfied_dependencies': unsatisfied
+        })
+
+    @action(detail=True, methods=['post'])
+    def add_dependency(self, request, pk=None):
+        """添加任务依赖"""
+        task = self.get_object()  # successor
+
+        serializer = ETLTaskDependencyCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        predecessor_id = serializer.validated_data['predecessor_id']
+
+        # 使用 DependencyService 添加依赖
+        success, message = DependencyService.add_dependency(
+            task_id=task.id,
+            dependency_id=predecessor_id
+        )
+
+        if success:
+            return self.ok({'message': message})
+        else:
+            return self.error(message)
+
+    @action(detail=True, methods=['post'])
+    def remove_dependency(self, request, pk=None):
+        """移除任务依赖"""
+        task = self.get_object()
+
+        dependency_id = request.data.get('dependency_id')
+        if not dependency_id:
+            return self.error('请提供 dependency_id')
+
+        success, message = DependencyService.remove_dependency(
+            task_id=task.id,
+            dependency_id=dependency_id
+        )
+
+        if success:
+            return self.ok({'message': message})
+        else:
+            return self.error(message)
+
+    @action(detail=True, methods=['get'])
+    def check_dependencies(self, request, pk=None):
+        """检查任务是否可以执行（依赖是否满足）"""
+        task = self.get_object()
+
+        can_execute, message = DependencyService.can_execute_task(task.id)
+
+        if can_execute:
+            return self.ok({
+                'can_execute': True,
+                'message': '任务可以执行'
+            })
+        else:
+            return self.ok({
+                'can_execute': False,
+                'message': message
+            })
+
+    @action(detail=True, methods=['get'])
+    def dependency_chain(self, request, pk=None):
+        """获取完整依赖链"""
+        task = self.get_object()
+
+        chain = DependencyService.get_dependency_chain(task.id)
+
+        return self.ok({
+            'chain': [
+                {
+                    'id': t.id,
+                    'name': t.name,
+                    'scenario': t.scenario,
+                    'status': t.status
+                }
+                for t in chain
+            ]
         })
 
     def _get_task_snapshot(self, task):

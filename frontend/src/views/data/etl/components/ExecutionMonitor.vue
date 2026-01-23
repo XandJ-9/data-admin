@@ -57,7 +57,7 @@
             </div>
             <div class="stat-content">
               <div class="stat-label">运行时长</div>
-              <div class="stat-value">{{ execution.duration }} <span class="unit">秒</span></div>
+              <div class="stat-value">{{ execution.durationFormatted || execution.duration + '秒' }}</div>
             </div>
           </div>
         </el-col>
@@ -113,32 +113,37 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Download, Upload, Timer, Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { getTaskExecution, getTaskExecutionLogs, cancelExecution } from '@/api/taskMonitor'
 
 const props = defineProps({
   taskId: {
-    type: String,
+    type: [String, Number],
     required: true
   },
   executionId: {
-    type: String,
-    default: ''
+    type: [String, Number],
+    required: true
   }
 })
 
 const emit = defineEmits(['back', 'view-task'])
 
 const execution = reactive({
-  status: 'running', // running, success, failed
+  status: 'running', // running, success, failed, cancelled
   progress: 0,
   currentStage: '初始化中...',
   estimatedTime: '计算中...',
   rowsRead: 0,
   rowsWritten: 0,
   duration: 0,
+  durationFormatted: '',
   logs: []
 })
+
+const loading = ref(false)
+const logLoading = ref(false)
 
 let refreshTimer = null
 
@@ -163,34 +168,58 @@ function stopMonitoring() {
 }
 
 async function refreshStatus() {
+  if (loading.value) return
+
+  loading.value = true
   try {
-    // TODO: 调用后端API获取执行状态
-    // const res = await getTaskExecutionLog(props.taskId, props.executionId)
-    // 更新状态
+    const res = await getTaskExecution(props.executionId)
 
-    // 模拟进度更新（实际应该从后端获取）
-    if (execution.status === 'running') {
-      execution.progress = Math.min(execution.progress + 5, 100)
-      execution.rowsRead = execution.progress * 1000
-      execution.rowsWritten = execution.progress * 980
-      execution.duration += 3
+    // 更新执行状态
+    execution.status = res.status || 'running'
+    execution.progress = res.progress || 0
+    execution.rowsRead = res.rowsRead || 0
+    execution.rowsWritten = res.rowsWritten || 0
+    execution.duration = res.durationSeconds || 0
+    execution.durationFormatted = res.durationFormatted || '0秒'
 
-      if (execution.progress >= 100) {
-        execution.status = 'success'
-        stopMonitoring()
-      }
+    // 如果任务已完成，停止轮询
+    if (['success', 'failed', 'cancelled'].includes(execution.status)) {
+      stopMonitoring()
+      // 加载完整日志
+      await refreshLog()
     }
   } catch (error) {
     console.error('刷新执行状态失败:', error)
+  } finally {
+    loading.value = false
   }
 }
 
 async function refreshLog() {
-  await refreshStatus()
+  if (logLoading.value) return
+
+  logLoading.value = true
+  try {
+    const res = await getTaskExecutionLogs(props.executionId, { limit: 100 })
+    execution.logs = (res.rows || []).map(log => ({
+      timestamp: log.timestamp,
+      level: log.logLevel || 'INFO',
+      message: log.message
+    }))
+  } catch (error) {
+    console.error('刷新执行日志失败:', error)
+  } finally {
+    logLoading.value = false
+  }
 }
 
-function stopExecution() {
-  // TODO: 调用后端API停止执行
+async function stopExecution() {
+  try {
+    await cancelExecution(props.executionId)
+    await refreshStatus()
+  } catch (error) {
+    console.error('停止执行失败:', error)
+  }
 }
 
 function formatNumber(num) {
@@ -203,7 +232,8 @@ const statusText = computed(() => {
     running: '运行中',
     success: '执行成功',
     failed: '执行失败',
-    pending: '等待中'
+    pending: '等待中',
+    cancelled: '已取消'
   }
   return statusMap[execution.status] || '未知'
 })
@@ -213,7 +243,8 @@ function getStatusIcon(status) {
     running: Loading,
     success: CircleCheck,
     failed: CircleClose,
-    pending: Timer
+    pending: Timer,
+    cancelled: CircleClose
   }
   return iconMap[status] || Timer
 }
