@@ -13,6 +13,12 @@
         <el-button type="warning" @click="emitExport" :disabled="!innerDsId || !innerSql || running">导出CSV</el-button>
         <el-button type="warning" @click="showTpl = true">模板参数</el-button>
         <el-button @click="showMaximize = true" icon="FullScreen" title="放大编辑">放大</el-button>
+        <el-tooltip content="当前偏移量" placement="top">
+            <template #content>
+              当前偏移量: {{ innerOffset }}
+            </template>
+            <el-button @click="innerOffset = 0">重置偏移量</el-button>
+        </el-tooltip>
       </el-form-item>
       <el-form-item label="每页行数">
         <el-input-number v-model="innerPageSize" :min="1" :max="1000" />
