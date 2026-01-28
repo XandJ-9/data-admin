@@ -98,8 +98,8 @@ class QueryServiceView(BaseViewMixin, ViewSet):
             )
             return self.data(res)
         except Exception as e:
-            import traceback
-            traceback.print_exception(e)
+            # import traceback
+            # traceback.print_exception(e)
             status_flag = 'fail'
             error_msg = str(e)
             return self.error(error_msg)
