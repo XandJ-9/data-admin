@@ -83,52 +83,7 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
-  },
-//   {
-//     path: '/datataskmonitor',
-//     component: Layout,
-//     hidden: false,
-//     redirect: '/datataskmonitor/index',
-//     meta: { title: '数据运维', icon: 'monitor' },
-//     children: [
-//       {
-//         path: 'index',
-//         component: () => import('@/views/data/taskmonitor/index.vue'),
-//         name: 'DataTask',
-//         meta: { title: '任务运维', icon: 'list' }
-//       },
-//       {
-//         path: 'log',
-//         component: () => import('@/views/data/taskmonitor/log.vue'),
-//         name: 'TaskLog',
-//         meta: { title: '任务日志', icon: 'log' },
-//         hidden: false
-//       }
-//     ]
-//   },
-//   {
-//     path: '/datastudio',
-//     component: Layout,
-//     hidden: false,
-//     alwaysShow: true,
-//     redirect: '/datastudio/index',
-//     meta: { title: '数据开发', icon: 'code' },
-//     children: [
-//       {
-//         path: 'index',
-//         component: () => import('@/views/data/studio/index.vue'),
-//         name: 'DataStudioTasks',
-//         meta: { title: '任务列表', icon: 'list' }
-//       },
-//       {
-//         path: 'task-detail/:id',
-//         component: () => import('@/views/data/studio/TaskDetail.vue'),
-//         name: 'DataStudioTaskDetail',
-//         meta: { title: '任务详情', activeMenu: '/datastudio/index' },
-//         hidden: true
-//       }
-//     ]
-//   },
+  }
 ]
 
 // 动态路由，基于用户权限动态去加载
