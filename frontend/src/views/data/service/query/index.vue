@@ -44,7 +44,7 @@
 <script setup name="DataServiceQuery">
 import { getCurrentInstance } from 'vue'
 import { Plus } from '@element-plus/icons-vue';
-import { listDatasource } from '@/api/data/source'
+import { listDatasource } from '@/api/data/asset'
 import { executeQuery, exportQuery } from '@/api/data/service'
 import { scrollTo } from '@/utils/scroll-to'
 import QueryView from './queryView.vue'

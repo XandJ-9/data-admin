@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('datasource', '0001_initial'),
+        ('dataasset', '0001_initial'),
     ]
 
     operations = [
@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('table_name', models.CharField(max_length=256)),
                 ('comment', models.CharField(blank=True, default='', max_length=1024)),
                 ('database', models.CharField(blank=True, default='', max_length=256)),
-                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='datasource.datasource')),
+                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='dataasset.datasource')),
             ],
             options={
                 'db_table': 'datameta_table',
@@ -48,7 +48,7 @@ class Migration(migrations.Migration):
                 ('default', models.CharField(blank=True, default='', max_length=512)),
                 ('primary', models.BooleanField(default=False)),
                 ('comment', models.CharField(blank=True, default='', max_length=1024)),
-                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='datasource.datasource')),
+                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='dataasset.datasource')),
                 ('table', models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, related_name='columns', to='datameta.metatable')),
             ],
             options={

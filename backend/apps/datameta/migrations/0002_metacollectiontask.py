@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('datameta', '0001_initial'),
-        ('datasource', '0001_initial'),
+        ('dataasset', '0001_initial'),
     ]
 
     operations = [
@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
                 ('started_at', models.DateTimeField(blank=True, null=True, verbose_name='开始时间')),
                 ('completed_at', models.DateTimeField(blank=True, null=True, verbose_name='完成时间')),
                 ('thread_id', models.CharField(blank=True, max_length=64, verbose_name='线程ID')),
-                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='collection_tasks', to='datasource.datasource')),
+                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='datameta_collection_tasks', to='dataasset.datasource')),
             ],
             options={
                 'verbose_name': '元数据采集任务',

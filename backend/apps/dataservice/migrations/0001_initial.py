@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('datasource', '0001_initial'),
+        ('dataasset', '0001_initial'),
     ]
 
     operations = [
@@ -93,7 +93,7 @@ class Migration(migrations.Migration):
                 ('status', models.CharField(choices=[('success', '成功'), ('fail', '失败')], default='success', max_length=10, verbose_name='执行状态')),
                 ('duration_ms', models.IntegerField(default=0, verbose_name='耗时(ms)')),
                 ('error_msg', models.CharField(blank=True, default='', max_length=500, verbose_name='错误信息')),
-                ('data_source', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='datasource.datasource', verbose_name='数据源')),
+                ('data_source', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='dataasset.datasource', verbose_name='数据源')),
             ],
             options={
                 'verbose_name': '数据查询日志',
