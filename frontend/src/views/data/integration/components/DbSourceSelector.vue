@@ -29,7 +29,7 @@
 
 <script setup>
 import { ref, onMounted, watch, reactive, toRaw } from 'vue'
-import { listDatasource, listDatabases, listTables, listColumns } from '@/api/data/source'
+import { listDatasource, listDatabases, listTables, listColumns } from '@/api/data/asset'
 
 const props = defineProps({
   source: {

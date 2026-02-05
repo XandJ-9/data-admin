@@ -5,7 +5,7 @@ from django.db import transaction
 from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
 
-from apps.datasource.models import DataSource
+from apps.dataasset.models import DataSource
 from apps.dbutils import list_tables, get_table_schema, get_table_info, list_tables_info, get_databases
 
 from .models import MetaTable, MetaColumn

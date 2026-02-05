@@ -1,6 +1,6 @@
 from django.db import models
 from apps.system.models import BaseModel
-from apps.datasource.models import DataSource
+from apps.dataasset.models import DataSource
 
 
 class MetaTable(BaseModel):
@@ -47,7 +47,7 @@ class MetaCollectionTask(BaseModel):
 
     # 任务标识
     task_id = models.CharField(max_length=64, unique=True, db_index=True, verbose_name='任务ID')
-    data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='collection_tasks')
+    data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='datameta_collection_tasks')
 
     # 状态追踪
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True, verbose_name='状态')

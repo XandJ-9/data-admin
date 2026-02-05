@@ -152,7 +152,7 @@
 
 <script setup name="Datasource">
 /* eslint-disable vue/no-v-model-argument */
-import { listDatasource, getDatasource, addDatasource, updateDatasource, delDatasource, testDatasource, testDatasourceByBody } from '@/api/data/source'
+import { listDatasource, getDatasource, addDatasource, updateDatasource, delDatasource, testDatasource, testDatasourceByBody } from '@/api/data/asset'
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')

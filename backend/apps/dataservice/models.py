@@ -1,7 +1,7 @@
 from django.db import models
 from apps.system.models import BaseModel
 
-from apps.datasource.models import DataSource
+from apps.dataasset.models import DataSource
 
 
 

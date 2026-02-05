@@ -162,8 +162,7 @@
  </template>
 
  <script setup name="DataMeta">
-import { listMetaTables, listMetaColumns, addMetaTable, updateMetaTable, delMetaTable } from '@/api/data/meta'
-import { listDatasource } from '@/api/data/source'
+import { listMetaTables, listMetaColumns, addMetaTable, updateMetaTable, delMetaTable, listDatasource } from '@/api/data/asset'
 const { proxy } = getCurrentInstance()
 
 // 视图模式：table-表查找, column-字段查找

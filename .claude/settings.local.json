@@ -5,7 +5,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git mv:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(python manage.py startapp:*)",
+      "Bash(source:*)"
     ]
   }
 }

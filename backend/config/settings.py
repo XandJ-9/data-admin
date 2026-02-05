@@ -32,13 +32,13 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'captcha',
     'apps.system',
-    'apps.datasource',
     'apps.dataservice',
     'apps.datameta',
     'apps.dataintegration',
     'apps.monitor',
     'apps.datataskmonitor',
     'apps.datastudio',
+    'apps.dataasset',  # 数据资产管理模块
 ]
 
 MIDDLEWARE = [
