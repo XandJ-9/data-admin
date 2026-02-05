@@ -165,10 +165,10 @@ export const dynamicRoutes = [
     permissions: ['system:datasource:query'],
     children: [
       {
-        path: 'datasource-detail',
+        path: 'datasource-detail/:id(\\d+)',
         component: () => import('@/views/data/asset/datasource/detail'),
         name: 'DataSourceDetail',
-        meta: { title: '数据源详情', activeMenu: '/data-asset/datasource' }
+        meta: { title: '数据源详情', activeMenu: '/data-asset/datasource', noCache: false }
       }
     ]
   },
@@ -182,7 +182,7 @@ export const dynamicRoutes = [
         path: 'interface/:interfaceId(\\d+)',
         component: () => import('@/views/data/service/interface/detail'),
         name: 'InterfaceDetail',
-        meta: { title: '接口详情', activeMenu: '/data-service/interface' }
+        meta: { title: '接口详情', activeMenu: '/data-service/interface', noCache: false }
       }
     ]
   }

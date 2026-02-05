@@ -351,8 +351,8 @@ function submitForm() {
 /** 查看按钮操作 */
 function handleView(row) {
   proxy.$router.push({
-    path: '/data-asset/datasource-detail',
-    query: { id: row.dataSourceId }
+    name: 'DataSourceDetail',
+    params: { id: row.dataSourceId }
   })
 }
 
