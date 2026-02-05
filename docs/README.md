@@ -135,8 +135,8 @@
 |------|--------|----------|
 | platform-architecture-design.md | 架构团队 | 2025-01-21 |
 | development-guide.md | 开发团队 | 2025-02-05 |
-| data-asset-module.md | 数据资产团队 | 2025-02-05 |
-| data-service-module.md | 数据服务团队 | 2025-02-05 |
+| data-asset-module.md | 数据资产团队 | 2026-02-05 |
+| data-service-module.md | 数据服务团队 | 2026-02-05 |
 | deployment-guide.md | 运维团队 | 2025-02-05 |
 | troubleshooting-backend-startup.md | 运维团队 | 2025-02-05 |
 

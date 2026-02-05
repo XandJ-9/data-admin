@@ -2,6 +2,22 @@
   <div class="app-container">
     <el-tabs v-model="active" type="card" @tab-click="onTabClick" @tab-remove="removeTab" :before-leave="beforeLeave">
       <el-tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.title" :closable="tabs.length > 1">
+        <!-- 布局预设按钮 -->
+        <div class="layout-controls" v-if="t.columns.length > 0">
+          <span class="layout-label">布局预设：</span>
+          <el-button-group size="small">
+            <el-button :type="t.layoutMode === 'editor' ? 'primary' : ''" @click="setLayoutMode(t, 'editor')">
+              <el-icon><Upload /></el-icon> 编辑优先
+            </el-button>
+            <el-button :type="t.layoutMode === 'balanced' ? 'primary' : ''" @click="setLayoutMode(t, 'balanced')">
+              <el-icon><Minus /></el-icon> 均衡布局
+            </el-button>
+            <el-button :type="t.layoutMode === 'result' ? 'primary' : ''" @click="setLayoutMode(t, 'result')">
+              <el-icon><Download /></el-icon> 结果优先
+            </el-button>
+          </el-button-group>
+        </div>
+
         <div class="tab-content" :style="{ height: getTabHeight(t) + 'px' }">
           <div class="query-view-wrapper" :style="{ height: getQueryViewHeight(t) + 'px' }">
             <query-view
@@ -24,11 +40,13 @@
             />
           </div>
 
-          <resizable-splitter v-if="t.columns.length > 0" @resize="(newSize) => onResizeSplitter(t, newSize)" />
+          <resizable-splitter @resize="(newSize) => onResizeSplitter(t, newSize)" />
 
-            <!-- :style="{ height: resultHeight + 'px', overflow: 'auto' }" -->
-          <div v-if="t.columns.length > 0" class="query-result-wrapper" :style="{ height: getResultHeight(t) + 'px', overflow: 'auto' }">
-            <query-result :columns="t.columns" :rows="t.rows" :result-height="getResultHeight(t)"/>
+          <div class="query-result-wrapper" :style="{ height: getResultHeight(t) + 'px', overflow: 'auto' }">
+            <div v-if="t.columns.length === 0" class="empty-result">
+              <el-empty description="执行查询后在此显示结果" :image-size="80" />
+            </div>
+            <query-result v-else :columns="t.columns" :rows="t.rows" :result-height="getResultHeight(t)"/>
           </div>
         </div>
       </el-tab-pane>
@@ -43,13 +61,13 @@
 
 <script setup name="DataServiceQuery">
 import { getCurrentInstance } from 'vue'
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, Upload, Minus, Download } from '@element-plus/icons-vue';
 import { listDatasource } from '@/api/data/asset'
 import { executeQuery, exportQuery } from '@/api/data/service'
-import { scrollTo } from '@/utils/scroll-to'
 import QueryView from './queryView.vue'
 import QueryResult from './queryResult.vue'
 import ResizableSplitter from './resizable-splitter.vue'
+
 const { proxy } = getCurrentInstance()
 
 const active = ref('')
@@ -57,14 +75,109 @@ const tabs = ref([])
 const dsList = ref([])
 const addKey = '__add__'
 
-// 获取默认高度配置
+// 响应式：窗口高度
+const windowHeight = ref(window.innerHeight)
+
+// 布局比例配置
+const LAYOUT_PRESETS = {
+  editor: 0.65,    // 编辑优先：编辑器65%，结果35%
+  balanced: 0.5,   // 均衡布局：各50%
+  result: 0.35     // 结果优先：编辑器35%，结果65%
+}
+
+// 存储键名
+const STORAGE_KEY = 'query-layout-preference'
+
+// 响应式断点配置
+const BREAKPOINTS = {
+  mobile: 768,     // 移动端
+  tablet: 1024,    // 平板
+  desktop: 1440    // 桌面
+}
+
+// 获取当前设备类型
+function getDeviceType() {
+  const width = window.innerWidth
+  if (width < BREAKPOINTS.mobile) return 'mobile'
+  if (width < BREAKPOINTS.tablet) return 'tablet'
+  return 'desktop'
+}
+
+// 加载用户保存的布局偏好
+function loadLayoutPreference() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    const preference = saved ? JSON.parse(saved) : { mode: 'balanced' }
+    // 根据设备类型调整默认布局
+    const deviceType = getDeviceType()
+    if (!saved && deviceType === 'mobile') {
+      preference.mode = 'result' // 移动端默认结果优先
+    }
+    return preference
+  } catch {
+    return { mode: 'balanced' }
+  }
+}
+
+// 保存布局偏好
+function saveLayoutPreference(mode) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode }))
+  } catch (e) {
+    console.warn('保存布局偏好失败:', e)
+  }
+}
+
+// 计算可用的头部高度（根据设备类型）
+function getHeaderHeight() {
+  const deviceType = getDeviceType()
+  switch (deviceType) {
+    case 'mobile':
+      return 140  // 移动端头部更紧凑
+    case 'tablet':
+      return 160
+    default:
+      return 180  // 桌面端
+  }
+}
+
+// 获取最小高度（根据设备类型）
+function getMinTabHeight() {
+  const deviceType = getDeviceType()
+  switch (deviceType) {
+    case 'mobile':
+      return 400   // 移动端最小高度
+    case 'tablet':
+      return 450
+    default:
+      return 500   // 桌面端最小高度
+  }
+}
+
+// 获取默认高度配置（响应式）
 function getDefaultHeights() {
-  const windowHeight = window.innerHeight
-  const tabHeight = Math.max(400, windowHeight - 200)
-  const queryViewHeight = Math.floor(tabHeight * 1.0)
+  const headerHeight = getHeaderHeight()
+  const minHeight = getMinTabHeight()
+  const tabHeight = Math.max(minHeight, windowHeight.value - headerHeight)
+  const queryViewRatio = 0.5 // 默认均衡布局
+  const queryViewHeight = Math.floor(tabHeight * queryViewRatio)
   const resultHeight = tabHeight - queryViewHeight - 8 // 8px for splitter
-  const editorHeight = queryViewHeight - 100 // 减去表单和其他元素的高度
+
+  // 根据设备调整编辑器最小高度
+  const deviceType = getDeviceType()
+  const minEditorHeight = deviceType === 'mobile' ? 120 : 150
+  const editorHeight = Math.max(minEditorHeight, queryViewHeight - 110)
+
   return { tabHeight, queryViewHeight, resultHeight, editorHeight }
+}
+
+// 根据布局模式获取高度
+function getHeightByMode(tabHeight, mode) {
+  const ratio = LAYOUT_PRESETS[mode] || LAYOUT_PRESETS.balanced
+  const queryViewHeight = Math.floor(tabHeight * ratio)
+  const resultHeight = tabHeight - queryViewHeight - 8
+  const editorHeight = Math.max(150, queryViewHeight - 110)
+  return { queryViewHeight, resultHeight, editorHeight }
 }
 
 // 获取 tab 的各个高度
@@ -84,23 +197,129 @@ function getEditorHeight(tab) {
   return tab.heights?.editorHeight ?? getDefaultHeights().editorHeight
 }
 
+// 设置布局模式
+function setLayoutMode(tab, mode) {
+  if (!tab.heights) {
+    tab.heights = { ...getDefaultHeights() }
+    tab.heights.tabHeight = getTabHeight(tab)
+  }
+
+  const heights = getHeightByMode(tab.heights.tabHeight, mode)
+  tab.heights.queryViewHeight = heights.queryViewHeight
+  tab.heights.resultHeight = heights.resultHeight
+  tab.heights.editorHeight = heights.editorHeight
+  tab.layoutMode = mode
+
+  saveLayoutPreference(mode)
+}
+
+// 更新所有标签页的高度（窗口大小变化时调用）
+function updateAllTabsHeight() {
+  const newDefaultHeights = getDefaultHeights()
+
+  tabs.value.forEach(tab => {
+    if (!tab.heights) {
+      tab.heights = { ...newDefaultHeights }
+      return
+    }
+
+    // 保存当前的比例
+    const currentRatio = tab.heights.queryViewHeight / tab.heights.tabHeight
+
+    // 更新tab高度
+    tab.heights.tabHeight = newDefaultHeights.tabHeight
+
+    // 根据当前比例重新分配高度
+    if (tab.layoutMode && tab.layoutMode !== 'custom') {
+      // 如果是预设模式，重新应用预设
+      const heights = getHeightByMode(tab.heights.tabHeight, tab.layoutMode)
+      tab.heights.queryViewHeight = heights.queryViewHeight
+      tab.heights.resultHeight = heights.resultHeight
+      tab.heights.editorHeight = heights.editorHeight
+    } else {
+      // 如果是自定义模式，保持比例
+      let newQueryViewHeight = Math.floor(tab.heights.tabHeight * currentRatio)
+
+      // 确保在合理范围内
+      const minQueryHeight = getDeviceType() === 'mobile' ? 120 : 150
+      const maxQueryHeight = tab.heights.tabHeight - 8 - 100
+      newQueryViewHeight = Math.max(minQueryHeight, Math.min(maxQueryHeight, newQueryViewHeight))
+
+      tab.heights.queryViewHeight = newQueryViewHeight
+      tab.heights.resultHeight = tab.heights.tabHeight - newQueryViewHeight - 8
+
+      const minEditorHeight = getDeviceType() === 'mobile' ? 120 : 150
+      tab.heights.editorHeight = Math.max(minEditorHeight, tab.heights.queryViewHeight - 110)
+    }
+  })
+}
+
+// 防抖处理窗口大小变化
+let resizeTimer = null
+function handleWindowResize() {
+  if (resizeTimer) {
+    clearTimeout(resizeTimer)
+  }
+
+  resizeTimer = setTimeout(() => {
+    windowHeight.value = window.innerHeight
+    updateAllTabsHeight()
+  }, 200) // 200ms 防抖
+}
+
 // 分割条拖拽调整（针对指定 tab）
 function onResizeSplitter(tab, newSize) {
   if (!tab.heights) {
     tab.heights = { ...getDefaultHeights() }
+    tab.heights.tabHeight = getTabHeight(tab)
   }
-  tab.heights.queryViewHeight = newSize
-  const remainingHeight = tab.heights.tabHeight - newSize - 8 // 8px for splitter
-  tab.heights.resultHeight = Math.max(100, remainingHeight)
-  tab.heights.editorHeight = Math.max(100, tab.heights.queryViewHeight - 100)
+
+  const minQueryHeight = 150 // 最小查询区高度
+  const minResultHeight = 100 // 最小结果区高度
+
+  // 限制查询区高度范围
+  const maxSize = tab.heights.tabHeight - 8 - minResultHeight
+  const clampedSize = Math.max(minQueryHeight, Math.min(maxSize, newSize))
+
+  tab.heights.queryViewHeight = clampedSize
+  tab.heights.resultHeight = tab.heights.tabHeight - clampedSize - 8
+  tab.heights.editorHeight = Math.max(150, tab.heights.queryViewHeight - 110)
+
+  // 拖拽后清除预设模式标记
+  tab.layoutMode = 'custom'
 }
 
 function addTab() {
   const key = 'new-' + Date.now()
-  tabs.value.push({ key, title: '查询页', dataSourceId: undefined, sqlText: '', templateParams: {}, pageSize: 20, offset: 0, next: null, columns: [], rows: [], running: false })
+  const preference = loadLayoutPreference()
+  const mode = preference.mode || 'balanced'
+
+  // 初始化时就设置好高度和布局模式
+  const defaultHeights = getDefaultHeights()
+  const layoutHeights = getHeightByMode(defaultHeights.tabHeight, mode)
+
+  const newTab = {
+    key,
+    title: '查询页',
+    dataSourceId: undefined,
+    sqlText: '',
+    templateParams: {},
+    pageSize: 20,
+    offset: 0,
+    next: null,
+    columns: [],
+    rows: [],
+    running: false,
+    layoutMode: mode,
+    heights: {
+      ...defaultHeights,
+      ...layoutHeights
+    }
+  }
+
+  tabs.value.push(newTab)
   active.value = key
 }
-
 
 function removeTab(name) {
   if (tabs.value.length <= 1) {
@@ -124,15 +343,9 @@ function runQuery(t, p) {
   if (p && typeof p.pageSize !== 'undefined') payload.pageSize = p.pageSize
   if (p && typeof p.offset !== 'undefined') payload.offset = p.offset
   executeQuery(payload).then(res => {
-      applyResult(t, res.data)
-      proxy.$modal.msgSuccess('查询成功')
-      // 查询成功后自动调整当前 tab 的高度以显示结果
-      if (!t.heights) {
-        t.heights = { ...getDefaultHeights() }
-      }
-      onResizeSplitter(t, Math.floor(t.heights.tabHeight * 0.4))
-      // 查询成功，向下滚动30%
-      scrollTo(300)
+    applyResult(t, res.data)
+    proxy.$modal.msgSuccess('查询成功')
+    // 不再自动调整高度，保持用户当前的布局
   }).finally(() => (t.running = false))
 }
 
@@ -202,9 +415,35 @@ function beforeLeave(activeName, oldActiveName) {
 onMounted(() => {
   getDsList()
   addTab()
+  // 添加窗口大小变化监听
+  window.addEventListener('resize', handleWindowResize)
+})
+
+onUnmounted(() => {
+  // 移除窗口大小变化监听
+  window.removeEventListener('resize', handleWindowResize)
+  if (resizeTimer) {
+    clearTimeout(resizeTimer)
+  }
 })
 </script>
 <style scoped>
+.layout-controls {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #f5f7fa;
+  border-bottom: 1px solid #e4e7ed;
+  margin-bottom: 0;
+}
+
+.layout-label {
+  font-size: 13px;
+  color: #606266;
+  margin-right: 12px;
+  font-weight: 500;
+}
+
 .tab-content {
   display: flex;
   flex-direction: column;
@@ -214,12 +453,19 @@ onMounted(() => {
 .query-view-wrapper {
   flex-shrink: 0;
   overflow: hidden;
-  border: solid 1px #77d50d;
 }
 
 .query-result-wrapper {
   flex: 1;
   overflow: auto;
-  border: solid 1px #c10909;
+  min-height: 100px;
+}
+
+.empty-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
 }
 </style>
