@@ -37,6 +37,7 @@ urlpatterns = [
     path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     path('data-api/datastudio/', include('apps.datastudio.urls')),
     path('data-api/dataasset/', include('apps.dataasset.urls')),  # 数据资产管理模块（包含元数据管理）
+    path('data-api/dataetl/', include('apps.dataetl.urls')),       # ETL任务管理模块
     path('data-api/captcha/', include('captcha.urls')),
     # swagger api
     path('api/schema/', xframe_options_exempt(SpectacularAPIView.as_view(permission_classes=[AllowAny])), name='schema'),

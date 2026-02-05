@@ -27,48 +27,48 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         force_update = options.get('force', False)
 
-        self.stdout.write('\n' + '='*60)
+        self.stdout.write('\n' + '='*60 + '\n')
         if force_update:
-            self.stdout.write('[更新] 开始更新数据服务管理菜单（强制模式）')
+            self.stdout.write('[更新] 开始更新数据服务管理菜单（强制模式）\n')
         else:
-            self.stdout.write('[添加] 开始添加数据服务管理菜单')
+            self.stdout.write('[添加] 开始添加数据服务管理菜单\n')
         self.stdout.write('='*60 + '\n')
 
         try:
             with transaction.atomic():
                 # 1. 创建/更新一级菜单
-                self.stdout.write('[步骤 1/3] 处理一级菜单...')
+                self.stdout.write('[步骤 1/3] 处理一级菜单...\n')
                 parent_menu = self.create_parent_menu(force_update)
                 action = "创建" if parent_menu.action == 'created' else "更新"
-                self.stdout.write(self.style.SUCCESS(f'   {action}成功！菜单ID: {parent_menu.menu_id}\n'))
+                self.stdout.write(f'   [{action}成功] 菜单ID: {parent_menu.menu_id}\n')
 
                 # 2. 创建/更新 SQL 查询菜单
-                self.stdout.write('[步骤 2/3] 处理 SQL 查询菜单...')
+                self.stdout.write('[步骤 2/3] 处理 SQL 查询菜单...\n')
                 self.create_query_menu(parent_menu.menu_id, force_update)
-                self.stdout.write(self.style.SUCCESS('   [成功] 处理完成\n'))
+                self.stdout.write('   [成功] 处理完成\n')
 
-                # 3. 创建/更新接口管理菜单
-                self.stdout.write('[步骤 3/3] 处理接口管理菜单...')
+                # 3. 创建/更新 接口管理菜单
+                self.stdout.write('[步骤 3/3] 处理 接口管理菜单...\n')
                 self.create_interface_menu(parent_menu.menu_id, force_update)
-                self.stdout.write(self.style.SUCCESS('   [成功] 处理完成\n'))
+                self.stdout.write('   [成功] 处理完成\n')
 
-                self.stdout.write('='*60)
+                self.stdout.write('='*60 + '\n')
                 if force_update:
-                    self.stdout.write(self.style.SUCCESS('[完成] 数据服务管理菜单更新完成！'))
+                    self.stdout.write('[完成] 数据服务管理菜单更新完成！\n')
                 else:
-                    self.stdout.write(self.style.SUCCESS('[完成] 数据服务管理菜单添加完成！'))
-                self.stdout.write('='*60)
-                self.stdout.write('\n菜单结构：')
-                self.stdout.write('  数据服务管理')
-                self.stdout.write('  |-- SQL 查询')
-                self.stdout.write('  |-- 接口管理')
-                self.stdout.write('\n请刷新页面查看菜单！\n')
+                    self.stdout.write('[完成] 数据服务管理菜单添加完成！\n')
+                self.stdout.write('='*60 + '\n')
+                self.stdout.write('\n菜单结构：\n')
+                self.stdout.write('  数据服务管理\n')
+                self.stdout.write('  |-- SQL 查询\n')
+                self.stdout.write('  |-- 接口管理\n')
+                self.stdout.write('\n请刷新页面查看菜单！\n\n')
 
                 # 显示统计信息
                 self.show_statistics(parent_menu.menu_id)
 
         except Exception as e:
-            self.stdout.write(self.style.ERROR(f'\n[失败] 操作失败: {e}'))
+            self.stdout.write(f'\n[失败] 操作失败: {e}\n')
             raise
 
     def create_parent_menu(self, force_update=False):
@@ -156,12 +156,12 @@ class Command(BaseCommand):
             route_name='DataServiceQuery',
             icon='code',
             perms='system:dataservice:query',
-            remark='SQL 查询页面',
+            remark='SQL查询页面',
             force_update=force_update
         )
 
     def create_interface_menu(self, parent_id, force_update=False):
-        """创建或更新接口管理菜单"""
+        """创建或更新 接口管理菜单"""
         self.create_or_update_menu(
             menu_name='接口管理',
             parent_id=parent_id,

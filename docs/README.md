@@ -14,6 +14,7 @@
 | [development-guide.md](development-guide.md) | 开发指南，包含核心抽象层、命名规范、开发模式、快速上手 | 开发者 |
 | [data-asset-module.md](data-asset-module.md) | 数据资产管理模块，包含 API、测试、使用指南、迁移指南 | 开发者、用户 |
 | [data-service-module.md](data-service-module.md) | 数据服务模块，包含数据服务接口管理、API 文档、使用指南 | 开发者、用户 |
+| [data-etl-module.md](data-etl-module.md) | 数据ETL模块，包含ETL任务管理、字段映射、执行引擎、版本管理 | 开发者、用户 |
 | [deployment-guide.md](deployment-guide.md) | 部署指南，包含安装、配置、生产部署、故障排查 | 运维人员 |
 
 ### 故障排查文档
@@ -47,6 +48,10 @@
 **使用数据服务模块**
 - 阅读 [数据服务模块文档](data-service-module.md)
 - 了解数据服务接口管理、API 文档
+
+**使用数据ETL模块**
+- 阅读 [数据ETL模块文档](data-etl-module.md)
+- 了解ETL任务管理、字段映射、执行引擎
 
 **排查故障**
 - 阅读 [后端启动故障排查指南](troubleshooting-backend-startup.md)
@@ -137,6 +142,7 @@
 | development-guide.md | 开发团队 | 2025-02-05 |
 | data-asset-module.md | 数据资产团队 | 2026-02-05 |
 | data-service-module.md | 数据服务团队 | 2026-02-05 |
+| data-etl-module.md | 数据ETL团队 | 2026-02-05 |
 | deployment-guide.md | 运维团队 | 2025-02-05 |
 | troubleshooting-backend-startup.md | 运维团队 | 2025-02-05 |
 

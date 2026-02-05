@@ -185,6 +185,26 @@ export const dynamicRoutes = [
         meta: { title: '接口详情', activeMenu: '/data-service/interface', noCache: false }
       }
     ]
+  },
+  {
+    path: '/data-etl',
+    component: Layout,
+    hidden: true,
+    permissions: ['system:dataetl:task'],
+    children: [
+      {
+        path: 'task',
+        component: () => import('@/views/data/etl/index'),
+        name: 'DataETLTask',
+        meta: { title: 'ETL任务管理', activeMenu: '/data-etl/task' }
+      },
+      {
+        path: 'execution-log',
+        component: () => import('@/views/data/etl/execution-log'),
+        name: 'DataETLExecutionLog',
+        meta: { title: 'ETL执行日志', activeMenu: '/data-etl/execution-log' }
+      }
+    ]
   }
 ]
 

@@ -8,7 +8,13 @@
       "Bash(find:*)",
       "Bash(python manage.py startapp:*)",
       "Bash(source:*)",
-      "Bash(python manage.py shell:*)"
+      "Bash(python manage.py shell:*)",
+      "Bash(git checkout:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
