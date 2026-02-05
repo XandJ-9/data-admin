@@ -13,7 +13,14 @@
 | [platform-architecture-design.md](platform-architecture-design.md) | 总体架构设计，包含五大模块详细设计、数据模型、功能说明 | 所有人 |
 | [development-guide.md](development-guide.md) | 开发指南，包含核心抽象层、命名规范、开发模式、快速上手 | 开发者 |
 | [data-asset-module.md](data-asset-module.md) | 数据资产管理模块，包含 API、测试、使用指南、迁移指南 | 开发者、用户 |
+| [data-service-module.md](data-service-module.md) | 数据服务模块，包含数据服务接口管理、API 文档、使用指南 | 开发者、用户 |
 | [deployment-guide.md](deployment-guide.md) | 部署指南，包含安装、配置、生产部署、故障排查 | 运维人员 |
+
+### 故障排查文档
+
+| 文档 | 说明 | 读者 |
+|------|------|------|
+| [troubleshooting-backend-startup.md](troubleshooting-backend-startup.md) | 后端启动故障排查指南，包含常见问题及解决方案 | 开发者、运维人员 |
 
 ---
 
@@ -36,6 +43,14 @@
 **使用数据资产管理模块**
 - 阅读 [数据资产模块文档](data-asset-module.md)
 - 了解 API 端点、功能使用、路由配置
+
+**使用数据服务模块**
+- 阅读 [数据服务模块文档](data-service-module.md)
+- 了解数据服务接口管理、API 文档
+
+**排查故障**
+- 阅读 [后端启动故障排查指南](troubleshooting-backend-startup.md)
+- 查看常见问题及解决方案
 
 ---
 
@@ -121,7 +136,9 @@
 | platform-architecture-design.md | 架构团队 | 2025-01-21 |
 | development-guide.md | 开发团队 | 2025-02-05 |
 | data-asset-module.md | 数据资产团队 | 2025-02-05 |
+| data-service-module.md | 数据服务团队 | 2025-02-05 |
 | deployment-guide.md | 运维团队 | 2025-02-05 |
+| troubleshooting-backend-startup.md | 运维团队 | 2025-02-05 |
 
 ---
 
@@ -157,5 +174,5 @@ A: 请：
 
 ---
 
-**文档版本**: v1.0.0
-**最后更新**: 2025-02-05
+**文档版本**: v1.1.0
+**最后更新**: 2026-02-05

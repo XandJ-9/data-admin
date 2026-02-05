@@ -373,7 +373,7 @@ function openSql() {
 
 function handleBack() {
     //   router.push('/dataservice/dataInterface')
-    router.push({name: 'DataInterface'})
+    router.push({name: 'DataServiceInterface'})
 }
 
 // 导出元数据

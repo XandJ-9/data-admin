@@ -171,6 +171,20 @@ export const dynamicRoutes = [
         meta: { title: '数据源详情', activeMenu: '/data-asset/datasource' }
       }
     ]
+  },
+  {
+    path: '/data-service',
+    component: Layout,
+    hidden: true,
+    permissions: ['system:dataservice:interface'],
+    children: [
+      {
+        path: 'interface/:interfaceId(\\d+)',
+        component: () => import('@/views/data/service/interface/detail'),
+        name: 'InterfaceDetail',
+        meta: { title: '接口详情', activeMenu: '/data-service/interface' }
+      }
+    ]
   }
 ]
 

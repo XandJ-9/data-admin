@@ -275,7 +275,7 @@
   
 </template>
 
-<script setup name="Interface">
+<script setup name="DataServiceInterface">
 /* eslint-disable vue/no-v-model-argument */
 import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, executeInterfaceById, exportInterfaceById, importInterfaceMeta } from '@/api/data/service'
 import { listDatasource } from '@/api/data/asset'
