@@ -16,9 +16,9 @@ class DataSourceSerializer(BaseModelSerializer):
     dbName = serializers.CharField(source='db_name')
     username = serializers.CharField()
     password = serializers.SerializerMethodField()
-    params = serializers.CharField(required=False, allow_blank=True)
+    params = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     status = serializers.CharField(required=False, allow_blank=True)
-    remark = serializers.CharField(required=False, allow_blank=True)
+    remark = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def get_password(self, obj):
         return encrypt_password(obj.password)

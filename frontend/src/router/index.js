@@ -157,6 +157,20 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
+  },
+  {
+    path: '/data-asset',
+    component: Layout,
+    hidden: true,
+    permissions: ['system:datasource:query'],
+    children: [
+      {
+        path: 'datasource-detail',
+        component: () => import('@/views/data/asset/datasource/detail'),
+        name: 'DataSourceDetail',
+        meta: { title: '数据源详情', activeMenu: '/data-asset/datasource' }
+      }
+    ]
   }
 ]
 

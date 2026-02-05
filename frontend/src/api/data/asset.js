@@ -82,7 +82,7 @@ export function listDatabases(data) {
 // 获取数据源表列表
 export function listTables(data) {
   return request({
-    url: '/dataasset/collection/tables/',
+    url: '/dataasset/collection/tables',
     method: 'post',
     data: data,
     headers: {
@@ -95,7 +95,7 @@ export function listTables(data) {
 // 获取表字段列表
 export function listColumns(data) {
   return request({
-    url: '/dataasset/collection/columns/',
+    url: '/dataasset/collection/columns',
     method: 'post',
     data: data,
     headers: {
@@ -107,7 +107,7 @@ export function listColumns(data) {
 // 同步整库采集
 export function collectMeta(data) {
   return request({
-    url: '/dataasset/collection/collect/',
+    url: '/dataasset/collection/collect',
     method: 'post',
     data: data
   })
@@ -116,7 +116,7 @@ export function collectMeta(data) {
 // 单表采集
 export function collectMetaTable(data) {
   return request({
-    url: '/dataasset/collection/collect-table/',
+    url: '/dataasset/collection/collect-table',
     method: 'post',
     data: data
   })
@@ -125,7 +125,7 @@ export function collectMetaTable(data) {
 // 异步整库采集
 export function collectMetaAsync(data) {
   return request({
-    url: '/dataasset/collection/collect-async/',
+    url: '/dataasset/collection/collect-async',
     method: 'post',
     data: data
   })
@@ -134,7 +134,7 @@ export function collectMetaAsync(data) {
 // 查询采集状态
 export function getCollectStatus(taskId) {
   return request({
-    url: '/dataasset/collection/collect-status/',
+    url: '/dataasset/collection/collect-status',
     method: 'get',
     params: { taskId },
     headers: {
@@ -146,7 +146,7 @@ export function getCollectStatus(taskId) {
 // 取消采集
 export function cancelCollect(taskId) {
   return request({
-    url: '/dataasset/collection/collect-cancel/',
+    url: '/dataasset/collection/collect-cancel',
     method: 'post',
     data: { taskId }
   })

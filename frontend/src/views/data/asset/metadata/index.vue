@@ -215,10 +215,8 @@ import {
   listMetaTables,
   listMetaColumns,
   listTables,
-  listColumns,
   collectMeta,
-  collectMetaAsync,
-  getCollectStatus
+  collectMetaAsync
 } from '@/api/data/asset'
 
 const { proxy } = getCurrentInstance()
@@ -350,7 +348,7 @@ function resetColumnFilters() {
 function openColumns(row) {
   columnDialogVisible.value = true
   columnDialogLoading.value = true
-  listColumns({
+  listMetaColumns({
     dataSourceId: row.dataSourceId,
     tableName: row.tableName,
     databaseName: row.databaseName

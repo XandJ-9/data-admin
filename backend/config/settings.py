@@ -33,12 +33,11 @@ INSTALLED_APPS = [
     'captcha',
     'apps.system',
     'apps.dataservice',
-    'apps.datameta',
     'apps.dataintegration',
     'apps.monitor',
     'apps.datataskmonitor',
     'apps.datastudio',
-    'apps.dataasset',  # 数据资产管理模块
+    'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
 ]
 
 MIDDLEWARE = [

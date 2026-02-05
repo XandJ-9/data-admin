@@ -32,12 +32,11 @@ urlpatterns = [
     re_path(r'^data-admin/.*$', TemplateView.as_view(template_name='index.html')),
     path('data-api/', include('apps.system.urls')),
     path('data-api/dataservice/', include('apps.dataservice.urls')),
-    path('data-api/datameta/', include('apps.datameta.urls')),
     path('data-api/dataintegration/', include('apps.dataintegration.urls')),
     path('data-api/monitor/', include('apps.monitor.urls')),
     path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     path('data-api/datastudio/', include('apps.datastudio.urls')),
-    path('data-api/dataasset/', include('apps.dataasset.urls')),  # 数据资产管理模块
+    path('data-api/dataasset/', include('apps.dataasset.urls')),  # 数据资产管理模块（包含元数据管理）
     path('data-api/captcha/', include('captcha.urls')),
     # swagger api
     path('api/schema/', xframe_options_exempt(SpectacularAPIView.as_view(permission_classes=[AllowAny])), name='schema'),

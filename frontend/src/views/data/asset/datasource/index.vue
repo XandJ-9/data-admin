@@ -109,13 +109,13 @@
             @click="handleTest(scope.row)"
             v-hasPermi="['system:datasource:edit']"
           >测试</el-button>
-          <!-- <el-button
+          <el-button
             link
             type="primary"
             icon="View"
             @click="handleView(scope.row)"
             v-hasPermi="['system:datasource:query']"
-          >查看</el-button> -->
+          >查看</el-button>
           <el-button
             link
             type="primary"
@@ -350,13 +350,9 @@ function submitForm() {
 
 /** 查看按钮操作 */
 function handleView(row) {
-  reset()
-  const id = row.dataSourceId
-  getDatasource(id).then(response => {
-    form.value = response.data
-    open.value = true
-    title.value = '查看数据源'
-    // 可以在这里禁用表单编辑
+  proxy.$router.push({
+    path: '/data-asset/datasource-detail',
+    query: { id: row.dataSourceId }
   })
 }
 
@@ -420,7 +416,7 @@ function handleDbTypeChange(value) {
 /** 获取数据库类型标签颜色 */
 function getDbTypeTag(dbType) {
   const tagMap = {
-    mysql: '',
+    mysql: 'primary',
     postgresql: 'success',
     sqlite: 'info',
     oracle: 'warning',

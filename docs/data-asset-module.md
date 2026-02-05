@@ -20,6 +20,12 @@
 - 连接健康检查
 - 批量删除支持
 - 连接参数自定义（JSON/KV 格式）
+- **数据源详情查看** ⭐新增：实时浏览数据源内容
+  - 查看数据库列表（支持搜索）
+  - 查看表列表（支持搜索）
+  - 查看字段详情（支持搜索）
+  - 整库元数据采集
+  - 单表元数据采集
 
 ### 2. 元数据管理
 
@@ -127,8 +133,9 @@ TableLineage (表血缘)
 | `/collection/databases/` | POST | 获取数据库列表 |
 | `/collection/tables/` | POST | 获取表列表 |
 | `/collection/columns/` | POST | 获取字段列表 |
-| `/collection/collect/` | POST | 同步采集 |
-| `/collection/collect-async/` | POST | 异步采集 |
+| `/collection/collect/` | POST | 同步采集（整库） |
+| `/collection/collect-table/` | POST | 单表采集 ⭐新增 |
+| `/collection/collect-async/` | POST | 异步采集（整库） |
 | `/collection/collect-status/` | GET | 采集任务状态 |
 | `/collection/collect-cancel/` | POST | 取消采集任务 |
 
@@ -186,7 +193,8 @@ TableLineage (表血缘)
 frontend/src/views/data/asset/
 ├── index.vue                 # 数据资产管理主页（仪表板）
 ├── datasource/
-│   └── index.vue             # 数据源管理页面
+│   ├── index.vue             # 数据源管理页面
+│   └── detail.vue            # 数据源详情页面 ⭐新增
 ├── metadata/
 │   └── index.vue             # 元数据浏览页面
 └── lineage/
@@ -254,6 +262,31 @@ import {
 - Presto
 - StarRocks
 
+#### 2.5. 数据源详情 (`datasource/detail.vue`) ⭐新增
+
+**页面功能：**
+- **数据源基本信息**：显示数据源的连接配置、状态、创建时间等
+- **数据库列表浏览**：
+  - 实时查询数据源下的所有数据库
+  - 支持按数据库名称搜索（前端过滤）
+  - 查看表列表：点击"查看表"按钮
+  - 整库采集：点击"采集"按钮采集整个数据库的元数据
+- **数据表列表浏览**：
+  - 显示选中数据库的所有表
+  - 支持按表名、表描述搜索（前端过滤）
+  - 查看字段详情：点击"查看字段"按钮
+  - 单表采集：点击"采集"按钮采集单个表的元数据
+- **字段详情对话框**：
+  - 显示表的所有字段信息
+  - 支持按字段名、字段描述搜索（前端过滤）
+  - 字段信息：序号、字段名、数据类型、键类型、可空性、默认值等
+
+**实现特点：**
+- 数据实时查询：所有信息直接从数据源获取，不依赖元数据库
+- 前端搜索过滤：使用 Vue computed 属性实现实时过滤
+- 路由参数监听：自动处理不同数据源切换时的数据重载
+- 响应式设计：数据库/表/字段三层级联展示
+
 #### 3. 元数据浏览 (`metadata/index.vue`)
 
 **双模式切换：**
@@ -278,96 +311,6 @@ import {
 
 ---
 
-## 测试报告
-
-**测试日期**: 2025-02-04
-**测试环境**: Django 5.2 + DRF + SQLite
-**测试结果**: ✅ **全部通过 (11/11)**
-
-### 测试覆盖
-
-| 类别 | 测试项 | 通过 | 失败 | 通过率 |
-|------|--------|------|------|--------|
-| 基础接口 | 4 | 4 | 0 | 100% |
-| 元数据采集 | 3 | 3 | 0 | 100% |
-| 数据源操作 | 1 | 1 | 0 | 100% |
-| 血缘管理 | 3 | 3 | 0 | 100% |
-| **总计** | **11** | **11** | **0** | **100%** |
-
-### 测试项目
-
-**基础接口 (4/4):**
-- ✅ 数据源列表 - GET `/dataasset/datasource/`
-- ✅ 元数据表列表 - GET `/dataasset/meta-table/`
-- ✅ 元数据字段列表 - GET `/dataasset/meta-column/`
-- ✅ 血缘关系列表 - GET `/dataasset/lineage/`
-
-**元数据采集 (3/3):**
-- ✅ 获取数据库列表 - POST `/dataasset/collection/databases/`
-- ✅ 获取表列表 - POST `/dataasset/collection/tables/`
-- ✅ 获取字段列表 - POST `/dataasset/collection/columns/`
-
-**数据源操作 (1/1):**
-- ✅ 创建数据源 - POST `/dataasset/datasource/`
-
-**血缘管理 (3/3):**
-- ✅ 查询上游血缘 - GET `/dataasset/lineage/upstream/`
-- ✅ 查询下游血缘 - GET `/dataasset/lineage/downstream/`
-- ✅ 生成血缘图 - GET `/dataasset/lineage/graph/`
-
----
-
-## API 迁移指南
-
-### 前端迁移
-
-**更新 import 语句：**
-
-```javascript
-// 旧版本（已废弃）
-import { listDatasource, ... } from '@/api/data/source'
-import { listMetaTables, ... } from '@/api/data/meta'
-
-// 新版本（统一）
-import { listDatasource, listMetaTables, ... } from '@/api/data/asset'
-```
-
-### API 端点变更
-
-| 功能 | 旧 URL | 新 URL |
-|------|--------|--------|
-| 数据源 | `/datasource/` | `/dataasset/datasource/` |
-| 元数据表 | `/datameta/meta-table/` | `/dataasset/meta-table/` |
-| 元数据字段 | `/datameta/meta-column/` | `/dataasset/meta-column/` |
-| 采集 | `/datameta/collection/` | `/dataasset/collection/` |
-| 血缘 | - | `/dataasset/lineage/` |
-
-### 后端迁移
-
-**模型导入：**
-
-```python
-# 旧版本
-from apps.datasource.models import DataSource
-from apps.datameta.models import MetaTable, MetaColumn
-
-# 新版本
-from apps.dataasset.models import DataSource, MetaTable, MetaColumn
-```
-
-**ViewSet 导入：**
-
-```python
-# 旧版本
-from apps.datasource.views import DataSourceViewSet
-from apps.datameta.views import MetaTableViewSet
-
-# 新版本
-from apps.dataasset.views import DataSourceViewSet, MetaTableViewSet
-```
-
----
-
 ## 使用指南
 
 ### 添加数据源
@@ -384,6 +327,26 @@ from apps.dataasset.views import DataSourceViewSet, MetaTableViewSet
    - 连接参数（可选）
 5. 点击"测试连接"
 6. 连接成功后点击"确定"
+
+### 查看数据源详情 ⭐新增
+
+1. 进入"数据源管理"
+2. 点击数据源行的"查看"按钮
+3. 进入数据源详情页面，包含以下功能：
+   - **数据库列表**：
+     - 自动加载数据源下的所有数据库
+     - 搜索框：输入数据库名称快速过滤
+     - 点击"查看表"：查看该数据库下的所有表
+     - 点击"采集"：整库采集元数据到元数据库
+   - **数据表列表**：
+     - 显示选中数据库的所有表
+     - 搜索框：输入表名或表描述快速过滤
+     - 点击"查看字段"：弹出对话框查看表字段详情
+     - 点击"采集"：单表采集元数据到元数据库
+   - **字段详情**：
+     - 对话框形式展示表的所有字段
+     - 搜索框：输入字段名或描述快速过滤
+     - 显示字段序号、类型、键类型、可空性等信息
 
 ### 采集元数据
 
@@ -553,9 +516,13 @@ backend/apps/dataasset/
 frontend/src/
 ├── api/data/
 │   └── asset.js               # 统一 API 封装
+├── router/
+│   └── index.js               # 路由配置（包含数据源详情路由）
 └── views/data/asset/
     ├── index.vue              # 主页（仪表板）
-    ├── datasource/index.vue   # 数据源管理
+    ├── datasource/
+    │   ├── index.vue          # 数据源管理
+    │   └── detail.vue         # 数据源详情 ⭐新增
     ├── metadata/index.vue     # 元数据浏览
     └── lineage/index.vue      # 表血缘管理
 ```
@@ -571,6 +538,24 @@ backend/config/
 ---
 
 ## 版本历史
+
+### v1.0.1 (2025-02-05)
+
+**新增功能：**
+- ✅ 数据源详情页面（`detail.vue`）
+  - 实时浏览数据源的数据库、表、字段信息
+  - 前端搜索过滤功能
+  - 整库元数据采集按钮
+  - 单表元数据采集按钮
+- ✅ 新增单表采集 API（`/collection/collect-table/`）
+- ✅ 数据源管理"查看"按钮跳转到详情页
+
+**技术改进：**
+- Vue 3 Composition API 最佳实践
+- Computed 属性实现响应式搜索过滤
+- Watch 监听路由参数变化
+- 组件状态管理优化
+- 修复 Vue 警告（el-tag type prop、v-loading 指令）
 
 ### v1.0.0 (2025-02-04)
 
@@ -613,6 +598,6 @@ backend/config/
 
 ---
 
-**文档版本**: v1.0.0
-**最后更新**: 2025-02-04
+**文档版本**: v1.0.1
+**最后更新**: 2025-02-05
 **维护者**: Data Admin 开发团队
