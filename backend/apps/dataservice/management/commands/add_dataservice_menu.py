@@ -37,19 +37,24 @@ class Command(BaseCommand):
         try:
             with transaction.atomic():
                 # 1. 创建/更新一级菜单
-                self.stdout.write('[步骤 1/3] 处理一级菜单...\n')
+                self.stdout.write('[步骤 1/4] 处理一级菜单...\n')
                 parent_menu = self.create_parent_menu(force_update)
                 action = "创建" if parent_menu.action == 'created' else "更新"
                 self.stdout.write(f'   [{action}成功] 菜单ID: {parent_menu.menu_id}\n')
 
                 # 2. 创建/更新 SQL 查询菜单
-                self.stdout.write('[步骤 2/3] 处理 SQL 查询菜单...\n')
+                self.stdout.write('[步骤 2/4] 处理 SQL 查询菜单...\n')
                 self.create_query_menu(parent_menu.menu_id, force_update)
                 self.stdout.write('   [成功] 处理完成\n')
 
                 # 3. 创建/更新 接口管理菜单
-                self.stdout.write('[步骤 3/3] 处理 接口管理菜单...\n')
+                self.stdout.write('[步骤 3/4] 处理 接口管理菜单...\n')
                 self.create_interface_menu(parent_menu.menu_id, force_update)
+                self.stdout.write('   [成功] 处理完成\n')
+
+                # 4. 创建/更新 查询日志菜单
+                self.stdout.write('[步骤 4/4] 处理 查询日志 菜单...\n')
+                self.create_query_log_menu(parent_menu.menu_id, force_update)
                 self.stdout.write('   [成功] 处理完成\n')
 
                 self.stdout.write('='*60 + '\n')
@@ -62,6 +67,7 @@ class Command(BaseCommand):
                 self.stdout.write('  数据服务管理\n')
                 self.stdout.write('  |-- SQL 查询\n')
                 self.stdout.write('  |-- 接口管理\n')
+                self.stdout.write('  |-- 查询日志\n')
                 self.stdout.write('\n请刷新页面查看菜单！\n\n')
 
                 # 显示统计信息
@@ -175,10 +181,26 @@ class Command(BaseCommand):
             force_update=force_update
         )
 
+    def create_query_log_menu(self, parent_id, force_update=False):
+        """创建或更新 查询日志菜单"""
+        self.create_or_update_menu(
+            menu_name='查询日志',
+            parent_id=parent_id,
+            order_num=3,
+            path='query-log',
+            component='data/service/query/queryLog',
+            route_name='DataServiceQueryLog',
+            icon='log',
+            perms='system:dataservice:querylog',
+            remark='SQL查询日志页面',
+            force_update=force_update
+        )
+
     def create_or_update_menu(self, menu_name, parent_id, order_num, path, component,
                             route_name, icon, perms, remark, force_update=False):
         """创建或更新菜单的通用方法"""
         defaults = {
+            'menu_name': menu_name,
             'parent_id': parent_id,
             'order_num': order_num,
             'path': path,
@@ -208,7 +230,8 @@ class Command(BaseCommand):
                 self.stdout.write(f'   [更新] 更新菜单: {menu_name}\n')
             except Menu.DoesNotExist:
                 # 不存在则创建
-                Menu.objects.create(**defaults)
+                menu = Menu.objects.create(**defaults)
+                menu.action = 'created'
                 self.stdout.write(f'   [新建] 新建菜单: {menu_name}\n')
         else:
             # 标准模式：使用update_or_create

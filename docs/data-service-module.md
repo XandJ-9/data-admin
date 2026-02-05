@@ -65,6 +65,23 @@
 - 错误信息记录
 - 查询类型区分（SQL 查询 / 接口查询）
 
+### 5. 查询日志管理
+
+**日志查询和筛选：**
+- 按用户名筛选
+- 按执行状态筛选（成功/失败）
+- 支持分页查看
+- SQL 详情查看（长SQL支持弹窗查看完整内容）
+- 错误信息提示（Tooltip显示完整错误信息）
+
+**页面功能：**
+- 实时查询日志列表
+- 表格展示所有查询记录
+- 状态标签（成功/失败）
+- 执行耗时统计
+- 查询类型标识
+- SQL 文本展示（超过100字显示省略号）
+
 ---
 
 ## 架构设计
@@ -411,12 +428,14 @@ python manage.py add_dataservice_menu
 ============================================================
 [添加] 开始添加数据服务管理菜单
 ============================================================
-[步骤 1/3] 处理一级菜单...
+[步骤 1/4] 处理一级菜单...
    新建菜单
    创建成功！菜单ID: 12
-[步骤 2/3] 处理 SQL 查询菜单...
+[步骤 2/4] 处理 SQL 查询菜单...
    [成功] 处理完成
-[步骤 3/3] 处理接口管理菜单...
+[步骤 3/4] 处理接口管理菜单...
+   [成功] 处理完成
+[步骤 4/4] 处理查询日志菜单...
    [成功] 处理完成
 ============================================================
 [完成] 数据服务管理菜单添加完成！
@@ -426,6 +445,7 @@ python manage.py add_dataservice_menu
   数据服务管理
   |-- SQL 查询
   |-- 接口管理
+  |-- 查询日志
 ```
 
 ### 强制更新菜单
@@ -443,8 +463,9 @@ python manage.py add_dataservice_menu --force
 | 菜单名称 | 菜单类型 | 路由路径 | 图标 | 说明 |
 |---------|---------|----------|------|------|
 | 数据服务管理 | 目录 | /data-service | server | 一级菜单 |
-| SQL 查询 | 菜单 | query | dashboard | SQL 查询页面 |
+| SQL 查询 | 菜单 | query | code | SQL 查询页面 |
 | 接口管理 | 菜单 | interface | guide | 接口管理页面 |
+| 查询日志 | 菜单 | query-log | document | 查询日志页面 |
 
 ### 权限配置
 
@@ -452,6 +473,7 @@ python manage.py add_dataservice_menu --force
 
 - `system:dataservice:query` - SQL 查询权限
 - `system:dataservice:interface` - 接口管理权限
+- `system:dataservice:querylog` - 查询日志权限
 
 **注意：** admin 用户拥有所有权限，无需额外配置。
 
@@ -548,6 +570,25 @@ python manage.py add_dataservice_menu --force
 6. 系统自动创建/更新接口
 7. 查看导入结果
 
+### 查看查询日志
+
+1. 进入"数据服务" → "查询日志"
+2. 查看所有查询记录，包括：
+   - 查询时间
+   - 执行用户
+   - 数据源名称
+   - 执行状态（成功/失败）
+   - 执行耗时（毫秒）
+   - 查询类型（SQL查询/接口查询）
+   - SQL语句（支持查看详情）
+   - 错误信息（如果有）
+3. 使用筛选功能：
+   - 按用户名筛选
+   - 按执行状态筛选（全部/成功/失败）
+4. 点击"查询"按钮刷新列表
+5. 点击"重置"按钮清空筛选条件
+6. 对于长SQL，点击"查看详情"按钮查看完整SQL语句
+
 ---
 
 ## 路由配置
@@ -587,7 +628,7 @@ python manage.py add_dataservice_menu --force
 
 #### 动态路由（隐藏路由）
 
-接口详情页面通过动态路由配置，需要权限才能访问：
+接口详情页面和查询日志页面通过动态路由配置，需要权限才能访问：
 
 ```javascript
 {
@@ -601,6 +642,12 @@ python manage.py add_dataservice_menu --force
       component: () => import('@/views/data/service/interface/detail'),
       name: 'InterfaceDetail',
       meta: { title: '接口详情', activeMenu: '/data-service/interface' }
+    },
+    {
+      path: 'query-log',
+      component: () => import('@/views/data/service/query/queryLog'),
+      name: 'DataServiceQueryLog',
+      meta: { title: '查询日志', activeMenu: '/data-service/query-log' }
     }
   ]
 }
@@ -709,6 +756,28 @@ backend/config/
 
 ## 版本历史
 
+### v1.2.0 (2026-02-05)
+
+**新增查询日志菜单：**
+- ✅ **查询日志独立菜单**
+  - 新增"查询日志"子菜单（order: 3）
+  - 路由路径：/data-service/query-log
+  - 权限标识：system:dataservice:querylog
+- ✅ **前端路由更新**
+  - 添加 DataServiceQueryLog 路由
+  - 支持权限控制访问
+- ✅ **菜单初始化优化**
+  - 更新菜单初始化命令（4步骤）
+  - 支持查询日志菜单自动创建
+- ✅ **文档更新**
+  - 更新模块文档，包含查询日志功能说明
+  - 添加使用指南和配置说明
+
+**核心改进：**
+- ⭐ 查询日志独立入口（方便快速访问）
+- ⭐ 完善的权限控制体系
+- ⭐ 统一的菜单管理规范
+
 ### v1.1.0 (2026-02-05)
 
 **布局优化重大更新：**
@@ -792,6 +861,6 @@ backend/config/
 
 ---
 
-**文档版本**: v1.1.0
+**文档版本**: v1.2.0
 **最后更新**: 2026-02-05
 **维护者**: Data Admin 开发团队

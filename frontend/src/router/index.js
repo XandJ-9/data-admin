@@ -183,6 +183,12 @@ export const dynamicRoutes = [
         component: () => import('@/views/data/service/interface/detail'),
         name: 'InterfaceDetail',
         meta: { title: '接口详情', activeMenu: '/data-service/interface', noCache: false }
+      },
+      {
+        path: 'query-log',
+        component: () => import('@/views/data/service/query/queryLog'),
+        name: 'DataServiceQueryLog',
+        meta: { title: '查询日志', activeMenu: '/data-service/query-log' }
       }
     ]
   },

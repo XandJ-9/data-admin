@@ -95,7 +95,7 @@ class Command(BaseCommand):
                 menu.visible = '0'
                 menu.status = '0'
                 menu.perms = ''
-                menu.icon = 'connection'
+                menu.icon = 'data-integration'
                 menu.update_by = 'admin'
                 menu.remark = '数据ETL管理模块'
                 menu.save()
@@ -117,7 +117,7 @@ class Command(BaseCommand):
                     visible='0',
                     status='0',
                     perms='',
-                    icon='connection',
+                    icon='data-integration',
                     create_by='admin',
                     update_by='admin',
                     remark='数据ETL管理模块'
@@ -141,7 +141,7 @@ class Command(BaseCommand):
                     'visible': '0',
                     'status': '0',
                     'perms': '',
-                    'icon': 'connection',
+                    'icon': 'data-integration',
                     'create_by': 'admin',
                     'update_by': 'admin',
                     'remark': '数据ETL管理模块'
@@ -161,7 +161,7 @@ class Command(BaseCommand):
             component='data/etl/index',
             route_name='DataETLTask',
             icon='list',
-            perms='system:dataetl:task',
+            perms='system:dataetl:task:query',
             remark='ETL任务管理页面',
             force_update=force_update
         )
@@ -176,7 +176,7 @@ class Command(BaseCommand):
             component='data/etl/field-mapping',
             route_name='DataETLFieldMapping',
             icon='guide',
-            perms='system:dataetl:fieldmapping',
+            perms='system:dataetl:fieldmapping:query',
             remark='字段映射管理页面',
             force_update=force_update
         )
@@ -190,8 +190,8 @@ class Command(BaseCommand):
             path='execution-log',
             component='data/etl/execution-log',
             route_name='DataETLExecutionLog',
-            icon='document',
-            perms='system:dataetl:executionlog',
+            icon='log',
+            perms='system:dataetl:executionlog:query',
             remark='ETL执行日志页面',
             force_update=force_update
         )
@@ -200,6 +200,7 @@ class Command(BaseCommand):
                             route_name, icon, perms, remark, force_update=False):
         """创建或更新菜单的通用方法"""
         defaults = {
+            'menu_name': menu_name,
             'parent_id': parent_id,
             'order_num': order_num,
             'path': path,
@@ -229,7 +230,8 @@ class Command(BaseCommand):
                 self.stdout.write(f'   [更新] 更新菜单: {menu_name}\n')
             except Menu.DoesNotExist:
                 # 不存在则创建
-                Menu.objects.create(**defaults)
+                menu = Menu.objects.create(**defaults)
+                menu.action = 'created'
                 self.stdout.write(f'   [新建] 新建菜单: {menu_name}\n')
         else:
             # 标准模式：使用update_or_create

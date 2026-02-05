@@ -32,14 +32,14 @@ class ETLTaskSerializer(BaseModelSerializer):
         read_only=True,
         required=False
     )
-    sourceTableId = serializers.IntegerField(source='source_table_id')
+    sourceTableId = serializers.IntegerField(source='source_table_id', required=False, allow_null=True)
     sourceTableName = serializers.CharField(
         source='source_table.table_name',
         read_only=True,
         required=False
     )
-    targetTable = serializers.CharField()
-    sqlConfig = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    targetTable = serializers.CharField(source='target_table', required=False, allow_blank=True, allow_null=True)
+    sqlConfig = serializers.CharField(source='sql_config', required=False, allow_blank=True, allow_null=True)
     executorParams = serializers.JSONField(source='executor_params', required=False)
 
     class Meta:
@@ -71,7 +71,7 @@ class ETLTaskCreateSerializer(ETLTaskSerializer):
     taskCode = serializers.CharField(source='task_code', required=True)
     sourceDatasourceId = serializers.IntegerField(source='source_datasource_id', required=True)
     targetDatasourceId = serializers.IntegerField(source='target_datasource_id', required=True)
-    sourceTableId = serializers.IntegerField(source='source_table_id', required=True)
+    sourceTableId = serializers.IntegerField(source='source_table_id', required=False, allow_null=True)
 
     def validate_task_code(self, value):
         """验证任务编码唯一性"""

@@ -14,7 +14,7 @@ from .views import (
 )
 
 # Create router
-router = DefaultRouter()
+router = DefaultRouter(trailing_slash=False)
 
 # Register ViewSets
 router.register(r'tasks', ETLTaskViewSet, basename='etl-task')

@@ -84,8 +84,8 @@ class Command(BaseCommand):
             try:
                 menu = Menu.objects.get(menu_name='数据资产管理')
                 menu.parent_id = 0
-                menu.order_num = 4
-                menu.path = '/data-asset'
+                menu.order_num = 5
+                menu.path = '/data'
                 menu.component = ''
                 menu.query = ''
                 menu.route_name = ''
@@ -95,7 +95,7 @@ class Command(BaseCommand):
                 menu.visible = '0'
                 menu.status = '0'
                 menu.perms = ''
-                menu.icon = 'database'
+                menu.icon = 'data-asset'
                 menu.update_by = 'admin'
                 menu.remark = '数据资产管理模块'
                 menu.save()
@@ -106,8 +106,8 @@ class Command(BaseCommand):
                 menu = Menu.objects.create(
                     menu_name='数据资产管理',
                     parent_id=0,
-                    order_num=4,
-                    path='/data-asset',
+                    order_num=5,
+                    path='/data',
                     component='',
                     query='',
                     route_name='',
@@ -117,7 +117,7 @@ class Command(BaseCommand):
                     visible='0',
                     status='0',
                     perms='',
-                    icon='database',
+                    icon='data-asset',
                     create_by='admin',
                     update_by='admin',
                     remark='数据资产管理模块'
@@ -130,8 +130,8 @@ class Command(BaseCommand):
                 menu_name='数据资产管理',
                 defaults={
                     'parent_id': 0,
-                    'order_num': 4,
-                    'path': '/data-asset',
+                    'order_num': 5,
+                    'path': '/data',
                     'component': '',
                     'query': '',
                     'route_name': '',
@@ -141,7 +141,7 @@ class Command(BaseCommand):
                     'visible': '0',
                     'status': '0',
                     'perms': '',
-                    'icon': 'database',
+                    'icon': 'data-asset',
                     'create_by': 'admin',
                     'update_by': 'admin',
                     'remark': '数据资产管理模块'
@@ -160,7 +160,7 @@ class Command(BaseCommand):
             path='datasource',
             component='data/asset/datasource/index',
             route_name='DataSourceManage',
-            icon='source',
+            icon='datasource',
             perms='system:datasource:query',
             remark='数据源管理页面',
             force_update=force_update
@@ -171,12 +171,12 @@ class Command(BaseCommand):
         self.create_or_update_menu(
             menu_name='元数据管理',
             parent_id=parent_id,
-            order_num=2,
+            order_num=3,
             path='metadata',
             component='data/asset/metadata/index',
-            route_name='MetadataManage',
+            route_name='DataAssetMetadata',
             icon='list',
-            perms='system:metadata:query',
+            perms='system:datasource:list',
             remark='元数据管理页面',
             force_update=force_update
         )
@@ -186,12 +186,12 @@ class Command(BaseCommand):
         self.create_or_update_menu(
             menu_name='血缘分析',
             parent_id=parent_id,
-            order_num=3,
+            order_num=4,
             path='lineage',
             component='data/asset/lineage/index',
             route_name='TableLineage',
-            icon='share',
-            perms='system:lineage:query',
+            icon='tree-table',
+            perms='system:datasource:list',
             remark='表血缘分析页面',
             force_update=force_update
         )
@@ -200,6 +200,7 @@ class Command(BaseCommand):
                             route_name, icon, perms, remark, force_update=False):
         """创建或更新菜单的通用方法"""
         defaults = {
+            'menu_name': menu_name,
             'parent_id': parent_id,
             'order_num': order_num,
             'path': path,
@@ -229,7 +230,8 @@ class Command(BaseCommand):
                 self.stdout.write(f'   [更新] 更新菜单: {menu_name}\n')
             except Menu.DoesNotExist:
                 # 不存在则创建
-                Menu.objects.create(**defaults)
+                menu = Menu.objects.create(**defaults)
+                menu.action = 'created'
                 self.stdout.write(f'   [新建] 新建菜单: {menu_name}\n')
         else:
             # 标准模式：使用update_or_create

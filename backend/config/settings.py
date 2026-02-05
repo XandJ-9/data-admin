@@ -32,10 +32,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'captcha',
     'apps.system',
-    'apps.dataservice',
-    'apps.dataintegration',
     'apps.monitor',
-    'apps.datataskmonitor',
+    'apps.dataservice',
     'apps.datastudio',
     'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
     'apps.dataetl',     # ETL任务管理模块

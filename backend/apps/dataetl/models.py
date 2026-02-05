@@ -98,7 +98,9 @@ class ETLTask(BaseModel):
         on_delete=models.PROTECT,
         related_name='source_etl_tasks',
         verbose_name='源表',
-        help_text='源表信息'
+        help_text='源表信息',
+        null=True,
+        blank=True
     )
     target_table = models.CharField(
         max_length=256,
