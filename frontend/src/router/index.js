@@ -209,6 +209,12 @@ export const dynamicRoutes = [
         component: () => import('@/views/data/etl/execution-log'),
         name: 'DataETLExecutionLog',
         meta: { title: 'ETL执行日志', activeMenu: '/data-etl/execution-log' }
+      },
+      {
+        path: 'field-mapping',
+        component: () => import('@/views/data/etl/field-mapping'),
+        name: 'DataETLFieldMapping',
+        meta: { title: 'ETL字段映射', activeMenu: '/data-etl/field-mapping' }
       }
     ]
   }

@@ -80,11 +80,12 @@
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="220" fixed="right">
+      <el-table-column label="操作" align="center" width="280" fixed="right">
         <template #default="scope">
           <el-button link size="small" type="primary" icon="View" @click="handleDetail(scope.row)">详情</el-button>
           <el-button link size="small" type="primary" icon="VideoPlay" @click="handleExecute(scope.row)" v-hasPermi="['system:dataetl:task:execute']">执行</el-button>
           <el-button link size="small" type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:dataetl:task:edit']">修改</el-button>
+          <el-button link size="small" type="success" icon="Clock" @click="handleVersion(scope.row)">版本</el-button>
           <el-button link size="small" type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:dataetl:task:remove']">删除</el-button>
         </template>
       </el-table-column>
@@ -146,7 +147,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="目标数据源" prop="targetDatasourceId">
-              <el-select v-model="form.targetDatasourceId" filterable placeholder="请选择目标数据源">
+              <el-select v-model="form.targetDatasourceId" filterable placeholder="请选择目标数据源" @change="handleTargetDatasourceChange">
                 <el-option v-for="ds in datasourceOptions" :key="ds.dataSourceId" :label="ds.dataSourceName" :value="ds.dataSourceId" />
               </el-select>
             </el-form-item>
@@ -160,7 +161,15 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="目标表" prop="targetTable">
-              <el-input v-model="form.targetTable" placeholder="请输入目标表名" />
+              <el-select
+                v-model="form.targetTable"
+                filterable
+                placeholder="请选择目标表"
+                :disabled="!form.targetDatasourceId"
+                allow-create
+              >
+                <el-option v-for="table in targetTableOptions" :key="table.id" :label="table.tableName" :value="table.tableName" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -228,18 +237,74 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 版本管理弹窗 -->
+    <el-dialog title="版本管理" v-model="versionOpen" width="900px" append-to-body>
+      <div style="margin-bottom: 15px;">
+        <el-button type="primary" icon="Plus" size="small" @click="handleCreateVersion">创建版本快照</el-button>
+      </div>
+      <el-table :data="versionList" border>
+        <el-table-column label="版本号" prop="versionNumber" width="100" align="center" />
+        <el-table-column label="是否当前版本" prop="isCurrent" width="120" align="center">
+          <template #default="scope">
+            <el-tag v-if="scope.row.isCurrent" type="success">当前版本</el-tag>
+            <el-tag v-else type="info">历史版本</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="变更日志" prop="changeLog" :show-overflow-tooltip="true" />
+        <el-table-column label="创建者" prop="createBy" width="120" align="center" />
+        <el-table-column label="创建时间" prop="createTime" width="180" align="center" />
+        <el-table-column label="操作" align="center" width="150" fixed="right">
+          <template #default="scope">
+            <el-button
+              v-if="!scope.row.isCurrent"
+              link
+              size="small"
+              type="primary"
+              icon="RefreshLeft"
+              @click="handleRollback(scope.row)"
+            >回滚</el-button>
+            <span v-else style="color: #909399;">当前版本</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="versionOpen = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 创建版本弹窗 -->
+    <el-dialog title="创建版本快照" v-model="createVersionOpen" width="500px" append-to-body>
+      <el-form ref="versionFormRef" :model="versionForm" :rules="versionRules" label-width="100px">
+        <el-form-item label="变更日志" prop="changeLog">
+          <el-input v-model="versionForm.changeLog" type="textarea" :rows="4" placeholder="请输入本次变更的说明" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitVersion">确 定</el-button>
+          <el-button @click="createVersionOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="ETLTask">
-import { listDatasource } from '@/api/data/asset'
+import { getCurrentInstance } from 'vue'
+import { listDatasource, listMetaTables } from '@/api/data/asset'
 import {
   listETLTask,
   getETLTask,
   addETLTask,
   updateETLTask,
   delETLTask,
-  executeETLTask
+  executeETLTask,
+  createETLTaskVersion,
+  listETLTaskVersion,
+  rollbackETLTaskVersion
 } from '@/api/data/etl'
 
 const { proxy } = getCurrentInstance()
@@ -258,6 +323,19 @@ const detailData = ref({})
 
 const datasourceOptions = ref([])
 const sourceTableOptions = ref([])
+const targetTableOptions = ref([])
+
+// 版本管理
+const versionOpen = ref(false)
+const createVersionOpen = ref(false)
+const versionList = ref([])
+const currentTaskId = ref(null)
+const versionForm = ref({})
+const versionRules = ref({
+  changeLog: [
+    { required: true, message: '变更日志不能为空', trigger: 'blur' }
+  ]
+})
 
 const queryParams = ref({
   pageNum: 1,
@@ -393,6 +471,10 @@ function handleUpdate(row) {
     if (form.value.sourceDatasourceId) {
       loadSourceTables(form.value.sourceDatasourceId)
     }
+    // 加载目标表列表
+    if (form.value.targetDatasourceId) {
+      loadTargetTables(form.value.targetDatasourceId)
+    }
     open.value = true
     title.value = '修改ETL任务'
   })
@@ -459,21 +541,27 @@ function handleSourceDatasourceChange(value) {
   }
 }
 
+/** 目标数据源变化 */
+function handleTargetDatasourceChange(value) {
+  form.value.targetTable = undefined
+  if (value) {
+    loadTargetTables(value)
+  } else {
+    targetTableOptions.value = []
+  }
+}
+
 /** 加载源表列表 */
 function loadSourceTables(datasourceId) {
-  // 这里应该调用获取表列表的API
-  // 暂时使用空数组，实际应该调用 metaTable API
-  listMetaTable({ dataSourceId: datasourceId }).then(res => {
+  listMetaTables({ dataSourceId: datasourceId }).then(res => {
     sourceTableOptions.value = res.rows || []
   })
 }
 
-/** 获取元数据表列表 */
-function listMetaTable(query) {
-  return proxy.request({
-    url: '/dataasset/meta-table',
-    method: 'get',
-    params: query
+/** 加载目标表列表 */
+function loadTargetTables(datasourceId) {
+  listMetaTables({ dataSourceId: datasourceId }).then(res => {
+    targetTableOptions.value = res.rows || []
   })
 }
 
@@ -482,6 +570,52 @@ function getDatasourceList() {
   listDatasource().then(res => {
     datasourceOptions.value = res.rows || []
   })
+}
+
+/** 版本管理按钮操作 */
+function handleVersion(row) {
+  currentTaskId.value = row.taskId
+  getVersionList()
+  versionOpen.value = true
+}
+
+/** 获取版本列表 */
+function getVersionList() {
+  listETLTaskVersion(currentTaskId.value).then(res => {
+    versionList.value = res.data || []
+  })
+}
+
+/** 创建版本快照 */
+function handleCreateVersion() {
+  versionForm.value = {
+    changeLog: undefined
+  }
+  createVersionOpen.value = true
+}
+
+/** 提交版本 */
+function submitVersion() {
+  proxy.$refs['versionFormRef'].validate(valid => {
+    if (valid) {
+      createETLTaskVersion(currentTaskId.value, versionForm.value).then(() => {
+        proxy.$modal.msgSuccess('版本创建成功')
+        createVersionOpen.value = false
+        getVersionList()
+      })
+    }
+  })
+}
+
+/** 回滚版本 */
+function handleRollback(row) {
+  proxy.$modal.confirm('是否确认回滚到版本"' + row.versionNumber + '"？').then(() => {
+    return rollbackETLTaskVersion(currentTaskId.value, { versionNumber: row.versionNumber })
+  }).then(() => {
+    proxy.$modal.msgSuccess('回滚成功')
+    getVersionList()
+    getList()
+  }).catch(() => {})
 }
 
 onMounted(() => {

@@ -156,6 +156,7 @@
 </template>
 
 <script setup name="ETLExecutionLog">
+import { getCurrentInstance } from 'vue'
 import { listETLTaskSimple } from '@/api/data/etl'
 import { listETLExecutionLog, getETLExecutionLogDetail } from '@/api/data/etl'
 

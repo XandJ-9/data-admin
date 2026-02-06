@@ -341,6 +341,7 @@ ExecutorFactory.create_executor(
 frontend/src/views/data/etl/
 ├── index.vue                    # ETL任务管理页面 ⭐
 ├── execution-log.vue            # 执行日志页面 ⭐
+├── field-mapping.vue            # 字段映射管理页面 ⭐
 ├── components/
 │   ├── TaskForm.vue             # 任务表单组件（计划中）
 │   ├── FieldMappingEditor.vue   # 字段映射编辑器（计划中）
@@ -353,8 +354,10 @@ frontend/src/views/data/etl/
 - 搜索栏：任务名称、编码、类型、执行器、状态
 - 工具栏：新增、删除、执行
 - 数据表格：任务列表展示
-- 操作按钮：详情、执行、修改、删除
+- 操作按钮：详情、执行、修改、版本管理、删除
 - 表单弹窗：新增/修改任务
+- ✅ 源表/目标表下拉选择（自动加载）
+- ✅ 版本管理弹窗：创建版本、查看版本历史、版本回滚
 - 详情弹窗：查看任务详细信息
 
 **执行日志页面** (`execution-log.vue`)
@@ -364,10 +367,27 @@ frontend/src/views/data/etl/
 - 详情弹窗：查看执行详情
 - 错误弹窗：查看错误信息
 
+**字段映射管理页面** (`field-mapping.vue`) ⭐ 新增
+- 搜索栏：ETL任务、源字段名、目标字段名
+- 工具栏：新增、批量删除
+- 数据表格：字段映射列表
+- 操作按钮：修改、删除
+- 表单弹窗：新增/修改字段映射
+- 支持配置：源字段、目标字段、转换规则、清洗规则、数据类型、是否主键、排序
+
 ### API调用示例
 
 ```javascript
-import { listETLTask, addETLTask, executeETLTask } from '@/api/data/etl'
+import {
+  listETLTask,
+  addETLTask,
+  executeETLTask,
+  createETLTaskVersion,
+  listETLTaskVersion,
+  rollbackETLTaskVersion,
+  listETLFieldMapping,
+  addETLFieldMapping
+} from '@/api/data/etl'
 
 // 查询任务列表
 const { rows, total } = await listETLTask({
@@ -387,6 +407,38 @@ await addETLTask({
 
 // 执行任务
 const { executionId } = await executeETLTask(taskId)
+
+// 创建版本快照
+await createETLTaskVersion(taskId, {
+  changeLog: '优化SQL查询性能'
+})
+
+// 获取版本列表
+const versions = await listETLTaskVersion(taskId)
+
+// 回滚到指定版本
+await rollbackETLTaskVersion(taskId, {
+  versionNumber: 1
+})
+
+// 查询字段映射
+const { rows } = await listETLFieldMapping({
+  taskId: 1,
+  pageNum: 1,
+  pageSize: 10
+})
+
+// 新增字段映射
+await addETLFieldMapping({
+  taskId: 1,
+  sourceFieldName: 'user_id',
+  targetFieldName: 'id',
+  transformRule: 'CAST AS BIGINT',
+  cleanRule: 'TRIM',
+  dataType: 'BIGINT',
+  isPrimaryKey: true,
+  sortOrder: 1
+})
 ```
 
 ---
@@ -457,6 +509,28 @@ const { executionId } = await executeETLTask(taskId)
 2. 筛选特定任务的执行记录
 3. 点击"详情"查看完整信息
 4. 如果失败，点击"错误"查看错误详情
+
+### 配置字段映射
+
+如果需要精细化控制字段映射关系：
+
+**步骤**：
+1. 进入"字段映射管理"页面
+2. 点击"新增"按钮
+3. 填写字段映射信息：
+   - **ETL任务**：选择关联的任务
+   - **源字段名**：源表中的字段名称（如：`user_id`）
+   - **目标字段名**：目标表中的字段名称（如：`id`）
+   - **转换规则**：字段转换表达式（如：`CAST AS BIGINT`、`UPPER`、`TRIM`）
+   - **清洗规则**：数据清洗规则（如：去除空格、默认值）
+   - **数据类型**：目标字段数据类型（如：`VARCHAR(100)`、`BIGINT`）
+   - **是否主键**：勾选表示该字段是主键
+   - **排序**：字段在映射中的顺序
+4. 点击"确定"保存
+
+**批量配置**：
+- 可以通过 API 批量导入字段映射
+- 支持从源表结构自动生成映射关系
 
 ### 版本管理
 
@@ -645,6 +719,39 @@ ORDER BY sort_order;
 
 ## 开发指南
 
+### 前端开发规范
+
+**重要**：ETL 模块前端开发必须遵循以下规范：
+
+1. **使用 API 模块封装**
+   - ✅ 正确：从 `@/api/data/etl` 导入 API 函数
+   - ❌ 错误：使用 `proxy.request()` 直接发起请求
+
+2. **导入 getCurrentInstance**
+   - 如果需要使用 `proxy`（如 `proxy.$modal`、`proxy.resetForm`），必须先导入：
+   ```javascript
+   import { getCurrentInstance } from 'vue'
+   const { proxy } = getCurrentInstance()
+   ```
+
+3. **示例对比**
+   ```javascript
+   // ❌ 错误示例（违反规范）
+   function loadData() {
+     return proxy.request({
+       url: '/dataetl/tasks',
+       method: 'get'
+     })
+   }
+
+   // ✅ 正确示例（遵循规范）
+   import { listETLTask } from '@/api/data/etl'
+
+   function loadData() {
+     return listETLTask()
+   }
+   ```
+
 ### 添加新执行器
 
 #### 1. 创建执行器类
@@ -715,6 +822,9 @@ class ETLTask(BaseModel):
 
 ### 短期计划（v1.1.0）
 
+- [x] 字段映射管理页面
+- [x] 版本管理功能（创建版本、查看版本、版本回滚）
+- [x] 目标表下拉选择功能
 - [ ] 可视化字段映射编辑器（拖拽式）
 - [ ] 任务依赖关系配置
 - [ ] 执行器参数配置UI
@@ -740,6 +850,36 @@ class ETLTask(BaseModel):
 ---
 
 ## 更新日志
+
+### v1.0.1 (2026-02-06)
+
+**前端功能增强**
+
+✨ 新功能：
+- ✅ 字段映射管理页面（`field-mapping.vue`）
+  - 字段映射 CRUD 操作
+  - 支持转换规则和清洗规则配置
+  - 主键标识和排序功能
+  - 任务关联查询
+- ✅ 版本管理功能
+  - 创建版本快照（带变更日志）
+  - 查看版本历史列表
+  - 一键回滚到指定版本
+  - 当前版本标识显示
+- ✅ 目标表选择优化
+  - 下拉选择（支持手动输入）
+  - 自动加载目标数据源的表列表
+  - 选择数据源后自动刷新表列表
+
+🐛 问题修复：
+- 修复 `proxy.request is not a function` 错误
+- 遵循开发规范，使用 API 模块封装
+- 添加缺失的 `getCurrentInstance` 导入
+
+🔧 技术改进：
+- 添加字段映射管理路由配置
+- 完善前端组件结构
+- 优化用户体验（表单联动、数据加载）
 
 ### v1.0.0 (2026-02-05)
 
@@ -782,9 +922,9 @@ class ETLTask(BaseModel):
 
 - **模块负责人**: 数据团队
 - **问题反馈**: [GitHub Issues](https://github.com/XandJ-9/data-admin/issues)
-- **更新时间**: 2026-02-05
+- **更新时间**: 2026-02-06
 
 ---
 
-**文档版本**: v1.0.0
-**最后更新**: 2026-02-05
+**文档版本**: v1.0.1
+**最后更新**: 2026-02-06
