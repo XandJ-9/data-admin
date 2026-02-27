@@ -24,7 +24,7 @@ class RoleViewSet(BaseViewSet, ExportExcelMixin):
     queryset = Role.objects.filter(del_flag='0').order_by('create_time')
     serializer_class = RoleSerializer
     update_body_serializer_class = RoleUpdateSerializer
-    update_body_id_field = 'roleId'
+    update_body_id_field = 'role_id'
     export_field_label = OrderedDict([
         ('role_id', '角色序号'),
         ('role_name', '角色名称'),

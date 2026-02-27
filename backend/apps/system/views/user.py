@@ -252,7 +252,8 @@ class UserViewSet(BaseViewSet, ExportExcelMixin):
     @audit_log
     @extend_schema(request=AuthRoleAssignSerializer)
     def updateAuthRole(self, request):
-        v = AuthRoleAssignSerializer(data=request.query_params)
+        print('updateAuthRole')
+        v = AuthRoleAssignSerializer(data=request.data)
         v.is_valid(raise_exception=True)
         user_id = v.validated_data['userId']
         role_ids = v.validated_data.get('roleIds', [])

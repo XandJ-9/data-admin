@@ -4,7 +4,7 @@
     <el-row :gutter="20" class="stats-row">
       <el-col :span="6">
         <el-card shadow="hover" class="stats-card">
-          <div class="stats-content" @click="navigateTo('DataSource')">
+          <div class="stats-content" @click="navigateTo('DataSourceManage')">
             <el-icon class="stats-icon" :size="40" color="#409EFF"><Management /></el-icon>
             <div class="stats-info">
               <div class="stats-number">{{ stats.datasourceCount }}</div>

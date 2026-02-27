@@ -42,7 +42,7 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
         queryset lookups.  Eg if objects are referenced using multiple
         keyword arguments in the url conf.
         
-        重写get_object方法，支持多个对象删除
+        重写get_object方法，支持多个对象
         传入参数value1,value2,value3,...
         """
         queryset = self.filter_queryset(self.get_queryset())
@@ -110,13 +110,17 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
             if hasattr(obj, 'del_flag'):
                 obj.del_flag = '1'
                 obj.save(update_fields=['del_flag'])
+            else:
+                self.perform_destroy(obj)
 
         if isinstance(instance, list):
             for obj in instance:
-                _delete(obj)
+                # _delete(obj)
+                self.perform_destroy(obj)
             return self.ok() 
         else:
-            _delete(instance)
+            # _delete(instance)
+            self.perform_destroy(instance)
         return self.ok()
         # return super().destroy(request, *args, **kwargs)
 
@@ -197,7 +201,7 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
                 instance = Model.objects.get(pk=obj_id)
         except Model.DoesNotExist:
             # return Response({'code': 404, 'msg': '资源不存在'}, status=status.HTTP_404_NOT_FOUND)
-            return self.not_found(msg=f'资源不存在，id={obj_id}')
+            return self.not_found(msg=f'资源不存在，{id_field}={obj_id}')
         kwargs['partial'] = False
         self.kwargs.update(kwargs)
         self.get_object = lambda: instance
@@ -283,7 +287,30 @@ class GetRoutersView(generics.GenericAPIView):
         # cached = cache.get('routers')
         # if cached is not None:
         #     return Response({"code": 200, "msg": "操作成功", "data": cached})
-        menus = list(Menu.objects.filter(status='0', del_flag='0').order_by('parent_id', 'order_num'))
+
+        # 获取当前用户及其角色
+        user = request.user
+        from apps.system.models import Role, RoleMenu
+
+        # 获取用户的所有角色
+        # user_roles = Role.objects.filter(
+        #     userrole__user=user,
+        #     status='0',
+        #     del_flag='0'
+        # )
+        # 获取这些角色关联的所有菜单ID
+        role_menu_ids = RoleMenu.objects.filter(
+            role_id__in=UserRole.objects.filter(user=user, del_flag='0').select_related('role').values_list('role_id'),
+            del_flag='0'
+        ).values_list('menu_id', flat=True)
+
+        
+        # 只查询用户角色关联的菜单
+        menus = list(Menu.objects.filter(
+            menu_id__in=role_menu_ids,
+            status='0',
+            del_flag='0'
+        ).order_by('parent_id', 'order_num'))
 
         def build_tree(items, pid=0):
             nodes = []

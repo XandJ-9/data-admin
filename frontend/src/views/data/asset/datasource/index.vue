@@ -100,7 +100,9 @@
         </template>
       </el-table-column>
       <el-table-column label="创建时间" prop="createTime" width="180" align="center" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="280">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="280"
+      v-hasPermi="['system:datasource:edit','system:datasource:query']"
+      >
         <template #default="scope">
           <el-button
             link

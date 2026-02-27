@@ -123,7 +123,7 @@ export function updateAuthRole(data) {
   return request({
     url: '/system/user/authRole',
     method: 'put',
-    params: data
+    data: data
   })
 }
 
