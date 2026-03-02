@@ -13,7 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.system.views.core import BaseViewSet
 
-from .models import ETLTask, ETLTaskVersion, ETLFieldMapping, ETLExecutionLog
+from .models import ETLTask, ETLTaskVersion, ETLFieldMapping, ETLExecutionLog, ETLWatermark
 from .serializers import (
     ETLTaskSerializer, ETLTaskCreateSerializer, ETLTaskUpdateSerializer,
     ETLTaskQuerySerializer, ETLTaskSimpleSerializer,
@@ -21,9 +21,12 @@ from .serializers import (
     ETLFieldMappingSerializer, ETLFieldMappingCreateSerializer,
     ETLFieldMappingUpdateSerializer, ETLFieldMappingQuerySerializer,
     ETLExecutionLogSerializer, ETLExecutionLogCreateSerializer,
-    ETLExecutionLogQuerySerializer
+    ETLExecutionLogQuerySerializer,
+    ETLWatermarkSerializer, ETLWatermarkQuerySerializer,
+    DataXConfigValidateSerializer, DataXConfigGenerateSerializer
 )
 from .executors import ExecutorFactory
+from .executors.datax_config_builder import DataXConfigBuilder
 
 
 # ==================== ETLTask ViewSet ====================
@@ -265,6 +268,145 @@ class ETLTaskViewSet(BaseViewSet):
 
         return self.data({'message': f'已回滚到版本 {version_number}'})
 
+    @action(detail=True, methods=['post'], url_path='validate-config')
+    def validate_config(self, request, pk=None):
+        """
+        验证DataX配置
+
+        验证任务的DataX配置是否正确
+        """
+        task = self.get_object()
+
+        # 检查是否为DataX任务
+        if task.executor_type != 'datax':
+            return Response({
+                'code': 400,
+                'msg': '仅支持DataX执行器的配置验证'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 创建配置构建器
+            config_builder = DataXConfigBuilder(task)
+
+            # 验证配置
+            is_valid, error_msg = config_builder.validate_config()
+
+            if is_valid:
+                # 生成配置用于预览
+                execution_date = datetime.now().strftime('%Y%m%d')
+                config = config_builder.build(execution_date)
+
+                return self.data({
+                    'valid': True,
+                    'warnings': [],
+                    'config': config
+                })
+            else:
+                return self.data({
+                    'valid': False,
+                    'warnings': [error_msg]
+                })
+
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'配置验证失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'], url_path='datx-config')
+    def generate_datx_config(self, request, pk=None):
+        """
+        生成DataX JSON配置
+
+        返回DataX JSON配置，不执行任务
+        """
+        task = self.get_object()
+
+        # 检查是否为DataX任务
+        if task.executor_type != 'datax':
+            return Response({
+                'code': 400,
+                'msg': '仅支持DataX执行器'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 获取执行日期参数
+            execution_date = request.query_params.get('executionDate') or \
+                           datetime.now().strftime('%Y%m%d')
+
+            # 创建配置构建器
+            config_builder = DataXConfigBuilder(task)
+
+            # 生成配置
+            config = config_builder.build(execution_date)
+
+            return self.data({
+                'config': config,
+                'executionDate': execution_date
+            })
+
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'配置生成失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='execute-dry-run')
+    def dry_run(self, request, pk=None):
+        """
+        模拟执行（不实际写入数据）
+
+        返回执行计划和预估性能
+        """
+        task = self.get_object()
+
+        # 检查是否为DataX任务
+        if task.executor_type != 'datax':
+            return Response({
+                'code': 400,
+                'msg': '仅支持DataX执行器'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 创建配置构建器
+            config_builder = DataXConfigBuilder(task)
+
+            # 验证配置
+            is_valid, error_msg = config_builder.validate_config()
+            if not is_valid:
+                return Response({
+                    'code': 400,
+                    'msg': f'配置验证失败: {error_msg}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # 生成配置
+            execution_date = datetime.now().strftime('%Y%m%d')
+            config = config_builder.build(execution_date)
+
+            # 返回执行计划
+            return self.data({
+                'message': '模拟执行成功',
+                'executionPlan': {
+                    'taskName': task.task_name,
+                    'taskCode': task.task_code,
+                    'executorType': 'DataX',
+                    'sourceDatasource': task.source_datasource.name,
+                    'targetDatasource': task.target_datasource.name,
+                    'sourceTable': task.source_table.table_name if task.source_table else None,
+                    'targetTable': task.target_table,
+                    'executionDate': execution_date,
+                    'estimatedTime': '根据数据量预估',
+                },
+                'config': config
+            })
+
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'模拟执行失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 # ==================== ETLFieldMapping ViewSet ====================
 
@@ -378,3 +520,75 @@ class ETLExecutionLogViewSet(BaseViewSet):
         log = self.get_object()
         serializer = ETLExecutionLogSerializer(log)
         return self.data(serializer.data)
+
+
+# ==================== ETLWatermark ViewSet ====================
+
+class ETLWatermarkViewSet(BaseViewSet):
+    """ETL水印视图集合"""
+
+    queryset = ETLWatermark.objects.all()
+    serializer_class = ETLWatermarkSerializer
+
+    def get_queryset(self):
+        """获取查询集，支持筛选"""
+        queryset = super().get_queryset()
+
+        # 获取查询参数
+        task_id = self.request.query_params.get('taskId')
+
+        # 应用筛选条件
+        if task_id:
+            queryset = queryset.filter(task_id=task_id)
+
+        return queryset
+
+    @action(detail=False, methods=['get'], url_path='task/(?P<task_id>[^/.]+)')
+    def get_watermark_by_task(self, request, task_id=None):
+        """
+        获取任务的最新水印值
+
+        Args:
+            task_id: 任务ID
+        """
+        try:
+            watermark = ETLWatermark.objects.filter(
+                task_id=task_id
+            ).order_by('-update_time').first()
+
+            if watermark:
+                serializer = ETLWatermarkSerializer(watermark)
+                return self.data(serializer.data)
+            else:
+                return self.data({
+                    'watermarkValue': None,
+                    'message': '该任务暂无水印记录'
+                })
+
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'获取水印失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def create(self, request, *args, **kwargs):
+        """禁用直接创建水印"""
+        return Response({
+            'code': 403,
+            'msg': '水印由系统自动管理，不允许手动创建'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    def update(self, request, *args, **kwargs):
+        """禁用更新水印"""
+        return Response({
+            'code': 403,
+            'msg': '水印由系统自动管理，不允许手动修改'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    def destroy(self, request, *args, **kwargs):
+        """禁用删除水印"""
+        return Response({
+            'code': 403,
+            'msg': '水印不允许删除'
+        }, status=status.HTTP_403_FORBIDDEN)
+

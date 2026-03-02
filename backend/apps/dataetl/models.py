@@ -280,6 +280,62 @@ class ETLFieldMapping(BaseModel):
         return f"{self.source_field_name} -> {self.target_field_name}"
 
 
+class ETLWatermark(BaseModel):
+    """
+    ETL Watermark Model
+
+    Manages watermark values for incremental ETL tasks.
+    Tracks the last extracted value for incremental extraction.
+    """
+
+    INCREMENT_TYPE_CHOICES = [
+        ('timestamp', '时间戳'),
+        ('id', '自增ID'),
+        ('cdc', '变更数据'),
+    ]
+
+    task = models.ForeignKey(
+        ETLTask,
+        on_delete=models.CASCADE,
+        related_name='watermarks',
+        verbose_name='ETL任务',
+        help_text='关联的ETL任务'
+    )
+    increment_field = models.CharField(
+        max_length=64,
+        verbose_name='增量字段',
+        help_text='用于增量抽取的字段名'
+    )
+    increment_type = models.CharField(
+        max_length=20,
+        choices=INCREMENT_TYPE_CHOICES,
+        default='timestamp',
+        verbose_name='增量类型',
+        help_text='增量策略类型'
+    )
+    watermark_value = models.CharField(
+        max_length=255,
+        verbose_name='水印值',
+        help_text='当前水印值（上次抽取的最大值）'
+    )
+    execution_id = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        verbose_name='执行ID',
+        help_text='关联的执行ID'
+    )
+
+    class Meta:
+        db_table = 'dataetl_watermark'
+        verbose_name = 'ETL水印'
+        verbose_name_plural = 'ETL水印'
+        ordering = ['-update_time']
+
+    def __str__(self):
+        return f"{self.task.task_code} - {self.increment_field}: {self.watermark_value}"
+
+
 class ETLExecutionLog(models.Model):
     """
     ETL Execution Log Model

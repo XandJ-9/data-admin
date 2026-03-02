@@ -206,32 +206,44 @@ export const dynamicRoutes = [
       }
     ]
   },
-//   {
-//     path: '/data-etl',
-//     component: Layout,
-//     hidden: true,
-//     permissions: ['system:dataetl:task'],
-//     children: [
-//       {
-//         path: 'task',
-//         component: () => import('@/views/data/etl/index'),
-//         name: 'DataETLTask',
-//         meta: { title: 'ETL任务管理', activeMenu: '/data-etl/task' }
-//       },
-//       {
-//         path: 'execution-log',
-//         component: () => import('@/views/data/etl/execution-log'),
-//         name: 'DataETLExecutionLog',
-//         meta: { title: 'ETL执行日志', activeMenu: '/data-etl/execution-log' }
-//       },
-//       {
-//         path: 'field-mapping',
-//         component: () => import('@/views/data/etl/field-mapping'),
-//         name: 'DataETLFieldMapping',
-//         meta: { title: 'ETL字段映射', activeMenu: '/data-etl/field-mapping' }
-//       }
-//     ]
-//   }
+  {
+    path: '/data-etl',
+    component: Layout,
+    hidden: true,
+    permissions: ['system:dataetl:task'],
+    children: [
+      {
+        path: 'task',
+        component: () => import('@/views/data/etl/index'),
+        name: 'DataETLTask',
+        meta: { title: 'ETL任务管理', activeMenu: '/data-etl/task' }
+      },
+      {
+        path: 'task/create',
+        component: () => import('@/views/data/etl/detail'),
+        name: 'DataETLTaskCreate',
+        meta: { title: '新增ETL任务', activeMenu: '/data-etl/task' }
+      },
+      {
+        path: 'task/edit/:id',
+        component: () => import('@/views/data/etl/detail'),
+        name: 'DataETLTaskEdit',
+        meta: { title: '编辑ETL任务', activeMenu: '/data-etl/task' }
+      },
+      {
+        path: 'execution-log',
+        component: () => import('@/views/data/etl/execution-log'),
+        name: 'DataETLExecutionLog',
+        meta: { title: 'ETL执行日志', activeMenu: '/data-etl/execution-log' }
+      },
+      {
+        path: 'field-mapping',
+        component: () => import('@/views/data/etl/field-mapping'),
+        name: 'DataETLFieldMapping',
+        meta: { title: 'ETL字段映射', activeMenu: '/data-etl/field-mapping' }
+      }
+    ]
+  }
 ]
 
 const router = createRouter({

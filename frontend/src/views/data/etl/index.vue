@@ -9,20 +9,17 @@
       <el-form-item label="任务编码" prop="taskCode">
         <el-input v-model="queryParams.taskCode" placeholder="请输入任务编码" clearable style="width: 200px" @keyup.enter="handleQuery" />
       </el-form-item>
-      <el-form-item label="ETL类型" prop="etlType">
-        <el-select v-model="queryParams.etlType" placeholder="请选择ETL类型" clearable style="width: 200px">
-          <el-option label="STG采集" value="extract" />
-          <el-option label="DWD转换" value="transform" />
-          <el-option label="ODS加载" value="load" />
-          <el-option label="全量ETL" value="full" />
+      <el-form-item label="任务类型" prop="taskType">
+        <el-select v-model="queryParams.taskType" placeholder="请选择任务类型" clearable style="width: 200px">
+          <el-option label="数据集成" value="data_integration" />
+          <el-option label="SQL任务" value="sql_task" />
         </el-select>
       </el-form-item>
       <el-form-item label="执行器类型" prop="executorType">
         <el-select v-model="queryParams.executorType" placeholder="请选择执行器类型" clearable style="width: 200px">
-          <el-option label="模拟执行器" value="mock" />
           <el-option label="DataX" value="datax" />
           <el-option label="Spark SQL" value="spark" />
-          <el-option label="Python脚本" value="python" />
+          <el-option label="模拟执行器" value="mock" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态" prop="status">
@@ -56,14 +53,26 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="任务名称" prop="taskName" width="180" :show-overflow-tooltip="true" />
       <el-table-column label="任务编码" prop="taskCode" width="150" :show-overflow-tooltip="true" />
-      <el-table-column label="ETL类型" prop="etlType" width="120">
+      <el-table-column label="任务类型" prop="taskType" width="120">
         <template #default="scope">
-          <dict-tag :options="etl_type_options" :value="scope.row.etlType" />
+          <el-tag :type="getTaskTypeTag(scope.row.taskType)" v-if="scope.row.taskType">
+            {{ getTaskTypeLabel(scope.row.taskType) }}
+          </el-tag>
+          <el-tag type="info" v-else>未知</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="执行器类型" prop="executorType" width="120">
         <template #default="scope">
-          <dict-tag :options="executor_type_options" :value="scope.row.executorType" />
+          <el-tag :type="getExecutorTypeTag(scope.row.executorType)">
+            {{ getExecutorTypeLabel(scope.row.executorType) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="执行策略" prop="executeStrategy" width="100">
+        <template #default="scope">
+          <el-tag :type="scope.row.executeStrategy === 'full' ? 'success' : 'warning'">
+            {{ scope.row.executeStrategy === 'full' ? '全量' : '增量' }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column label="源数据源" prop="sourceDatasourceName" width="150" :show-overflow-tooltip="true" />
@@ -80,7 +89,7 @@
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="280" fixed="right">
+      <el-table-column label="操作" align="center" width="330" fixed="right">
         <template #default="scope">
           <el-button link size="small" type="primary" icon="View" @click="handleDetail(scope.row)">详情</el-button>
           <el-button link size="small" type="primary" icon="VideoPlay" @click="handleExecute(scope.row)" v-hasPermi="['system:dataetl:task:execute']">执行</el-button>
@@ -102,120 +111,27 @@
       @pagination="getList"
     />
 
-    <!-- 新增/修改弹窗 -->
-    <el-dialog :title="title" v-model="open" width="900px" append-to-body>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="140px">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="任务名称" prop="taskName">
-              <el-input v-model="form.taskName" placeholder="请输入任务名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="任务编码" prop="taskCode">
-              <el-input v-model="form.taskCode" placeholder="请输入任务编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="ETL类型" prop="etlType">
-              <el-select v-model="form.etlType" placeholder="请选择ETL类型">
-                <el-option v-for="dict in etl_type_options" :key="dict.value" :label="dict.label" :value="dict.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="执行器类型" prop="executorType">
-              <el-select v-model="form.executorType" placeholder="请选择执行器类型">
-                <el-option v-for="dict in executor_type_options" :key="dict.value" :label="dict.label" :value="dict.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="执行策略" prop="executeStrategy">
-              <el-select v-model="form.executeStrategy" placeholder="请选择执行策略">
-                <el-option label="全量" value="full" />
-                <el-option label="增量" value="increment" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="源数据源" prop="sourceDatasourceId">
-              <el-select v-model="form.sourceDatasourceId" filterable placeholder="请选择源数据源" @change="handleSourceDatasourceChange">
-                <el-option v-for="ds in datasourceOptions" :key="ds.dataSourceId" :label="ds.dataSourceName" :value="ds.dataSourceId" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="目标数据源" prop="targetDatasourceId">
-              <el-select v-model="form.targetDatasourceId" filterable placeholder="请选择目标数据源" @change="handleTargetDatasourceChange">
-                <el-option v-for="ds in datasourceOptions" :key="ds.dataSourceId" :label="ds.dataSourceName" :value="ds.dataSourceId" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="源表" prop="sourceTableId">
-              <el-select v-model="form.sourceTableId" filterable placeholder="请选择源表" :disabled="!form.sourceDatasourceId">
-                <el-option v-for="table in sourceTableOptions" :key="table.id" :label="table.tableName" :value="table.id" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="目标表" prop="targetTable">
-              <el-select
-                v-model="form.targetTable"
-                filterable
-                placeholder="请选择目标表"
-                :disabled="!form.targetDatasourceId"
-                allow-create
-              >
-                <el-option v-for="table in targetTableOptions" :key="table.id" :label="table.tableName" :value="table.tableName" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="任务描述">
-              <el-input v-model="form.description" type="textarea" :rows="2" placeholder="请输入任务描述" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="SQL配置">
-              <el-input v-model="form.sqlConfig" type="textarea" :rows="4" placeholder="请输入SQL配置" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="状态" prop="status">
-              <el-radio-group v-model="form.status">
-                <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :value="dict.value">{{ dict.label }}</el-radio>
-              </el-radio-group>
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="备注">
-              <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="请输入备注" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
-          <el-button @click="cancel">取 消</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
     <!-- 任务详情弹窗 -->
-    <el-dialog title="任务详情" v-model="detailOpen" width="900px" append-to-body>
+    <el-dialog title="任务详情" v-model="detailOpen" width="1000px" append-to-body>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="任务名称">{{ detailData.taskName }}</el-descriptions-item>
         <el-descriptions-item label="任务编码">{{ detailData.taskCode }}</el-descriptions-item>
-        <el-descriptions-item label="ETL类型">
-          <dict-tag :options="etl_type_options" :value="detailData.etlType" />
+        <el-descriptions-item label="任务类型">
+          <el-tag :type="getTaskTypeTag(detailData.taskType)" v-if="detailData.taskType">
+            {{ getTaskTypeLabel(detailData.taskType) }}
+          </el-tag>
+          <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item label="执行器类型">
-          <dict-tag :options="executor_type_options" :value="detailData.executorType" />
+          <el-tag :type="getExecutorTypeTag(detailData.executorType)">
+            {{ getExecutorTypeLabel(detailData.executorType) }}
+          </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="执行策略">{{ detailData.executeStrategy === 'full' ? '全量' : '增量' }}</el-descriptions-item>
+        <el-descriptions-item label="执行策略">
+          <el-tag :type="detailData.executeStrategy === 'full' ? 'success' : 'warning'">
+            {{ detailData.executeStrategy === 'full' ? '全量' : '增量' }}
+          </el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="状态">
           <dict-tag :options="sys_normal_disable" :value="detailData.status" />
         </el-descriptions-item>
@@ -226,6 +142,15 @@
         <el-descriptions-item label="任务描述" :span="2">{{ detailData.description || '-' }}</el-descriptions-item>
         <el-descriptions-item label="SQL配置" :span="2">
           <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ detailData.sqlConfig || '-' }}</pre>
+        </el-descriptions-item>
+        <el-descriptions-item label="执行器参数" :span="2" v-if="detailData.executorParams">
+          <el-input
+            :model-value="formatExecutorParams(detailData.executorParams)"
+            type="textarea"
+            :rows="6"
+            readonly
+            style="font-family: monospace; font-size: 12px;"
+          />
         </el-descriptions-item>
         <el-descriptions-item label="创建者">{{ detailData.createBy }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ detailData.createTime }}</el-descriptions-item>
@@ -239,7 +164,7 @@
     </el-dialog>
 
     <!-- 版本管理弹窗 -->
-    <el-dialog title="版本管理" v-model="versionOpen" width="900px" append-to-body>
+    <el-dialog title="版本管理" v-model="versionOpen" width="1000px" append-to-body>
       <div style="margin-bottom: 15px;">
         <el-button type="primary" icon="Plus" size="small" @click="handleCreateVersion">创建版本快照</el-button>
       </div>
@@ -294,12 +219,10 @@
 
 <script setup name="ETLTask">
 import { getCurrentInstance } from 'vue'
-import { listDatasource, listMetaTables } from '@/api/data/asset'
+import { useRouter } from 'vue-router'
 import {
   listETLTask,
   getETLTask,
-  addETLTask,
-  updateETLTask,
   delETLTask,
   executeETLTask,
   createETLTaskVersion,
@@ -308,6 +231,7 @@ import {
 } from '@/api/data/etl'
 
 const { proxy } = getCurrentInstance()
+const router = useRouter()
 
 const dataList = ref([])
 const loading = ref(false)
@@ -316,14 +240,8 @@ const ids = ref([])
 const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
-const title = ref('')
-const open = ref(false)
 const detailOpen = ref(false)
 const detailData = ref({})
-
-const datasourceOptions = ref([])
-const sourceTableOptions = ref([])
-const targetTableOptions = ref([])
 
 // 版本管理
 const versionOpen = ref(false)
@@ -342,56 +260,10 @@ const queryParams = ref({
   pageSize: 10,
   taskName: undefined,
   taskCode: undefined,
-  etlType: undefined,
+  taskType: undefined,
   executorType: undefined,
   status: undefined
 })
-
-const form = ref({})
-const rules = ref({
-  taskName: [
-    { required: true, message: '任务名称不能为空', trigger: 'blur' }
-  ],
-  taskCode: [
-    { required: true, message: '任务编码不能为空', trigger: 'blur' }
-  ],
-  etlType: [
-    { required: true, message: '请选择ETL类型', trigger: 'change' }
-  ],
-  executorType: [
-    { required: true, message: '请选择执行器类型', trigger: 'change' }
-  ],
-  executeStrategy: [
-    { required: true, message: '请选择执行策略', trigger: 'change' }
-  ],
-  sourceDatasourceId: [
-    { required: true, message: '请选择源数据源', trigger: 'change' }
-  ],
-  targetDatasourceId: [
-    { required: true, message: '请选择目标数据源', trigger: 'change' }
-  ],
-  sourceTableId: [
-    { required: true, message: '请选择源表', trigger: 'change' }
-  ],
-  targetTable: [
-    { required: true, message: '请输入目标表名', trigger: 'blur' }
-  ]
-})
-
-// 字典选项
-const etl_type_options = ref([
-  { label: 'STG采集', value: 'extract' },
-  { label: 'DWD转换', value: 'transform' },
-  { label: 'ODS加载', value: 'load' },
-  { label: '全量ETL', value: 'full' }
-])
-
-const executor_type_options = ref([
-  { label: '模拟执行器', value: 'mock' },
-  { label: 'DataX', value: 'datax' },
-  { label: 'Spark SQL', value: 'spark' },
-  { label: 'Python脚本', value: 'python' }
-])
 
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
 
@@ -405,34 +277,6 @@ function getList() {
   }).catch(() => {
     loading.value = false
   })
-}
-
-/** 取消按钮 */
-function cancel() {
-  open.value = false
-  reset()
-}
-
-/** 表单重置 */
-function reset() {
-  form.value = {
-    taskId: undefined,
-    taskName: undefined,
-    taskCode: undefined,
-    description: undefined,
-    etlType: 'full',
-    executorType: 'mock',
-    executeStrategy: 'full',
-    sourceDatasourceId: undefined,
-    targetDatasourceId: undefined,
-    sourceTableId: undefined,
-    targetTable: undefined,
-    sqlConfig: undefined,
-    executorParams: undefined,
-    status: '0',
-    remark: undefined
-  }
-  proxy.resetForm('formRef')
 }
 
 /** 搜索按钮操作 */
@@ -456,28 +300,13 @@ function handleSelectionChange(selection) {
 
 /** 新增按钮操作 */
 function handleAdd() {
-  reset()
-  open.value = true
-  title.value = '新增ETL任务'
+  router.push('/data-etl/task/create')
 }
 
 /** 修改按钮操作 */
 function handleUpdate(row) {
-  reset()
   const taskId = row.taskId || ids.value[0]
-  getETLTask(taskId).then(res => {
-    form.value = res.data
-    // 加载源表列表
-    if (form.value.sourceDatasourceId) {
-      loadSourceTables(form.value.sourceDatasourceId)
-    }
-    // 加载目标表列表
-    if (form.value.targetDatasourceId) {
-      loadTargetTables(form.value.targetDatasourceId)
-    }
-    open.value = true
-    title.value = '修改ETL任务'
-  })
+  router.push(`/data-etl/task/edit/${taskId}`)
 }
 
 /** 详情按钮操作 */
@@ -486,27 +315,6 @@ function handleDetail(row) {
   getETLTask(taskId).then(res => {
     detailData.value = res.data
     detailOpen.value = true
-  })
-}
-
-/** 提交按钮 */
-function submitForm() {
-  proxy.$refs['formRef'].validate(valid => {
-    if (valid) {
-      if (form.value.taskId) {
-        updateETLTask(form.value).then(() => {
-          proxy.$modal.msgSuccess('修改成功')
-          open.value = false
-          getList()
-        })
-      } else {
-        addETLTask(form.value).then(() => {
-          proxy.$modal.msgSuccess('新增成功')
-          open.value = false
-          getList()
-        })
-      }
-    }
   })
 }
 
@@ -529,47 +337,6 @@ function handleExecute(row) {
   }).then(res => {
     proxy.$modal.msgSuccess('任务已提交执行，执行ID: ' + res.data.executionId)
   }).catch(() => {})
-}
-
-/** 源数据源变化 */
-function handleSourceDatasourceChange(value) {
-  form.value.sourceTableId = undefined
-  if (value) {
-    loadSourceTables(value)
-  } else {
-    sourceTableOptions.value = []
-  }
-}
-
-/** 目标数据源变化 */
-function handleTargetDatasourceChange(value) {
-  form.value.targetTable = undefined
-  if (value) {
-    loadTargetTables(value)
-  } else {
-    targetTableOptions.value = []
-  }
-}
-
-/** 加载源表列表 */
-function loadSourceTables(datasourceId) {
-  listMetaTables({ dataSourceId: datasourceId }).then(res => {
-    sourceTableOptions.value = res.rows || []
-  })
-}
-
-/** 加载目标表列表 */
-function loadTargetTables(datasourceId) {
-  listMetaTables({ dataSourceId: datasourceId }).then(res => {
-    targetTableOptions.value = res.rows || []
-  })
-}
-
-/** 获取数据源列表 */
-function getDatasourceList() {
-  listDatasource().then(res => {
-    datasourceOptions.value = res.rows || []
-  })
 }
 
 /** 版本管理按钮操作 */
@@ -618,8 +385,64 @@ function handleRollback(row) {
   }).catch(() => {})
 }
 
+/** 获取执行器类型标签颜色 */
+function getExecutorTypeTag(executorType) {
+  const tagMap = {
+    'mock': 'info',
+    'datax': 'success',
+    'spark': 'primary',
+    'python': 'warning'
+  }
+  return tagMap[executorType] || 'info'
+}
+
+/** 获取任务类型标签颜色 */
+function getTaskTypeTag(taskType) {
+  const tagMap = {
+    'data_integration': 'success',
+    'sql_task': 'primary'
+  }
+  return tagMap[taskType] || 'info'
+}
+
+/** 获取执行器类型标签文本 */
+function getExecutorTypeLabel(executorType) {
+  const labelMap = {
+    'mock': '模拟执行器',
+    'datax': 'DataX',
+    'spark': 'Spark SQL',
+    'python': 'Python脚本'
+  }
+  return labelMap[executorType] || executorType
+}
+
+/** 获取任务类型标签文本 */
+function getTaskTypeLabel(taskType) {
+  if (!taskType) return '未设置'
+
+  const labelMap = {
+    'data_integration': '数据集成',
+    'sql_task': 'SQL任务'
+  }
+
+  // 兼容旧数据：如果使用的是旧的任务类型值
+  const legacyMap = {
+    'extract': '数据集成',
+    'transform': '数据转换',
+    'load': '数据加载',
+    'full': '全量ETL'
+  }
+
+  return labelMap[taskType] || legacyMap[taskType] || taskType
+}
+
+/** 格式化执行器参数 */
+function formatExecutorParams(params) {
+  if (!params) return ''
+  return JSON.stringify(params, null, 2)
+}
+
 onMounted(() => {
   getList()
-  getDatasourceList()
 })
 </script>

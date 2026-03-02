@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from django.db.models import F
@@ -34,11 +35,11 @@ INSTALLED_APPS = [
     'apps.system',
     'apps.monitor',
     'apps.dataservice',
-    'apps.dataintegration',  # 数据集成模块
-    'apps.datastudio',
-    'apps.datataskmonitor',  # 任务监控模块
     'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
     'apps.dataetl',     # ETL任务管理模块
+    # 'apps.dataintegration',  # 数据集成模块
+    # 'apps.datastudio',
+    # 'apps.datataskmonitor',  # 任务监控模块
 ]
 
 MIDDLEWARE = [
@@ -162,3 +163,28 @@ APPEND_SLASH=False
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# ============================================================================
+# DataX Configuration (v1.1.x)
+# ============================================================================
+# DataX安装目录
+DATAX_HOME = os.environ.get('DATAX_HOME', '/opt/datax')
+
+# DataX使用的Python解释器路径
+DATAX_PYTHON = os.environ.get('DATAX_PYTHON', 'python3')
+
+# DataX作业配置文件临时目录
+DATAX_JOB_DIR = os.environ.get('DATAX_JOB_DIR', '/tmp/datax_jobs')
+
+# DataX默认速度配置
+DATAX_DEFAULT_SPEED = {
+    'channel': 1,           # 并发通道数
+    'byte': 1048576,        # 字节限速（1MB/s）
+    'record': 100000,       # 记录限速
+}
+
+# DataX默认错误限制
+DATAX_ERROR_LIMIT = {
+    'record': 0,            # 错误记录数阈值
+    'percentage': 0.02,     # 错误率阈值（2%）
+}
