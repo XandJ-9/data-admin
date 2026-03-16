@@ -11,8 +11,8 @@
       </el-form-item>
     </el-col>
     <el-col :span="12">
-      <el-form-item label="任务类型">
-        <el-select v-model="formData.taskType" placeholder="请选择任务类型" style="width: 100%" @change="handleTaskTypeChange">
+      <el-form-item label="ETL类型">
+        <el-select v-model="formData.etlType" placeholder="请选择ETL类型" style="width: 100%" @change="handleEtlTypeChange">
           <el-option label="数据集成" value="data_integration" />
           <el-option label="SQL任务" value="sql_task" />
         </el-select>
@@ -29,7 +29,7 @@
         </el-input>
       </el-form-item>
     </el-col>
-    <el-col :span="12" v-if="formData.taskType === 'data_integration'">
+    <el-col :span="12" v-if="formData.etlType === 'data_integration'">
       <el-form-item label="执行策略">
         <el-select v-model="formData.executeStrategy" placeholder="请选择执行策略" style="width: 100%">
           <el-option label="全量" value="full" />
@@ -73,8 +73,8 @@ const formData = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
-// 任务类型映射到执行器类型
-const TASK_TYPE_EXECUTOR_MAP = {
+// ETL类型映射到执行器类型
+const ETL_TYPE_EXECUTOR_MAP = {
   data_integration: 'datax',
   sql_task: 'spark'
 }
@@ -95,16 +95,16 @@ const EXECUTOR_TAG_TYPES = {
   python: 'warning'
 }
 
-// 处理任务类型变化
-const handleTaskTypeChange = (taskType) => {
-  if (taskType) {
-    const executorType = TASK_TYPE_EXECUTOR_MAP[taskType]
+// 处理ETL类型变化
+const handleEtlTypeChange = (etlType) => {
+  if (etlType) {
+    const executorType = ETL_TYPE_EXECUTOR_MAP[etlType]
     if (executorType) {
       formData.value = {
         ...formData.value,
         executorType: executorType,
         // 如果是SQL任务，清空执行策略
-        executeStrategy: taskType === 'sql_task' ? undefined : formData.value.executeStrategy
+        executeStrategy: etlType === 'sql_task' ? undefined : formData.value.executeStrategy
       }
     }
   }

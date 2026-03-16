@@ -1,5 +1,4 @@
 """
-<<<<<<< HEAD
 ETL Data Models
 
 This module defines the data models for ETL task management.
@@ -48,99 +47,49 @@ class ETLTask(BaseModel):
 
     # Basic Information
     task_name = models.CharField(max_length=128, verbose_name='任务名称', help_text='ETL任务名称')
-    task_code = models.CharField(
-        max_length=64,
-        unique=True,
-        verbose_name='任务编码',
-        help_text='唯一标识编码'
-    )
+    task_code = models.CharField(max_length=64, unique=True, verbose_name='任务编码', help_text='唯一标识编码')
     description = models.TextField(blank=True, null=True, verbose_name='任务描述', help_text='任务描述信息')
 
-    # ETL Configuration
-    etl_type = models.CharField(
-        max_length=20,
-        choices=ETL_TYPE_CHOICES,
-        default='full',
-        verbose_name='ETL类型',
-        help_text='ETL任务类型'
+    # Template reference (optional)
+    template = models.ForeignKey(
+        'ETLTaskTemplate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks',
+        verbose_name='关联模板',
+        help_text='关联的任务模板'
     )
-    executor_type = models.CharField(
-        max_length=20,
-        choices=EXECUTOR_TYPE_CHOICES,
-        default='mock',
-        verbose_name='执行器类型',
-        help_text='执行器类型'
-    )
-    execute_strategy = models.CharField(
-        max_length=20,
-        choices=EXECUTE_STRATEGY_CHOICES,
-        default='full',
-        verbose_name='执行策略',
-        help_text='执行策略：全量或增量'
-    )
+
+    # Extended Configuration Fields
+    category = models.CharField(max_length=64, blank=True, null=True, verbose_name='分类', help_text='任务分类')
+    tags = models.JSONField(default=list, blank=True, verbose_name='标签', help_text='任务标签列表')
+    task_config = models.JSONField(default=dict, blank=True, null=True, verbose_name='任务配置', help_text='任务配置（JSON格式）')
+    execution_config = models.JSONField(default=dict, blank=True, null=True, verbose_name='执行配置', help_text='执行配置（JSON格式）')
+    quality_config = models.JSONField(default=list, blank=True, null=True, verbose_name='质检配置', help_text='质检规则配置列表')
+
+    # ETL Configuration (legacy fields for backward compatibility)
+    etl_type = models.CharField(max_length=20, choices=ETL_TYPE_CHOICES, default='full', verbose_name='ETL类型', help_text='ETL任务类型')
+    executor_type = models.CharField(max_length=20, choices=EXECUTOR_TYPE_CHOICES, default='mock', verbose_name='执行器类型', help_text='执行器类型')
+    execute_strategy = models.CharField(max_length=20, choices=EXECUTE_STRATEGY_CHOICES, default='full', verbose_name='执行策略', help_text='执行策略：全量或增量')
 
     # Source and Target Configuration
-    source_datasource = models.ForeignKey(
-        DataSource,
-        on_delete=models.PROTECT,
-        related_name='source_etl_tasks',
-        verbose_name='源数据源',
-        help_text='源数据源'
-    )
-    target_datasource = models.ForeignKey(
-        DataSource,
-        on_delete=models.PROTECT,
-        related_name='target_etl_tasks',
-        verbose_name='目标数据源',
-        help_text='目标数据源'
-    )
-    source_table = models.ForeignKey(
-        MetaTable,
-        on_delete=models.PROTECT,
-        related_name='source_etl_tasks',
-        verbose_name='源表',
-        help_text='源表信息',
-        null=True,
-        blank=True
-    )
-    target_table = models.CharField(
-        max_length=256,
-        verbose_name='目标表',
-        help_text='目标表名'
-    )
+    source_datasource = models.ForeignKey(DataSource, on_delete=models.PROTECT, related_name='source_etl_tasks', verbose_name='源数据源', help_text='源数据源')
+    target_datasource = models.ForeignKey(DataSource, on_delete=models.PROTECT, related_name='target_etl_tasks', verbose_name='目标数据源', help_text='目标数据源')
+    source_table = models.ForeignKey(MetaTable, on_delete=models.PROTECT, related_name='source_etl_tasks', verbose_name='源表', help_text='源表信息', null=True, blank=True)
+    target_table = models.CharField(max_length=256, verbose_name='目标表', help_text='目标表名')
 
     # SQL Configuration
-    sql_config = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name='SQL配置',
-        help_text='SQL配置内容，支持采集、转换、加载SQL'
-    )
+    sql_config = models.TextField(blank=True, null=True, verbose_name='SQL配置', help_text='SQL配置内容，支持采集、转换、加载SQL')
 
     # Execution Configuration
-    executor_params = models.JSONField(
-        blank=True,
-        null=True,
-        verbose_name='执行参数',
-        help_text='执行器参数配置（JSON格式）'
-    )
+    executor_params = models.JSONField(blank=True, null=True, verbose_name='执行参数', help_text='执行器参数配置（JSON格式）')
 
     # Status
-    status = models.CharField(
-        max_length=1,
-        choices=STATUS_CHOICES,
-        default='0',
-        verbose_name='状态',
-        help_text='任务状态：0-启用，1-停用'
-    )
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='0', verbose_name='状态', help_text='任务状态：0-启用，1-停用')
 
     # Remark (in addition to BaseModel fields)
-    remark = models.CharField(
-        max_length=500,
-        blank=True,
-        null=True,
-        verbose_name='备注'
-    )
+    remark = models.CharField(max_length=500, blank=True, null=True, verbose_name='备注')
 
     class Meta:
         db_table = 'dataetl_task'
@@ -159,42 +108,15 @@ class ETLTaskVersion(models.Model):
     Manages version history for ETL tasks.
     """
 
-    task = models.ForeignKey(
-        ETLTask,
-        on_delete=models.CASCADE,
-        related_name='versions',
-        verbose_name='ETL任务',
-        help_text='关联的ETL任务'
-    )
-    version_number = models.IntegerField(
-        verbose_name='版本号',
-        help_text='版本号'
-    )
-    config_snapshot = models.JSONField(
-        verbose_name='配置快照',
-        help_text='任务配置快照（JSON格式）'
-    )
-    change_log = models.TextField(
-        verbose_name='变更日志',
-        help_text='版本变更说明'
-    )
-    is_current = models.BooleanField(
-        default=False,
-        verbose_name='当前版本',
-        help_text='是否为当前使用的版本'
-    )
+    task = models.ForeignKey(ETLTask, on_delete=models.CASCADE, related_name='versions', verbose_name='ETL任务', help_text='关联的ETL任务')
+    version_number = models.IntegerField(verbose_name='版本号', help_text='版本号')
+    config_snapshot = models.JSONField(verbose_name='配置快照', help_text='任务配置快照（JSON格式）')
+    change_log = models.TextField(verbose_name='变更日志', help_text='版本变更说明')
+    is_current = models.BooleanField(default=False, verbose_name='当前版本', help_text='是否为当前使用的版本')
 
     # Audit Fields
-    create_by = models.CharField(
-        max_length=64,
-        blank=True,
-        null=True,
-        verbose_name='创建者'
-    )
-    create_time = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='创建时间'
-    )
+    create_by = models.CharField(max_length=64, blank=True, null=True, verbose_name='创建者')
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
 
     class Meta:
         db_table = 'dataetl_task_version'
@@ -214,62 +136,17 @@ class ETLFieldMapping(BaseModel):
     Manages field mappings between source and target tables.
     """
 
-    task = models.ForeignKey(
-        ETLTask,
-        on_delete=models.CASCADE,
-        related_name='field_mappings',
-        verbose_name='ETL任务',
-        help_text='关联的ETL任务'
-    )
-    source_field_name = models.CharField(
-        max_length=128,
-        verbose_name='源字段名',
-        help_text='源表字段名称'
-    )
-    target_field_name = models.CharField(
-        max_length=128,
-        verbose_name='目标字段名',
-        help_text='目标表字段名称'
-    )
-    transform_rule = models.CharField(
-        max_length=512,
-        blank=True,
-        null=True,
-        verbose_name='转换规则',
-        help_text='字段转换规则表达式'
-    )
-    clean_rule = models.CharField(
-        max_length=512,
-        blank=True,
-        null=True,
-        verbose_name='清洗规则',
-        help_text='数据清洗规则'
-    )
-    data_type = models.CharField(
-        max_length=64,
-        blank=True,
-        null=True,
-        verbose_name='数据类型',
-        help_text='字段数据类型'
-    )
-    is_primary_key = models.BooleanField(
-        default=False,
-        verbose_name='是否主键',
-        help_text='是否为主键字段'
-    )
-    sort_order = models.IntegerField(
-        default=0,
-        verbose_name='排序',
-        help_text='字段排序'
-    )
+    task = models.ForeignKey(ETLTask, on_delete=models.CASCADE, related_name='field_mappings', verbose_name='ETL任务', help_text='关联的ETL任务')
+    source_field_name = models.CharField(max_length=128, verbose_name='源字段名', help_text='源表字段名称')
+    target_field_name = models.CharField(max_length=128, verbose_name='目标字段名', help_text='目标表字段名称')
+    transform_rule = models.CharField(max_length=512, blank=True, null=True, verbose_name='转换规则', help_text='字段转换规则表达式')
+    clean_rule = models.CharField(max_length=512, blank=True, null=True, verbose_name='清洗规则', help_text='数据清洗规则')
+    data_type = models.CharField(max_length=64, blank=True, null=True, verbose_name='数据类型', help_text='字段数据类型')
+    is_primary_key = models.BooleanField(default=False, verbose_name='是否主键', help_text='是否为主键字段')
+    sort_order = models.IntegerField(default=0, verbose_name='排序', help_text='字段排序')
 
     # Remark (in addition to BaseModel fields)
-    remark = models.CharField(
-        max_length=500,
-        blank=True,
-        null=True,
-        verbose_name='备注'
-    )
+    remark = models.CharField(max_length=500, blank=True, null=True, verbose_name='备注')
 
     class Meta:
         db_table = 'dataetl_field_mapping'
@@ -295,37 +172,11 @@ class ETLWatermark(BaseModel):
         ('cdc', '变更数据'),
     ]
 
-    task = models.ForeignKey(
-        ETLTask,
-        on_delete=models.CASCADE,
-        related_name='watermarks',
-        verbose_name='ETL任务',
-        help_text='关联的ETL任务'
-    )
-    increment_field = models.CharField(
-        max_length=64,
-        verbose_name='增量字段',
-        help_text='用于增量抽取的字段名'
-    )
-    increment_type = models.CharField(
-        max_length=20,
-        choices=INCREMENT_TYPE_CHOICES,
-        default='timestamp',
-        verbose_name='增量类型',
-        help_text='增量策略类型'
-    )
-    watermark_value = models.CharField(
-        max_length=255,
-        verbose_name='水印值',
-        help_text='当前水印值（上次抽取的最大值）'
-    )
-    execution_id = models.CharField(
-        max_length=64,
-        blank=True,
-        null=True,
-        verbose_name='执行ID',
-        help_text='关联的执行ID'
-    )
+    task = models.ForeignKey(ETLTask, on_delete=models.CASCADE, related_name='watermarks', verbose_name='ETL任务', help_text='关联的ETL任务')
+    increment_field = models.CharField(max_length=64, verbose_name='增量字段', help_text='用于增量抽取的字段名')
+    increment_type = models.CharField(max_length=20, choices=INCREMENT_TYPE_CHOICES, default='timestamp', verbose_name='增量类型', help_text='增量策略类型')
+    watermark_value = models.CharField(max_length=255, verbose_name='水印值', help_text='当前水印值（上次抽取的最大值）')
+    execution_id = models.CharField(max_length=64, blank=True, null=True, verbose_name='执行ID', help_text='关联的执行ID')
 
     class Meta:
         db_table = 'dataetl_watermark'
@@ -359,345 +210,32 @@ class ETLExecutionLog(models.Model):
         ('schedule', '调度触发'),
         ('api', 'API触发'),
     ]
-=======
-数据集成/ETL模块 - 简化版模型设计
-基于场景驱动的方式，简化用户操作
-"""
-from django.db import models
-from apps.system.models import BaseModel
 
-
-class ETLTask(BaseModel):
-    """ETL任务主表 - 场景驱动设计"""
-
-    SCENARIO_CHOICES = (
-        ('biz_to_stg', '业务库 → STG层'),
-        ('stg_to_ods', 'STG层 → ODS层'),
-        ('warehouse_transform', '数仓层计算转换'),
-        ('warehouse_to_biz', '数仓层 → 业务库'),
-        ('db_to_db', '数据库互相同步'),
-    )
-
-    STATUS_CHOICES = (
-        ('0', '正常'),
-        ('1', '停用'),
-    )
-
-    EXECUTOR_CHOICES = (
-        ('datax', 'DataX执行器'),
-        ('spark_sql', 'Spark SQL执行器'),
-    )
-
-    SYNC_MODE_CHOICES = (
-        ('full', '全量同步'),
-        ('incremental', '增量同步'),
-    )
-
-    SCHEDULE_TYPE_CHOICES = (
-        ('manual', '手动执行'),
-        ('scheduled', '定时执行'),
-    )
-
-    # 执行方式（新的字段，用于区分手动/调度执行）
-    EXECUTION_MODE_CHOICES = (
-        ('manual', '手动执行'),
-        ('scheduled', '定时执行'),
-    )
-
-    # ========== 基础信息 ==========
-    name = models.CharField(max_length=255, verbose_name='任务名称', unique=True)
-    scenario = models.CharField(
-        max_length=30,
-        choices=SCENARIO_CHOICES,
-        verbose_name='场景类型',
-        help_text='决定任务的默认配置和执行方式'
-    )
-    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default='0', verbose_name='状态')
-    execution_mode = models.CharField(
-        max_length=20,
-        choices=EXECUTION_MODE_CHOICES,
-        default='manual',
-        verbose_name='执行方式',
-        help_text='手动执行或定时执行'
-    )
-    remark = models.TextField(blank=True, default='', verbose_name='备注')
-
-    # ========== 数据源配置 ==========
-    source_datasource = models.ForeignKey(
-        'datasource.DataSource',
-        on_delete=models.CASCADE,
-        related_name='etl_source_tasks',
-        verbose_name='源数据源',
-        null=True,
-        blank=True,
-        help_text='源数据源ID'
-    )
-    source_table = models.CharField(max_length=255, blank=True, default='', verbose_name='源表名')
-    source_database = models.CharField(
-        max_length=128,
-        blank=True,
-        default='',
-        verbose_name='源数据库名',
-        help_text='某些数据源需要指定数据库'
-    )
-    source_filter = models.TextField(
-        blank=True,
-        default='',
-        verbose_name='过滤条件',
-        help_text='WHERE条件，如: status = 1'
-    )
-
-    target_datasource = models.ForeignKey(
-        'datasource.DataSource',
-        on_delete=models.CASCADE,
-        related_name='etl_target_tasks',
-        verbose_name='目标数据源',
-        null=True,
-        blank=True,
-        help_text='目标数据源ID，为空表示Hive'
-    )
-    target_table = models.CharField(max_length=255, blank=True, default='', verbose_name='目标表名')
-    target_database = models.CharField(
-        max_length=128,
-        blank=True,
-        default='',
-        verbose_name='目标数据库名',
-        help_text='目标数据库名或schema'
-    )
-    target_layer = models.CharField(
-        max_length=10,
-        blank=True,
-        default='',
-        verbose_name='目标层级',
-        help_text='数仓层级: stg/ods/dwd/dws/ads'
-    )
-
-    # ========== 同步配置 ==========
-    sync_mode = models.CharField(
-        max_length=20,
-        choices=SYNC_MODE_CHOICES,
-        default='full',
-        verbose_name='同步方式'
-    )
-    incremental_field = models.CharField(
-        max_length=128,
-        blank=True,
-        default='',
-        verbose_name='增量字段',
-        help_text='增量同步时使用的时间戳或ID字段'
-    )
-
-    # ========== 字段映射 ==========
-    field_mappings = models.JSONField(
-        default=list,
-        blank=True,
-        verbose_name='字段映射',
-        help_text='格式: [{"source": "id", "target": "user_id"}]'
-    )
-
-    # ========== SQL脚本（数仓计算场景） ==========
-    sql_script = models.TextField(
-        blank=True,
-        default='',
-        verbose_name='SQL脚本',
-        help_text='Spark SQL脚本，用于数仓计算场景'
-    )
-    transform_rules = models.TextField(
-        blank=True,
-        default='',
-        verbose_name='转换规则',
-        help_text='数据清洗和转换规则'
-    )
-
-    # ========== 执行配置 ==========
-    executor_type = models.CharField(
-        max_length=20,
-        choices=EXECUTOR_CHOICES,
-        default='datax',
-        verbose_name='执行器类型'
-    )
-    batch_size = models.IntegerField(default=10000, verbose_name='批处理大小')
-    concurrency = models.IntegerField(default=1, verbose_name='并发数')
-
-    # ========== 调度配置 ==========
-    schedule_type = models.CharField(
-        max_length=20,
-        choices=SCHEDULE_TYPE_CHOICES,
-        default='manual',
-        verbose_name='执行方式'
-    )
-    schedule_cron = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        verbose_name='Cron表达式',
-        help_text='定时执行的cron表达式'
-    )
-
-    # ========== 高级配置（JSON格式） ==========
-    advanced_config = models.JSONField(
-        default=dict,
-        blank=True,
-        verbose_name='高级配置',
-        help_text='存储扩展配置，如分区信息、写入模式等'
-    )
-
-    # ========== 任务依赖 ==========
-    depends_on_tasks = models.ManyToManyField(
-        'self',
-        through='ETLTaskDependency',
-        through_fields=('successor', 'predecessor'),
-        symmetrical=False,
-        related_name='dependent_tasks',
-        blank=True,
-        verbose_name='依赖任务',
-        help_text='此任务依赖的其他任务（必须先完成依赖任务才能执行此任务）'
-    )
-
-    class Meta:
-        db_table = 'etl_task'
-        verbose_name = 'ETL任务'
-        verbose_name_plural = 'ETL任务'
-        indexes = [
-            models.Index(fields=['scenario']),
-            models.Index(fields=['status']),
-            models.Index(fields=['schedule_type']),
-            models.Index(fields=['-create_time']),
-        ]
-
-    def __str__(self):
-        return f"{self.get_scenario_display()} - {self.name}"
-
-
-class ETLExecution(BaseModel):
-    """
-    ETL任务执行记录
-    ETL特定的执行详情，链接到通用的TaskExecution
-    """
-
-    STATUS_CHOICES = (
-        ('pending', '等待中'),
-        ('running', '运行中'),
-        ('success', '成功'),
-        ('failed', '失败'),
-        ('cancelled', '已取消'),
-    )
-
-    # 链接到通用的TaskExecution
-    execution = models.OneToOneField(
-        'datataskmonitor.TaskExecution',
-        on_delete=models.CASCADE,
-        related_name='etl_details',
-        verbose_name='通用执行记录',
-        null=True,  # 暂时允许为空以便迁移
-        blank=True
-    )
->>>>>>> origin/dev
-
-    task = models.ForeignKey(
-        ETLTask,
-        on_delete=models.CASCADE,
-<<<<<<< HEAD
-        related_name='execution_logs',
-        verbose_name='ETL任务',
-        help_text='关联的ETL任务'
-    )
-    execution_id = models.CharField(
-        max_length=64,
-        unique=True,
-        verbose_name='执行ID',
-        help_text='唯一执行标识'
-    )
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default='pending',
-        verbose_name='执行状态',
-        help_text='执行状态'
-    )
-    trigger_type = models.CharField(
-        max_length=20,
-        choices=TRIGGER_TYPE_CHOICES,
-        default='manual',
-        verbose_name='触发方式',
-        help_text='任务触发方式'
-    )
+    task = models.ForeignKey(ETLTask, on_delete=models.CASCADE, related_name='execution_logs', verbose_name='ETL任务', help_text='关联的ETL任务')
+    execution_id = models.CharField(max_length=64, unique=True, verbose_name='执行ID', help_text='唯一执行标识')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='执行状态', help_text='执行状态')
+    trigger_type = models.CharField(max_length=20, choices=TRIGGER_TYPE_CHOICES, default='manual', verbose_name='触发方式', help_text='任务触发方式')
 
     # Execution Information
-    start_time = models.DateTimeField(
-        blank=True,
-        null=True,
-        verbose_name='开始时间',
-        help_text='任务开始执行时间'
-    )
-    end_time = models.DateTimeField(
-        blank=True,
-        null=True,
-        verbose_name='结束时间',
-        help_text='任务结束时间'
-    )
-    duration_seconds = models.IntegerField(
-        blank=True,
-        null=True,
-        verbose_name='执行时长(秒)',
-        help_text='任务执行时长（秒）'
-    )
+    start_time = models.DateTimeField(blank=True, null=True, verbose_name='开始时间', help_text='任务开始执行时间')
+    end_time = models.DateTimeField(blank=True, null=True, verbose_name='结束时间', help_text='任务结束时间')
+    duration_seconds = models.IntegerField(blank=True, null=True, verbose_name='执行时长(秒)', help_text='任务执行时长（秒）')
 
     # Data Statistics
-    total_rows = models.IntegerField(
-        blank=True,
-        null=True,
-        verbose_name='总行数',
-        help_text='处理的总行数'
-    )
-    success_rows = models.IntegerField(
-        blank=True,
-        null=True,
-        verbose_name='成功行数',
-        help_text='成功处理的行数'
-    )
-    failed_rows = models.IntegerField(
-        blank=True,
-        null=True,
-        verbose_name='失败行数',
-        help_text='失败的行数'
-    )
+    total_rows = models.IntegerField(blank=True, null=True, verbose_name='总行数', help_text='处理的总行数')
+    success_rows = models.IntegerField(blank=True, null=True, verbose_name='成功行数', help_text='成功处理的行数')
+    failed_rows = models.IntegerField(blank=True, null=True, verbose_name='失败行数', help_text='失败的行数')
 
     # Error Information
-    error_message = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name='错误信息',
-        help_text='执行失败时的错误信息'
-    )
-    log_file = models.CharField(
-        max_length=512,
-        blank=True,
-        null=True,
-        verbose_name='日志文件',
-        help_text='日志文件路径'
-    )
+    error_message = models.TextField(blank=True, null=True, verbose_name='错误信息', help_text='执行失败时的错误信息')
+    log_file = models.CharField(max_length=512, blank=True, null=True, verbose_name='日志文件', help_text='日志文件路径')
 
     # Execution Context
-    executed_by = models.CharField(
-        max_length=64,
-        blank=True,
-        null=True,
-        verbose_name='执行者',
-        help_text='任务执行者'
-    )
-    executor_params = models.JSONField(
-        blank=True,
-        null=True,
-        verbose_name='执行参数',
-        help_text='本次执行的参数快照'
-    )
+    executed_by = models.CharField(max_length=64, blank=True, null=True, verbose_name='执行者', help_text='任务执行者')
+    executor_params = models.JSONField(blank=True, null=True, verbose_name='执行参数', help_text='本次执行的参数快照')
 
     # Audit Fields
-    create_time = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='创建时间'
-    )
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
 
     class Meta:
         db_table = 'dataetl_execution_log'
@@ -707,124 +245,191 @@ class ETLExecution(BaseModel):
 
     def __str__(self):
         return f"{self.task.task_name} - {self.execution_id} ({self.status})"
-=======
-        related_name='executions',
-        verbose_name='任务'
-    )
 
-    # ETL特定的统计信息（通用统计已移至TaskExecution）
-    rows_read = models.BigIntegerField(default=0, verbose_name='源表行数')
-    rows_written = models.BigIntegerField(default=0, verbose_name='目标表行数')
-    rows_failed = models.IntegerField(default=0, verbose_name='拒绝行数')
 
-    # 保留旧字段用于向后兼容（新数据应使用TaskExecution中的对应字段）
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='状态')
-    start_time = models.DateTimeField(null=True, blank=True, verbose_name='开始时间')
-    end_time = models.DateTimeField(null=True, blank=True, verbose_name='结束时间')
-    duration = models.IntegerField(default=0, verbose_name='执行时长(秒)')
-    progress = models.IntegerField(default=0, verbose_name='进度百分比')
+class ETLTaskTemplate(BaseModel):
+    """
+    ETL任务模板
+    支持快速创建同类任务
+    """
 
-    # 当前阶段
-    current_stage = models.CharField(max_length=255, blank=True, default='', verbose_name='当前阶段')
+    # ETL Type Choices
+    ETL_TYPE_CHOICES = [
+        ('extract', 'STG采集'),
+        ('transform', 'DWD转换'),
+        ('load', 'ODS加载'),
+        ('full', '全量ETL'),
+    ]
 
-    # 执行日志（保留用于向后兼容，新日志应使用TaskExecutionLog）
-    logs = models.JSONField(default=list, blank=True, verbose_name='执行日志')
-
-    # 错误信息
-    error_message = models.TextField(blank=True, default='', verbose_name='错误信息')
-
-    # 执行参数快照（保存任务执行时的配置）
-    execution_snapshot = models.JSONField(default=dict, blank=True, verbose_name='执行参数快照')
+    template_name = models.CharField(max_length=128, verbose_name='模板名称', help_text='任务模板名称')
+    template_code = models.CharField(max_length=64, unique=True, verbose_name='模板编码', help_text='唯一标识编码')
+    task_type = models.CharField(max_length=20, choices=ETL_TYPE_CHOICES, verbose_name='任务类型', help_text='模板适用的任务类型')
+    template_config = models.JSONField(verbose_name='模板配置', help_text='JSON格式的任务配置')
+    category = models.CharField(max_length=64, verbose_name='分类', help_text='如：数据同步、SQL转换等')
+    tags = models.JSONField(default=list, verbose_name='标签', help_text='标签列表')
+    description = models.TextField(blank=True, null=True, verbose_name='模板描述', help_text='模板描述信息')
+    is_system = models.BooleanField(default=False, verbose_name='系统模板', help_text='是否为系统预置模板')
+    usage_count = models.IntegerField(default=0, verbose_name='使用次数', help_text='模板被使用的次数')
 
     class Meta:
-        db_table = 'etl_execution'
-        verbose_name = 'ETL执行记录'
-        verbose_name_plural = 'ETL执行记录'
+        db_table = 'dataetl_task_template'
+        verbose_name = 'ETL任务模板'
+        verbose_name_plural = 'ETL任务模板'
+        ordering = ['-is_system', '-usage_count', '-create_time']
+
+    def __str__(self):
+        return f"{self.template_name} ({self.template_code})"
+
+
+class ETLQualityRule(BaseModel):
+    """
+    数据质量规则
+    支持多种质量检查类型
+    """
+
+    RULE_TYPE_CHOICES = [
+        ('null_check', '空值检查'),
+        ('unique_check', '唯一性检查'),
+        ('range_check', '范围检查'),
+        ('consistency_check', '一致性检查'),
+        ('custom_sql', '自定义SQL检查'),
+    ]
+
+    ERROR_LEVEL_CHOICES = [
+        ('warning', '警告'),
+        ('error', '错误'),
+    ]
+
+    rule_name = models.CharField(max_length=128, verbose_name='规则名称', help_text='质检规则名称')
+    rule_code = models.CharField(max_length=64, unique=True, verbose_name='规则编码', help_text='唯一标识编码')
+    rule_type = models.CharField(max_length=20, choices=RULE_TYPE_CHOICES, verbose_name='规则类型', help_text='质检规则类型')
+    table = models.ForeignKey(MetaTable, on_delete=models.CASCADE, related_name='quality_rules', verbose_name='关联表', help_text='质检目标表')
+    field_name = models.CharField(max_length=128, blank=True, null=True, verbose_name='字段名', help_text='质检目标字段名')
+    rule_config = models.JSONField(default=dict, verbose_name='规则配置', help_text='规则参数配置（JSON格式）')
+    sql_expression = models.TextField(blank=True, null=True, verbose_name='SQL表达式', help_text='自定义SQL检查表达式')
+    threshold_min = models.FloatField(null=True, blank=True, verbose_name='最小阈值', help_text='最小阈值（用于范围检查）')
+    threshold_max = models.FloatField(null=True, blank=True, verbose_name='最大阈值', help_text='最大阈值（用于范围检查）')
+    error_level = models.CharField(max_length=20, choices=ERROR_LEVEL_CHOICES, default='error', verbose_name='错误级别', help_text='质检失败时的错误级别')
+    enabled = models.BooleanField(default=True, verbose_name='是否启用', help_text='规则是否启用')
+    description = models.TextField(blank=True, null=True, verbose_name='规则描述', help_text='规则描述信息')
+
+    class Meta:
+        db_table = 'dataetl_quality_rule'
+        verbose_name = 'ETL质检规则'
+        verbose_name_plural = 'ETL质检规则'
         ordering = ['-create_time']
+
+    def __str__(self):
+        return f"{self.rule_name} ({self.rule_code}) - {self.get_rule_type_display()}"
+
+
+class ETLQualityResult(BaseModel):
+    """
+    数据质检执行结果
+    记录每次质量检查的结果
+    """
+
+    STATUS_CHOICES = [
+        ('passed', '通过'),
+        ('failed', '失败'),
+        ('warning', '警告'),
+    ]
+
+    rule = models.ForeignKey(ETLQualityRule, on_delete=models.CASCADE, related_name='check_results', verbose_name='质检规则', help_text='关联的质检规则')
+    execution_id = models.CharField(max_length=64, verbose_name='执行ID', help_text='关联的ETL任务执行ID')
+    task = models.ForeignKey(ETLTask, on_delete=models.CASCADE, related_name='quality_results', verbose_name='ETL任务', help_text='关联的ETL任务')
+    check_time = models.DateTimeField(auto_now_add=True, verbose_name='检查时间', help_text='质检执行时间')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, verbose_name='检查状态', help_text='质检结果状态')
+    total_rows = models.IntegerField(default=0, verbose_name='总行数', help_text='检查的总行数')
+    error_rows = models.IntegerField(default=0, verbose_name='错误行数', help_text='不符合规则的行数')
+    warning_rows = models.IntegerField(default=0, verbose_name='警告行数', help_text='产生警告的行数')
+    error_details = models.JSONField(default=list, verbose_name='错误详情', help_text='详细的错误信息列表')
+    pass_rate = models.FloatField(default=0.0, verbose_name='通过率', help_text='数据通过率（百分比）')
+    check_duration = models.IntegerField(blank=True, null=True, verbose_name='检查耗时(毫秒)', help_text='质检执行耗时')
+
+    class Meta:
+        db_table = 'dataetl_quality_result'
+        verbose_name = 'ETL质检结果'
+        verbose_name_plural = 'ETL质检结果'
+        ordering = ['-check_time']
         indexes = [
-            models.Index(fields=['task', '-create_time']),
-            models.Index(fields=['status']),
-            models.Index(fields=['-create_time']),
+            models.Index(fields=['execution_id']),
+            models.Index(fields=['task']),
         ]
 
     def __str__(self):
-        return f"{self.task.name} - {self.get_status_display()}"
-
-    @property
-    def is_running(self):
-        return self.status == 'running'
+        return f"{self.rule.rule_name} - {self.execution_id} ({self.status})"
 
 
-class ETLTaskDependency(BaseModel):
+class ETLExecutionProgress(BaseModel):
     """
-    ETL任务依赖关系
-    定义任务执行的前后依赖关系：successor 依赖于 predecessor（predecessor 必须先完成）
+    ETL执行进度
+    实时跟踪任务执行进度
+    """
+
+    execution = models.OneToOneField(ETLExecutionLog, on_delete=models.CASCADE, related_name='progress', verbose_name='执行记录', help_text='关联的执行日志')
+    current_stage = models.CharField(max_length=64, default='initializing', verbose_name='当前阶段', help_text='如：数据抽取、数据转换、数据加载')
+    progress_percentage = models.IntegerField(default=0, verbose_name='进度百分比', help_text='执行进度百分比（0-100）')
+    processed_rows = models.IntegerField(default=0, verbose_name='已处理行数', help_text='已处理的数据行数')
+    total_rows = models.IntegerField(default=0, verbose_name='总行数', help_text='需要处理的总行数')
+    speed_rows_per_sec = models.FloatField(default=0.0, verbose_name='处理速度(行/秒)', help_text='当前数据处理速度')
+    estimated_remaining_seconds = models.IntegerField(default=0, verbose_name='预计剩余时间(秒)', help_text='预计任务剩余时间')
+    checkpoint_data = models.JSONField(blank=True, null=True, verbose_name='检查点数据', help_text='用于断点续传的检查点信息')
+    heartbeat_time = models.DateTimeField(auto_now=True, verbose_name='心跳时间', help_text='最后心跳更新时间')
+
+    class Meta:
+        db_table = 'dataetl_execution_progress'
+        verbose_name = 'ETL执行进度'
+        verbose_name_plural = 'ETL执行进度'
+        ordering = ['-heartbeat_time']
+
+    def __str__(self):
+        return f"{self.execution.execution_id} - {self.progress_percentage}% ({self.current_stage})"
+
+
+class ETLTaskDependency(models.Model):
+    """
+    ETL任务依赖关系模型
+
+    管理任务之间的依赖关系，用于任务编排和执行顺序控制
     """
 
     predecessor = models.ForeignKey(
         ETLTask,
         on_delete=models.CASCADE,
-        related_name='dependency_successors',
+        related_name='successor_dependencies',
         verbose_name='前置任务',
-        help_text='需要先完成的任务'
+        help_text='被依赖的任务（必须先执行）'
     )
     successor = models.ForeignKey(
         ETLTask,
         on_delete=models.CASCADE,
-        related_name='dependency_predecessors',
+        related_name='predecessor_dependencies',
         verbose_name='后置任务',
         help_text='依赖前置任务的任务'
     )
+    dependency_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('success', '执行成功'),
+            ('completion', '执行完成'),
+        ],
+        default='success',
+        verbose_name='依赖类型',
+        help_text='依赖类型：success-前置任务必须成功，completion-前置任务完成即可'
+    )
+
+    # Audit Fields
+    create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    update_time = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    create_by = models.CharField(max_length=64, blank=True, null=True, verbose_name='创建者')
 
     class Meta:
-        db_table = 'etl_task_dependency'
+        db_table = 'dataetl_task_dependency'
         verbose_name = 'ETL任务依赖'
         verbose_name_plural = 'ETL任务依赖'
         unique_together = [['predecessor', 'successor']]
-        indexes = [
-            models.Index(fields=['predecessor']),
-            models.Index(fields=['successor']),
-        ]
+        ordering = ['predecessor__task_code', 'successor__task_code']
 
     def __str__(self):
-        return f"{self.successor.name} 依赖 {self.predecessor.name}"
-
-
-class ETLTemplate(BaseModel):
-    """ETL任务模板 - 常用配置保存为模板"""
-
-    scenario = models.CharField(
-        max_length=30,
-        choices=ETLTask.SCENARIO_CHOICES,
-        verbose_name='场景类型'
-    )
-    name = models.CharField(max_length=255, verbose_name='模板名称')
-    description = models.TextField(blank=True, default='', verbose_name='模板描述')
-
-    # 模板配置
-    template_config = models.JSONField(
-        verbose_name='模板配置',
-        help_text='存储任务配置的JSON'
-    )
-
-    # 使用统计
-    usage_count = models.IntegerField(default=0, verbose_name='使用次数')
-
-    is_system = models.BooleanField(
-        default=False,
-        verbose_name='系统模板',
-        help_text='系统预设的模板'
-    )
-
-    class Meta:
-        db_table = 'etl_template'
-        verbose_name = 'ETL模板'
-        verbose_name_plural = 'ETL模板'
-        indexes = [
-            models.Index(fields=['scenario']),
-            models.Index(fields=['is_system']),
-        ]
-
-    def __str__(self):
-        return f"{self.name} ({self.get_scenario_display()})"
->>>>>>> origin/dev
+        return f"{self.successor.task_name} depends on {self.predecessor.task_name}"

@@ -2,18 +2,18 @@
 ETL Views
 
 This module defines ViewSets for ETL task management.
+视图层只负责请求处理和响应，业务逻辑在服务层
 """
 
-import uuid
-import threading
-from datetime import datetime
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.system.views.core import BaseViewSet
 
-from .models import ETLTask, ETLTaskVersion, ETLFieldMapping, ETLExecutionLog, ETLWatermark
+from .models import (
+    ETLTask, ETLTaskVersion, ETLFieldMapping, ETLExecutionLog, ETLWatermark,
+    ETLTaskTemplate, ETLQualityRule, ETLQualityResult, ETLExecutionProgress
+)
 from .serializers import (
     ETLTaskSerializer, ETLTaskCreateSerializer, ETLTaskUpdateSerializer,
     ETLTaskQuerySerializer, ETLTaskSimpleSerializer,
@@ -23,10 +23,16 @@ from .serializers import (
     ETLExecutionLogSerializer, ETLExecutionLogCreateSerializer,
     ETLExecutionLogQuerySerializer,
     ETLWatermarkSerializer, ETLWatermarkQuerySerializer,
-    DataXConfigValidateSerializer, DataXConfigGenerateSerializer
+    DataXConfigValidateSerializer, DataXConfigGenerateSerializer,
+    ETLTaskTemplateSerializer, ETLTaskTemplateCreateSerializer, ETLTaskTemplateQuerySerializer,
+    ETLQualityRuleSerializer, ETLQualityRuleCreateSerializer, ETLQualityRuleQuerySerializer,
+    ETLQualityResultSerializer, ETLQualityResultQuerySerializer,
+    ETLExecutionProgressSerializer,
 )
-from .executors import ExecutorFactory
-from .executors.datax_config_builder import DataXConfigBuilder
+from .services import (
+    TaskService, QualityService, MonitoringService,
+    ExecutionService, VersionService, ConfigService,
+)
 
 
 # ==================== ETLTask ViewSet ====================
@@ -79,159 +85,57 @@ class ETLTaskViewSet(BaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='execute')
     def execute_task(self, request, pk=None):
-        """
-        执行ETL任务
-
-        创建执行日志并异步执行任务
-        """
+        """执行ETL任务"""
         task = self.get_object()
 
-        # 检查任务状态
-        if task.status != '0':
+        try:
+            executed_by = request.user.username if request.user.is_authenticated else 'system'
+            execution_service = ExecutionService()
+            execution_id = execution_service.submit_task(task, executed_by, 'manual')
+
+            return self.data({
+                'executionId': execution_id,
+                'message': '任务已提交执行'
+            })
+        except ValueError as e:
             return Response({
                 'code': 500,
-                'msg': '任务已停用，无法执行'
+                'msg': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-
-        # 生成执行ID
-        execution_id = f"ETL-{uuid.uuid4().hex[:16].upper()}"
-
-        # 创建执行日志
-        log = ETLExecutionLog.objects.create(
-            task=task,
-            execution_id=execution_id,
-            status='pending',
-            trigger_type='manual',
-            executed_by=request.user.username if request.user.is_authenticated else 'system',
-            executor_params=task.executor_params
-        )
-
-        # 异步执行任务
-        thread = threading.Thread(
-            target=self._execute_async,
-            args=(task, log)
-        )
-        thread.daemon = True
-        thread.start()
-
-        return self.data({
-            'executionId': execution_id,
-            'message': '任务已提交执行'
-        })
-
-    def _execute_async(self, task, log):
-        """
-        异步执行ETL任务
-
-        Args:
-            task: ETLTask实例
-            log: ETLExecutionLog实例
-        """
-        try:
-            # 更新状态为执行中
-            log.status = 'running'
-            log.start_time = timezone.now()
-            log.save()
-
-            # 创建执行器实例
-            executor = ExecutorFactory.create_executor(
-                task.executor_type,
-                task,
-                task.executor_params
-            )
-
-            # 验证配置
-            is_valid, error_message = executor.validate()
-            if not is_valid:
-                raise Exception(f"任务配置验证失败: {error_message}")
-
-            # 执行任务
-            result = executor.execute()
-
-            # 更新执行日志
-            log.status = result.get('status', 'failed')
-            log.end_time = timezone.now()
-            log.duration_seconds = result.get('duration_seconds')
-            log.total_rows = result.get('total_rows')
-            log.success_rows = result.get('success_rows')
-            log.failed_rows = result.get('failed_rows')
-            log.error_message = result.get('error_message')
-            log.save()
-
         except Exception as e:
-            # 执行失败
-            log.status = 'failed'
-            log.end_time = timezone.now()
-            if log.start_time:
-                log.duration_seconds = int((log.end_time - log.start_time).total_seconds())
-            log.error_message = str(e)
-            log.save()
+            return Response({
+                'code': 500,
+                'msg': f'提交任务失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], url_path='create-version')
     def create_version(self, request, pk=None):
-        """
-        创建任务版本快照
-
-        保存当前任务配置为新版本
-        """
+        """创建任务版本快照"""
         task = self.get_object()
-
-        # 获取最新的版本号
-        latest_version = ETLTaskVersion.objects.filter(task=task).order_by('-version_number').first()
-        version_number = (latest_version.version_number + 1) if latest_version else 1
-
-        # 创建版本快照
         change_log = request.data.get('changeLog', '')
+        create_by = request.user.username if request.user.is_authenticated else 'system'
 
-        # 创建配置快照
-        config_snapshot = {
-            'taskName': task.task_name,
-            'taskCode': task.task_code,
-            'description': task.description,
-            'etlType': task.etl_type,
-            'executorType': task.executor_type,
-            'executeStrategy': task.execute_strategy,
-            'sourceDatasourceId': task.source_datasource_id,
-            'targetDatasourceId': task.target_datasource_id,
-            'sourceTableId': task.source_table_id,
-            'targetTable': task.target_table,
-            'sqlConfig': task.sql_config,
-            'executorParams': task.executor_params,
-            'status': task.status,
-        }
-
-        # 取消所有旧版本的当前标记
-        ETLTaskVersion.objects.filter(task=task).update(is_current=False)
-
-        # 创建新版本
-        version = ETLTaskVersion.objects.create(
-            task=task,
-            version_number=version_number,
-            config_snapshot=config_snapshot,
-            change_log=change_log,
-            is_current=True,
-            create_by=request.user.username if request.user.is_authenticated else 'system'
-        )
-
-        serializer = ETLTaskVersionSerializer(version)
-        return self.data(serializer.data)
+        try:
+            version = VersionService.create_version(task, change_log, create_by)
+            serializer = ETLTaskVersionSerializer(version)
+            return self.data(serializer.data)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'创建版本失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'], url_path='versions')
     def task_versions(self, request, pk=None):
         """获取任务的所有版本"""
         task = self.get_object()
-        versions = ETLTaskVersion.objects.filter(task=task).order_by('-version_number')
+        versions = VersionService.get_task_versions(task)
         serializer = ETLTaskVersionSerializer(versions, many=True)
         return self.data(serializer.data)
 
     @action(detail=True, methods=['post'], url_path='rollback')
     def rollback_version(self, request, pk=None):
-        """
-        回滚到指定版本
-
-        Body参数:
-            versionNumber: 要回滚到的版本号
-        """
+        """回滚到指定版本"""
         task = self.get_object()
         version_number = request.data.get('versionNumber')
 
@@ -241,72 +145,39 @@ class ETLTaskViewSet(BaseViewSet):
                 'msg': '请指定版本号'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 获取目标版本
         try:
-            version = ETLTaskVersion.objects.get(task=task, version_number=version_number)
-        except ETLTaskVersion.DoesNotExist:
+            VersionService.rollback_version(task, version_number)
+            return self.data({'message': f'已回滚到版本 {version_number}'})
+        except ValueError as e:
             return Response({
                 'code': 404,
-                'msg': '版本不存在'
+                'msg': str(e)
             }, status=status.HTTP_404_NOT_FOUND)
-
-        # 恢复配置
-        snapshot = version.config_snapshot
-        task.task_name = snapshot.get('taskName', task.task_name)
-        task.description = snapshot.get('description', task.description)
-        task.etl_type = snapshot.get('etlType', task.etl_type)
-        task.executor_type = snapshot.get('executorType', task.executor_type)
-        task.execute_strategy = snapshot.get('executeStrategy', task.execute_strategy)
-        task.source_datasource_id = snapshot.get('sourceDatasourceId', task.source_datasource_id)
-        task.target_datasource_id = snapshot.get('targetDatasourceId', task.target_datasource_id)
-        task.source_table_id = snapshot.get('sourceTableId', task.source_table_id)
-        task.target_table = snapshot.get('targetTable', task.target_table)
-        task.sql_config = snapshot.get('sqlConfig', task.sql_config)
-        task.executor_params = snapshot.get('executorParams', task.executor_params)
-        task.status = snapshot.get('status', task.status)
-        task.save()
-
-        return self.data({'message': f'已回滚到版本 {version_number}'})
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'回滚失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], url_path='validate-config')
     def validate_config(self, request, pk=None):
-        """
-        验证DataX配置
-
-        验证任务的DataX配置是否正确
-        """
+        """验证DataX配置"""
         task = self.get_object()
 
-        # 检查是否为DataX任务
-        if task.executor_type != 'datax':
+        try:
+            config_service = ConfigService()
+            is_valid, warnings, config = config_service.validate_datax_config(task)
+
+            return self.data({
+                'valid': is_valid,
+                'warnings': warnings,
+                'config': config
+            })
+        except ValueError as e:
             return Response({
                 'code': 400,
-                'msg': '仅支持DataX执行器的配置验证'
+                'msg': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # 创建配置构建器
-            config_builder = DataXConfigBuilder(task)
-
-            # 验证配置
-            is_valid, error_msg = config_builder.validate_config()
-
-            if is_valid:
-                # 生成配置用于预览
-                execution_date = datetime.now().strftime('%Y%m%d')
-                config = config_builder.build(execution_date)
-
-                return self.data({
-                    'valid': True,
-                    'warnings': [],
-                    'config': config
-                })
-            else:
-                return self.data({
-                    'valid': False,
-                    'warnings': [error_msg]
-                })
-
         except Exception as e:
             return Response({
                 'code': 500,
@@ -315,36 +186,19 @@ class ETLTaskViewSet(BaseViewSet):
 
     @action(detail=True, methods=['get'], url_path='datx-config')
     def generate_datx_config(self, request, pk=None):
-        """
-        生成DataX JSON配置
-
-        返回DataX JSON配置，不执行任务
-        """
+        """生成DataX JSON配置"""
         task = self.get_object()
-
-        # 检查是否为DataX任务
-        if task.executor_type != 'datax':
-            return Response({
-                'code': 400,
-                'msg': '仅支持DataX执行器'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        execution_date = request.query_params.get('executionDate')
 
         try:
-            # 获取执行日期参数
-            execution_date = request.query_params.get('executionDate') or \
-                           datetime.now().strftime('%Y%m%d')
-
-            # 创建配置构建器
-            config_builder = DataXConfigBuilder(task)
-
-            # 生成配置
-            config = config_builder.build(execution_date)
-
-            return self.data({
-                'config': config,
-                'executionDate': execution_date
-            })
-
+            config_service = ConfigService()
+            result = config_service.generate_datax_config(task, execution_date)
+            return self.data(result)
+        except ValueError as e:
+            return Response({
+                'code': 400,
+                'msg': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({
                 'code': 500,
@@ -353,59 +207,83 @@ class ETLTaskViewSet(BaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='execute-dry-run')
     def dry_run(self, request, pk=None):
-        """
-        模拟执行（不实际写入数据）
-
-        返回执行计划和预估性能
-        """
+        """模拟执行（不实际写入数据）"""
         task = self.get_object()
 
-        # 检查是否为DataX任务
-        if task.executor_type != 'datax':
+        try:
+            config_service = ConfigService()
+            result = config_service.dry_run(task)
+            return self.data(result)
+        except ValueError as e:
             return Response({
                 'code': 400,
-                'msg': '仅支持DataX执行器'
+                'msg': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # 创建配置构建器
-            config_builder = DataXConfigBuilder(task)
-
-            # 验证配置
-            is_valid, error_msg = config_builder.validate_config()
-            if not is_valid:
-                return Response({
-                    'code': 400,
-                    'msg': f'配置验证失败: {error_msg}'
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # 生成配置
-            execution_date = datetime.now().strftime('%Y%m%d')
-            config = config_builder.build(execution_date)
-
-            # 返回执行计划
-            return self.data({
-                'message': '模拟执行成功',
-                'executionPlan': {
-                    'taskName': task.task_name,
-                    'taskCode': task.task_code,
-                    'executorType': 'DataX',
-                    'sourceDatasource': task.source_datasource.name,
-                    'targetDatasource': task.target_datasource.name,
-                    'sourceTable': task.source_table.table_name if task.source_table else None,
-                    'targetTable': task.target_table,
-                    'executionDate': execution_date,
-                    'estimatedTime': '根据数据量预估',
-                },
-                'config': config
-            })
-
         except Exception as e:
             return Response({
                 'code': 500,
                 'msg': f'模拟执行失败: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['post'], url_path='from-template')
+    def create_from_template(self, request):
+        """从模板创建任务"""
+        template_id = request.data.get('templateId')
+        params = request.data.get('params', {})
+
+        if not template_id:
+            return Response({
+                'code': 400,
+                'msg': '请提供模板ID'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            task = TaskService.create_task_from_template(template_id, params)
+            serializer = ETLTaskSerializer(task)
+            return self.data(serializer.data)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'创建任务失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='clone')
+    def clone_task(self, request, pk=None):
+        """克隆任务"""
+        task = self.get_object()
+        new_task_name = request.data.get('taskName')
+        new_task_code = request.data.get('taskCode')
+
+        if not new_task_name or not new_task_code:
+            return Response({
+                'code': 400,
+                'msg': '请提供新任务名称和编码'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_task = TaskService.clone_task(task.id, new_task_name, new_task_code)
+            serializer = ETLTaskSerializer(new_task)
+            return self.data(serializer.data)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'克隆任务失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'], url_path='statistics')
+    def get_statistics(self, request, pk=None):
+        """获取任务统计信息"""
+        task = self.get_object()
+        days = int(request.query_params.get('days', 7))
+
+        try:
+            stats = MonitoringService.get_task_statistics(task.id, days)
+            return self.data(stats)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'获取统计信息失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ==================== ETLFieldMapping ViewSet ====================
@@ -448,15 +326,25 @@ class ETLFieldMappingViewSet(BaseViewSet):
                 'msg': '请提供映射数据'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        created_mappings = []
-        for mapping_data in mappings_data:
-            serializer = ETLFieldMappingCreateSerializer(data=mapping_data)
-            if serializer.is_valid():
-                mapping = serializer.save()
-                created_mappings.append(mapping)
+        try:
+            task_id = mappings_data[0].get('taskId') if mappings_data else None
+            if not task_id:
+                raise ValueError('缺少taskId')
 
-        serializer = ETLFieldMappingSerializer(created_mappings, many=True)
-        return self.data(serializer.data)
+            count = TaskService.create_field_mapping_batch(task_id, mappings_data)
+
+            # 获取创建后的映射列表
+            mappings = ETLFieldMapping.objects.filter(task_id=task_id)
+            serializer = ETLFieldMappingSerializer(mappings, many=True)
+            return self.data({
+                'message': f'成功创建 {count} 个字段映射',
+                'data': serializer.data
+            })
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'批量创建失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ==================== ETLExecutionLog ViewSet ====================
@@ -521,6 +409,48 @@ class ETLExecutionLogViewSet(BaseViewSet):
         serializer = ETLExecutionLogSerializer(log)
         return self.data(serializer.data)
 
+    @action(detail=True, methods=['get'], url_path='progress')
+    def get_progress(self, request, pk=None):
+        """获取执行进度（实时）"""
+        execution = self.get_object()
+
+        try:
+            metrics = MonitoringService.get_execution_metrics(execution.execution_id)
+            return self.data(metrics)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'获取进度失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel_execution(self, request, pk=None):
+        """取消执行"""
+        execution = self.get_object()
+
+        if execution.status != 'running':
+            return Response({
+                'code': 400,
+                'msg': '任务不在执行状态'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            execution_service = ExecutionService()
+            success = execution_service.cancel_execution(execution)
+
+            if success:
+                return self.data({'message': '任务已取消'})
+            else:
+                return Response({
+                    'code': 500,
+                    'msg': '取消任务失败'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'取消任务失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # ==================== ETLWatermark ViewSet ====================
 
@@ -543,14 +473,16 @@ class ETLWatermarkViewSet(BaseViewSet):
 
         return queryset
 
-    @action(detail=False, methods=['get'], url_path='task/(?P<task_id>[^/.]+)')
-    def get_watermark_by_task(self, request, task_id=None):
-        """
-        获取任务的最新水印值
+    @action(detail=False, methods=['get'], url_path='by-task')
+    def get_watermark_by_task(self, request):
+        """获取任务的最新水印值"""
+        task_id = request.query_params.get('taskId')
+        if not task_id:
+            return Response({
+                'code': 400,
+                'msg': '请提供任务ID'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        Args:
-            task_id: 任务ID
-        """
         try:
             watermark = ETLWatermark.objects.filter(
                 task_id=task_id
@@ -592,3 +524,272 @@ class ETLWatermarkViewSet(BaseViewSet):
             'msg': '水印不允许删除'
         }, status=status.HTTP_403_FORBIDDEN)
 
+
+# ==================== ETLTaskTemplate ViewSet ====================
+
+class ETLTaskTemplateViewSet(BaseViewSet):
+    """ETL任务模板视图集"""
+
+    queryset = ETLTaskTemplate.objects.all()
+    serializer_class = ETLTaskTemplateSerializer
+    create_serializer_class = ETLTaskTemplateCreateSerializer
+
+    def get_queryset(self):
+        """获取查询集，支持筛选"""
+        queryset = super().get_queryset()
+
+        # 获取查询参数
+        template_name = self.request.query_params.get('templateName')
+        template_code = self.request.query_params.get('templateCode')
+        task_type = self.request.query_params.get('taskType')
+        category = self.request.query_params.get('category')
+        is_system = self.request.query_params.get('isSystem')
+
+        # 应用筛选条件
+        if template_name:
+            queryset = queryset.filter(template_name__icontains=template_name)
+        if template_code:
+            queryset = queryset.filter(template_code__icontains=template_code)
+        if task_type:
+            queryset = queryset.filter(task_type=task_type)
+        if category:
+            queryset = queryset.filter(category__icontains=category)
+        if is_system is not None:
+            queryset = queryset.filter(is_system=is_system.lower() == 'true')
+
+        return queryset
+
+    @action(detail=False, methods=['get'], url_path='system')
+    def list_system_templates(self, request):
+        """获取系统模板列表"""
+        queryset = self.get_queryset().filter(is_system=True)
+        serializer = ETLTaskTemplateSerializer(queryset, many=True)
+        return self.data(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='user')
+    def list_user_templates(self, request):
+        """获取用户自定义模板列表"""
+        queryset = self.get_queryset().filter(is_system=False)
+        serializer = ETLTaskTemplateSerializer(queryset, many=True)
+        return self.data(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='create-task')
+    def create_task_from_template(self, request):
+        """从模板创建任务"""
+        template_id = request.data.get('templateId')
+        params = request.data.get('params', {})
+
+        if not template_id:
+            return Response({
+                'code': 400,
+                'msg': '请提供模板ID'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            task = TaskService.create_task_from_template(template_id, params)
+            serializer = ETLTaskSerializer(task)
+            return self.data(serializer.data)
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'创建任务失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='increment-usage')
+    def increment_usage(self, request, pk=None):
+        """增加模板使用次数"""
+        template = self.get_object()
+        template.usage_count += 1
+        template.save(update_fields=['usage_count'])
+        return self.data({'message': '使用次数已更新', 'usageCount': template.usage_count})
+
+
+# ==================== ETLQualityRule ViewSet ====================
+
+class ETLQualityRuleViewSet(BaseViewSet):
+    """ETL质检规则视图集"""
+
+    queryset = ETLQualityRule.objects.all()
+    serializer_class = ETLQualityRuleSerializer
+    create_serializer_class = ETLQualityRuleCreateSerializer
+
+    def get_queryset(self):
+        """获取查询集，支持筛选"""
+        queryset = super().get_queryset()
+
+        # 获取查询参数
+        rule_name = self.request.query_params.get('ruleName')
+        rule_code = self.request.query_params.get('ruleCode')
+        rule_type = self.request.query_params.get('ruleType')
+        table_id = self.request.query_params.get('tableId')
+        enabled = self.request.query_params.get('enabled')
+
+        # 应用筛选条件
+        if rule_name:
+            queryset = queryset.filter(rule_name__icontains=rule_name)
+        if rule_code:
+            queryset = queryset.filter(rule_code__icontains=rule_code)
+        if rule_type:
+            queryset = queryset.filter(rule_type=rule_type)
+        if table_id:
+            queryset = queryset.filter(table_id=table_id)
+        if enabled is not None:
+            queryset = queryset.filter(enabled=enabled.lower() == 'true')
+
+        return queryset
+
+    @action(detail=False, methods=['post'], url_path='test')
+    def test_rule(self, request):
+        """测试质检规则"""
+        rule_id = request.data.get('ruleId')
+        task_id = request.data.get('taskId')
+
+        if not rule_id or not task_id:
+            return Response({
+                'code': 400,
+                'msg': '请提供规则ID和任务ID'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            rule = ETLQualityRule.objects.get(id=rule_id)
+            task = ETLTask.objects.get(id=task_id)
+
+            quality_service = QualityService()
+            passed, result = quality_service._check_rule(rule, task)
+
+            return self.data({
+                'passed': passed,
+                'result': result
+            })
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'测试失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='toggle')
+    def toggle_enabled(self, request, pk=None):
+        """切换规则启用状态"""
+        rule = self.get_object()
+        rule.enabled = not rule.enabled
+        rule.save(update_fields=['enabled'])
+        return self.data({'message': '状态已更新', 'enabled': rule.enabled})
+
+
+# ==================== ETLQualityResult ViewSet ====================
+
+class ETLQualityResultViewSet(BaseViewSet):
+    """ETL质检结果视图集"""
+
+    queryset = ETLQualityResult.objects.all()
+    serializer_class = ETLQualityResultSerializer
+
+    def get_queryset(self):
+        """获取查询集，支持筛选"""
+        queryset = super().get_queryset()
+
+        # 获取查询参数
+        task_id = self.request.query_params.get('taskId')
+        execution_id = self.request.query_params.get('executionId')
+        rule_id = self.request.query_params.get('ruleId')
+        status_value = self.request.query_params.get('status')
+
+        # 应用筛选条件
+        if task_id:
+            queryset = queryset.filter(task_id=task_id)
+        if execution_id:
+            queryset = queryset.filter(execution_id__icontains=execution_id)
+        if rule_id:
+            queryset = queryset.filter(rule_id=rule_id)
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        """禁用直接创建质检结果"""
+        return Response({
+            'code': 403,
+            'msg': '质检结果由系统自动创建，不允许手动创建'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    def update(self, request, *args, **kwargs):
+        """禁用更新质检结果"""
+        return Response({
+            'code': 403,
+            'msg': '质检结果不允许修改'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    def destroy(self, request, *args, **kwargs):
+        """禁用删除质检结果"""
+        return Response({
+            'code': 403,
+            'msg': '质检结果不允许删除'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    @action(detail=False, methods=['get'], url_path='by-execution')
+    def get_results_by_execution(self, request):
+        """获取指定执行的所有质检结果"""
+        execution_id = request.query_params.get('executionId')
+        if not execution_id:
+            return Response({
+                'code': 400,
+                'msg': '请提供执行ID'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            results = ETLQualityResult.objects.filter(
+                execution_id=execution_id
+            ).order_by('-check_time')
+
+            serializer = ETLQualityResultSerializer(results, many=True)
+            return self.data(serializer.data)
+
+        except Exception as e:
+            return Response({
+                'code': 500,
+                'msg': f'获取质检结果失败: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==================== ETLExecutionProgress ViewSet ====================
+
+class ETLExecutionProgressViewSet(BaseViewSet):
+    """ETL执行进度视图集"""
+
+    queryset = ETLExecutionProgress.objects.all()
+    serializer_class = ETLExecutionProgressSerializer
+
+    def get_queryset(self):
+        """获取查询集，支持筛选"""
+        queryset = super().get_queryset()
+
+        # 获取查询参数
+        execution_id = self.request.query_params.get('executionId')
+
+        # 应用筛选条件
+        if execution_id:
+            queryset = queryset.filter(execution__execution_id__icontains=execution_id)
+
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        """禁用直接创建进度"""
+        return Response({
+            'code': 403,
+            'msg': '执行进度由系统自动创建，不允许手动创建'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    def update(self, request, *args, **kwargs):
+        """禁用更新进度"""
+        return Response({
+            'code': 403,
+            'msg': '执行进度不允许手动修改'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    def destroy(self, request, *args, **kwargs):
+        """禁用删除进度"""
+        return Response({
+            'code': 403,
+            'msg': '执行进度不允许删除'
+        }, status=status.HTTP_403_FORBIDDEN)

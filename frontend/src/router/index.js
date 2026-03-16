@@ -2,6 +2,8 @@ import { createWebHistory, createRouter } from 'vue-router'
 /* Layout */
 import Layout from '@/layout'
 
+import menuData from './menu'
+
 /**
  * Note: 路由配置项
  *
@@ -83,167 +85,13 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
-  }
+  },
+  ...menuData
 ]
 
 // 动态路由，基于用户权限动态去加载
 export const dynamicRoutes = [
-  {
-    path: '/system/user-auth',
-    component: Layout,
-    hidden: true,
-    permissions: ['system:user:edit'],
-    children: [
-      {
-        path: 'role/:userId(\\d+)',
-        component: () => import('@/views/system/user/authRole'),
-        name: 'AuthRole',
-        meta: { title: '分配角色', activeMenu: '/system/user' }
-      }
-    ]
-  },
-  {
-    path: '/system/role-auth',
-    component: Layout,
-    hidden: true,
-    permissions: ['system:role:edit'],
-    children: [
-      {
-        path: 'user/:roleId(\\d+)',
-        component: () => import('@/views/system/role/authUser'),
-        name: 'AuthUser',
-        meta: { title: '分配用户', activeMenu: '/system/role' }
-      }
-    ]
-  },
-  {
-    path: '/system/dict-data',
-    component: Layout,
-    hidden: true,
-    permissions: ['system:dict:list'],
-    children: [
-      {
-        path: 'index/:dictId(\\d+)',
-        component: () => import('@/views/system/dict/data'),
-        name: 'Data',
-        meta: { title: '字典数据', activeMenu: '/system/dict' }
-      }
-    ]
-  },
-  {
-    path: '/monitor/job-log',
-    component: Layout,
-    hidden: true,
-    permissions: ['monitor:job:list'],
-    children: [
-      {
-        path: 'index/:jobId(\\d+)',
-        component: () => import('@/views/monitor/job/log'),
-        name: 'JobLog',
-        meta: { title: '调度日志', activeMenu: '/monitor/job' }
-      }
-    ]
-  },
-  {
-    path: '/tool/gen-edit',
-    component: Layout,
-    hidden: true,
-    permissions: ['tool:gen:edit'],
-    children: [
-      {
-        path: 'index/:tableId(\\d+)',
-        component: () => import('@/views/tool/gen/editTable'),
-        name: 'GenEdit',
-        meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
-      }
-    ]
-  },
-  {
-    path: '/data-asset',
-    component: Layout,
-    hidden: true,
-    permissions: ['system:datasource:query'],
-    children: [
-      {
-        path: 'datasource-detail/:id(\\d+)',
-        component: () => import('@/views/data/asset/datasource/detail'),
-        name: 'DataSourceDetail',
-        meta: { title: '数据源详情', activeMenu: '/data-asset/datasource', noCache: false }
-      }
-    ]
-    },
-    {
-    path: '/data-asset',
-    component: Layout,
-    hidden: true,
-    permissions: ['system:datasource:view'],
-    children: [
-      {
-        path: 'datasource-view/:id(\\d+)',
-        component: () => import('@/views/data/asset/datasource/view'),
-        name: 'DataSourceView',
-        meta: { title: '源数据查看', activeMenu: '/data-asset/datasource', noCache: false }
-      }
-    ]
-  },
-  {
-    path: '/data-service',
-    component: Layout,
-    hidden: true,
-    permissions: ['system:dataservice:interface'],
-    children: [
-      {
-        path: 'interface/:interfaceId(\\d+)',
-        component: () => import('@/views/data/service/interface/detail'),
-        name: 'InterfaceDetail',
-        meta: { title: '接口详情', activeMenu: '/data-service/interface', noCache: false }
-      },
-      {
-        path: 'query-log',
-        component: () => import('@/views/data/service/query/queryLog'),
-        name: 'DataServiceQueryLog',
-        meta: { title: '查询日志', activeMenu: '/data-service/query-log' }
-      }
-    ]
-  },
-  {
-    path: '/data-etl',
-    component: Layout,
-    hidden: true,
-    permissions: ['system:dataetl:task'],
-    children: [
-      {
-        path: 'task',
-        component: () => import('@/views/data/etl/index'),
-        name: 'DataETLTask',
-        meta: { title: 'ETL任务管理', activeMenu: '/data-etl/task' }
-      },
-      {
-        path: 'task/create',
-        component: () => import('@/views/data/etl/detail'),
-        name: 'DataETLTaskCreate',
-        meta: { title: '新增ETL任务', activeMenu: '/data-etl/task' }
-      },
-      {
-        path: 'task/edit/:id',
-        component: () => import('@/views/data/etl/detail'),
-        name: 'DataETLTaskEdit',
-        meta: { title: '编辑ETL任务', activeMenu: '/data-etl/task' }
-      },
-      {
-        path: 'execution-log',
-        component: () => import('@/views/data/etl/execution-log'),
-        name: 'DataETLExecutionLog',
-        meta: { title: 'ETL执行日志', activeMenu: '/data-etl/execution-log' }
-      },
-      {
-        path: 'field-mapping',
-        component: () => import('@/views/data/etl/field-mapping'),
-        name: 'DataETLFieldMapping',
-        meta: { title: 'ETL字段映射', activeMenu: '/data-etl/field-mapping' }
-      }
-    ]
-  }
+
 ]
 
 const router = createRouter({

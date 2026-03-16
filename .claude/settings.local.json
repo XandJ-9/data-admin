@@ -17,7 +17,8 @@
       "Bash(taskkill:*)",
       "Bash(netstat:*)",
       "Bash(findstr:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

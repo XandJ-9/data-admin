@@ -8,7 +8,7 @@
     />
 
     <!-- 数据源配置（仅数据集成任务显示） -->
-    <template v-if="formData.taskType === 'data_integration'">
+    <template v-if="formData.etlType === 'data_integration'">
       <el-divider content-position="left">数据源配置</el-divider>
       <SourceTargetForm
         v-model="formData"
@@ -21,7 +21,7 @@
     </template>
 
     <!-- SQL配置（仅SQL任务显示） -->
-    <template v-if="formData.taskType === 'sql_task'">
+    <template v-if="formData.etlType === 'sql_task'">
       <el-divider content-position="left">SQL配置</el-divider>
       <SQLConfigForm v-model="formData" />
     </template>
@@ -168,11 +168,11 @@ const executorParamsConfig = computed({
   }
 })
 
-// 监听任务类型变化，初始化默认配置
-watch(() => formData.value.taskType, (newTaskType, oldTaskType) => {
-  if (newTaskType && newTaskType !== oldTaskType) {
+// 监听ETL类型变化，初始化默认配置
+watch(() => formData.value.etlType, (newEtlType, oldEtlType) => {
+  if (newEtlType && newEtlType !== oldEtlType) {
     // 数据集成任务使用DataX执行器
-    if (newTaskType === 'data_integration' && !formData.value.executorParams?.datax) {
+    if (newEtlType === 'data_integration' && !formData.value.executorParams?.datax) {
       const defaultParams = {
         timeout: 300,
         retryTimes: 3,
@@ -208,7 +208,7 @@ watch(() => formData.value.taskType, (newTaskType, oldTaskType) => {
       formData.value.executorParams = defaultParams
     }
     // SQL任务使用Spark SQL执行器
-    else if (newTaskType === 'sql_task' && !formData.value.executorParams?.spark) {
+    else if (newEtlType === 'sql_task' && !formData.value.executorParams?.spark) {
       const defaultParams = {
         timeout: 300,
         retryTimes: 3,

@@ -100,6 +100,6 @@ class DataSourceExecutor:
         allowed_prefixes = ('select', 'with', 'show', 'describe', 'explain')
         if s == '':
             raise ValueError('SQL不能为空')
-        if not s.startswith(allowed_prefixes):
+        if not s.lower().startswith(allowed_prefixes):
             raise ValueError('仅允许执行查询语句（SELECT/WITH/SHOW/DESCRIBE/EXPLAIN），禁止执行其他语句')
         return s

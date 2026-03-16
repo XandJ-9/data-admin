@@ -1,1 +1,0 @@
-"""Django management package for system app."""

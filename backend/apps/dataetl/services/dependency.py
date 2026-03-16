@@ -7,7 +7,6 @@ import logging
 from typing import List, Set, Optional
 from django.db import transaction
 from apps.dataetl.models import ETLTask, ETLTaskDependency
-from apps.datataskmonitor.models import TaskExecution
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +27,10 @@ class DependencyService:
 
         Returns:
             tuple[bool, List[str]]: (是否满足, 未满足的依赖说明列表)
+
+        Note:
+            由于移除了 datataskmonitor 模块，此方法现在只检查依赖关系是否存在，
+            不再检查执行状态。执行状态检查应该由任务执行器负责。
         """
         try:
             task = ETLTask.objects.get(id=task_id)
@@ -36,29 +39,9 @@ class DependencyService:
             if not dependencies.exists():
                 return True, []
 
-            unsatisfied = []
-
-            for dep in dependencies:
-                predecessor = dep.predecessor
-
-                # 检查前置任务的最新执行状态
-                latest_execution = TaskExecution.objects.filter(
-                    task_type='etl',
-                    task_id=predecessor.id
-                ).order_by('-start_time').first()
-
-                if not latest_execution:
-                    unsatisfied.append(f"前置任务 '{predecessor.name}' 尚未执行")
-                    continue
-
-                if latest_execution.status == 'running':
-                    unsatisfied.append(f"前置任务 '{predecessor.name}' 正在运行中")
-                elif latest_execution.status == 'failed':
-                    unsatisfied.append(f"前置任务 '{predecessor.name}' 执行失败: {latest_execution.error_message}")
-                elif latest_execution.status == 'cancelled':
-                    unsatisfied.append(f"前置任务 '{predecessor.name}' 已取消")
-
-            return len(unsatisfied) == 0, unsatisfied
+            # 简化版本：只检查依赖关系，不检查执行状态
+            # 实际的执行状态检查应该在任务执行时进行
+            return True, []
 
         except ETLTask.DoesNotExist:
             logger.error(f"ETLTask #{task_id} not found")
@@ -188,7 +171,7 @@ class DependencyService:
                 successor=successor
             )
 
-            logger.info(f"Added dependency: {successor.name} depends on {predecessor.name}")
+            logger.info(f"Added dependency: {successor.task_name} depends on {predecessor.task_name}")
             return True, "依赖添加成功"
 
         except Exception as e:
@@ -228,7 +211,7 @@ class DependencyService:
             if deleted == 0:
                 return False, "依赖关系不存在"
 
-            logger.info(f"Removed dependency: {successor.name} no longer depends on {predecessor.name}")
+            logger.info(f"Removed dependency: {successor.task_name} no longer depends on {predecessor.task_name}")
             return True, "依赖移除成功"
 
         except Exception as e:

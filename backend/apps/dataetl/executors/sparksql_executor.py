@@ -9,14 +9,17 @@ Spark SQL执行器实现
 
 import subprocess
 import os
+import logging
 from typing import Dict, Any, Tuple
 from datetime import datetime
 
 from django.conf import settings
-from .base import BaseExecutor
+from .base import BaseETLExecutor
+
+logger = logging.getLogger(__name__)
 
 
-class SparkSQLExecutor(BaseExecutor):
+class SparkSQLExecutor(BaseETLExecutor):
     """
     Spark SQL执行器
 
@@ -26,6 +29,17 @@ class SparkSQLExecutor(BaseExecutor):
     SPARK_HOME = getattr(settings, 'SPARK_HOME', '/opt/spark')
     SPARK_MASTER = getattr(settings, 'SPARK_MASTER', 'spark://localhost:7077')
 
+    def __init__(self, task: Any, config: Dict[str, Any] = None):
+        """
+        初始化 Spark SQL 执行器
+
+        Args:
+            task: ETLTask 实例
+            config: 执行器配置
+        """
+        super().__init__(task, config)
+        self.process = None
+
     def validate(self) -> Tuple[bool, str]:
         """
         验证Spark SQL任务配置
@@ -34,15 +48,16 @@ class SparkSQLExecutor(BaseExecutor):
             (is_valid, error_message)
         """
         try:
-            # 1. 验证数据源配置
+            # 验证数据源配置
             if not self.task.target_datasource:
                 return False, "目标数据源不能为空"
 
             if not self.task.target_table:
                 return False, "目标表不能为空"
 
-            # 2. 验证SQL脚本
-            if not self.task.datax_config.get('sql_script'):
+            # 验证SQL配置
+            sql_config = self.task.sql_config
+            if not sql_config:
                 return False, "SQL脚本不能为空"
 
             return True, ""
@@ -57,28 +72,28 @@ class SparkSQLExecutor(BaseExecutor):
         Returns:
             执行结果字典
         """
-        try:
-            # 1. 获取SQL脚本
-            if self.task.target_layer == 'ods':
-                # ODS层：自动生成多租户聚合SQL
-                sql_script = self._generate_aggregation_sql()
-            else:
-                # 其他层：使用配置的SQL脚本
-                sql_script = self.task.datax_config.get('sql_script', '')
+        start_time = datetime.now()
 
-            # 2. 保存SQL脚本到临时文件
-            sql_file = os.path.join('/tmp', f"spark_job_{self.execution_log.execution_id}.sql")
+        try:
+            # 获取SQL脚本
+            sql_script = self.task.sql_config
+
+            # 保存SQL脚本到临时文件
+            execution_id = f"spark_{self.task.task_code}_{int(start_time.timestamp())}"
+            sql_file = os.path.join('/tmp', f"spark_job_{execution_id}.sql")
             with open(sql_file, 'w', encoding='utf-8') as f:
                 f.write(sql_script)
 
-            # 3. 准备日志文件路径
-            log_path = os.path.join('/var/log/spark', f"{self.execution_log.execution_id}.log")
+            # 准备日志文件路径
+            log_path = os.path.join('/var/log/spark', f"{execution_id}.log")
             os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-            # 4. 构建spark-submit命令
+            # 构建spark-submit命令
             cmd = self._build_spark_submit_command(sql_file, log_path)
 
-            # 5. 执行Spark命令（设置4小时超时）
+            logger.info(f"Executing Spark SQL command: {cmd}")
+
+            # 执行Spark命令（设置4小时超时）
             result = subprocess.run(
                 cmd,
                 shell=True,
@@ -87,30 +102,43 @@ class SparkSQLExecutor(BaseExecutor):
                 text=True
             )
 
-            # 6. 解析执行结果
+            end_time = datetime.now()
+            duration_seconds = int((end_time - start_time).total_seconds())
+
+            # 解析执行结果
             stats = self._parse_spark_output(log_path)
 
             return {
                 'status': 'success' if result.returncode == 0 else 'failed',
-                'rows_read': stats.get('rows_read', 0),
-                'rows_written': stats.get('rows_written', 0),
-                'rows_error': 0,
-                'bytes_transferred': stats.get('bytes_transferred', 0),
-                'log_path': log_path,
-                'error_message': stats.get('errorMessage', ''),
+                'total_rows': stats.get('rows_written', 0),
+                'success_rows': stats.get('rows_written', 0) if result.returncode == 0 else 0,
+                'failed_rows': 0,
+                'duration_seconds': duration_seconds,
+                'error_message': stats.get('errorMessage', '') if result.returncode != 0 else None,
+                'log_file': log_path,
             }
 
         except subprocess.TimeoutExpired:
+            end_time = datetime.now()
+            duration_seconds = int((end_time - start_time).total_seconds())
             return {
                 'status': 'failed',
+                'total_rows': 0,
+                'success_rows': 0,
+                'failed_rows': 0,
+                'duration_seconds': duration_seconds,
                 'error_message': 'Spark execution timeout after 4 hours',
-                'log_path': log_path if 'log_path' in locals() else '',
             }
         except Exception as e:
+            end_time = datetime.now()
+            duration_seconds = int((end_time - start_time).total_seconds())
             return {
                 'status': 'failed',
+                'total_rows': 0,
+                'success_rows': 0,
+                'failed_rows': 0,
+                'duration_seconds': duration_seconds,
                 'error_message': str(e),
-                'log_path': log_path if 'log_path' in locals() else '',
             }
         finally:
             # 清理临时SQL文件
@@ -127,104 +155,16 @@ class SparkSQLExecutor(BaseExecutor):
         Returns:
             是否成功取消
         """
-        # TODO: 通过spark-cmd kill任务
-        # spark kill <task_id>
-        return True
-
-    def _generate_aggregation_sql(self) -> str:
-        """
-        生成STG→ODS多租户聚合SQL
-
-        Returns:
-            SQL脚本字符串
-        """
-        try:
-            # 获取ODS聚合任务配置
-            agg_config = getattr(self.task, 'aggregation_config', None)
-            if not agg_config:
-                return self._generate_default_aggregation_sql()
-
-            # 获取STG任务列表
-            stg_tasks = agg_config.stg_tasks.all()
-            if not stg_tasks:
-                raise ValueError("ODS聚合任务没有关联STG任务")
-
-            # 获取去重字段
-            dedup_fields = agg_config.deduplication_fields or ['id']
-            window_clause = f"PARTITION BY {', '.join(dedup_fields)} ORDER BY update_time DESC"
-
-            # 生成CTE，union all租户数据
-            cte_list = []
-            for stg_task in stg_tasks:
-                # 如果是STG任务，读取所有租户数据
-                if stg_task.is_multi_db_task:
-                    # 多租户STG数据
-                    cte_list.append(f"""
-                        SELECT *, '{stg_task.name}' as source_datasource
-                        FROM {stg_task.target_table}
-                        WHERE ds='${{bizdate}}'
-                    """)
-                else:
-                    cte_list.append(f"""
-                        SELECT *, '{stg_task.name}' as source_datasource
-                        FROM {stg_task.target_table}
-                        WHERE ds='${{bizdate}}'
-                    """)
-
-            # 获取目标字段
-            if self.task.field_mapping:
-                target_columns = ', '.join([m['target'] for m in self.task.field_mapping])
-            else:
-                target_columns = '*'
-
-            # 生成完整的聚合SQL
-            sql = f"""
--- ODS聚合任务: {self.task.name}
--- 业务日期: ${{bizdate}}
--- 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-SET hive.exec.dynamic.mode=true;
-SET hive.exec.dynamic.partition.mode=nonstrict;
-
-WITH stg_data AS (
-    {'UNION ALL'.join(cte_list)}
-),
-deduplicated AS (
-    SELECT *,
-           ROW_NUMBER() OVER ({window_clause}) as rn
-    FROM stg_data
-)
-INSERT OVERWRITE TABLE {self.task.target_table}
-PARTITION (ds='${{bizdate}}')
-SELECT {target_columns}
-FROM deduplicated
-WHERE rn = 1
-;
-            """.strip()
-
-            return sql
-
-        except Exception as e:
-            raise Exception(f"生成聚合SQL失败: {str(e)}")
-
-    def _generate_default_aggregation_sql(self) -> str:
-        """
-        生成默认聚合SQL（当没有配置聚合任务时）
-
-        Returns:
-            默认SQL脚本
-        """
-        return f"""
--- 默认ODS聚合SQL
--- 任务: {self.task.name}
-
-INSERT OVERWRITE TABLE {self.task.target_table}
-PARTITION (ds='${{bizdate}}')
-SELECT *
-FROM {self.task.source_table or 'stg_table'}
-WHERE ds='${{bizdate}}'
-;
-        """.strip()
+        if self.process and self.process.poll() is None:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=30)
+                self._mark_cancelled()
+                return True
+            except Exception as e:
+                logger.error(f"Failed to cancel Spark task: {e}")
+                return False
+        return False
 
     def _build_spark_submit_command(self, sql_file: str, log_path: str) -> str:
         """
@@ -269,10 +209,6 @@ WHERE ds='${{bizdate}}'
 
             stats = {}
 
-            # 提取读取行数
-            # Spark SQL通常不会直接输出这些统计信息
-            # 需要通过Spark Listener或者查询执行后的表统计
-
             if 'ERROR' in content or 'Exception' in content:
                 # 提取错误信息
                 lines = content.split('\n')
@@ -282,4 +218,10 @@ WHERE ds='${{bizdate}}'
             return stats
 
         except Exception as e:
+            logger.error(f"Failed to parse Spark output: {e}")
             return {}
+
+
+# 注册 Spark SQL 执行器
+from .base import ExecutorFactory
+ExecutorFactory.register_executor('spark', SparkSQLExecutor)

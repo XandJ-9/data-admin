@@ -9,8 +9,8 @@
       <el-form-item label="任务编码" prop="taskCode">
         <el-input v-model="queryParams.taskCode" placeholder="请输入任务编码" clearable style="width: 200px" @keyup.enter="handleQuery" />
       </el-form-item>
-      <el-form-item label="任务类型" prop="taskType">
-        <el-select v-model="queryParams.taskType" placeholder="请选择任务类型" clearable style="width: 200px">
+      <el-form-item label="ETL类型" prop="etlType">
+        <el-select v-model="queryParams.etlType" placeholder="请选择ETL类型" clearable style="width: 200px">
           <el-option label="数据集成" value="data_integration" />
           <el-option label="SQL任务" value="sql_task" />
         </el-select>
@@ -53,10 +53,10 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="任务名称" prop="taskName" width="180" :show-overflow-tooltip="true" />
       <el-table-column label="任务编码" prop="taskCode" width="150" :show-overflow-tooltip="true" />
-      <el-table-column label="任务类型" prop="taskType" width="120">
+      <el-table-column label="ETL类型" prop="etlType" width="120">
         <template #default="scope">
-          <el-tag :type="getTaskTypeTag(scope.row.taskType)" v-if="scope.row.taskType">
-            {{ getTaskTypeLabel(scope.row.taskType) }}
+          <el-tag :type="getEtlTypeTag(scope.row.etlType)" v-if="scope.row.etlType">
+            {{ getEtlTypeLabel(scope.row.etlType) }}
           </el-tag>
           <el-tag type="info" v-else>未知</el-tag>
         </template>
@@ -116,9 +116,9 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="任务名称">{{ detailData.taskName }}</el-descriptions-item>
         <el-descriptions-item label="任务编码">{{ detailData.taskCode }}</el-descriptions-item>
-        <el-descriptions-item label="任务类型">
-          <el-tag :type="getTaskTypeTag(detailData.taskType)" v-if="detailData.taskType">
-            {{ getTaskTypeLabel(detailData.taskType) }}
+        <el-descriptions-item label="ETL类型">
+          <el-tag :type="getEtlTypeTag(detailData.etlType)" v-if="detailData.etlType">
+            {{ getEtlTypeLabel(detailData.etlType) }}
           </el-tag>
           <span v-else>-</span>
         </el-descriptions-item>
@@ -260,7 +260,7 @@ const queryParams = ref({
   pageSize: 10,
   taskName: undefined,
   taskCode: undefined,
-  taskType: undefined,
+  etlType: undefined,
   executorType: undefined,
   status: undefined
 })
@@ -396,15 +396,6 @@ function getExecutorTypeTag(executorType) {
   return tagMap[executorType] || 'info'
 }
 
-/** 获取任务类型标签颜色 */
-function getTaskTypeTag(taskType) {
-  const tagMap = {
-    'data_integration': 'success',
-    'sql_task': 'primary'
-  }
-  return tagMap[taskType] || 'info'
-}
-
 /** 获取执行器类型标签文本 */
 function getExecutorTypeLabel(executorType) {
   const labelMap = {
@@ -416,16 +407,25 @@ function getExecutorTypeLabel(executorType) {
   return labelMap[executorType] || executorType
 }
 
-/** 获取任务类型标签文本 */
-function getTaskTypeLabel(taskType) {
-  if (!taskType) return '未设置'
+/** 获取ETL类型标签颜色 */
+function getEtlTypeTag(etlType) {
+  const tagMap = {
+    'data_integration': 'success',
+    'sql_task': 'primary'
+  }
+  return tagMap[etlType] || 'info'
+}
+
+/** 获取ETL类型标签文本 */
+function getEtlTypeLabel(etlType) {
+  if (!etlType) return '未设置'
 
   const labelMap = {
     'data_integration': '数据集成',
     'sql_task': 'SQL任务'
   }
 
-  // 兼容旧数据：如果使用的是旧的任务类型值
+  // 兼容旧数据：如果使用的是旧的ETL类型值
   const legacyMap = {
     'extract': '数据集成',
     'transform': '数据转换',
@@ -433,7 +433,7 @@ function getTaskTypeLabel(taskType) {
     'full': '全量ETL'
   }
 
-  return labelMap[taskType] || legacyMap[taskType] || taskType
+  return labelMap[etlType] || legacyMap[etlType] || etlType
 }
 
 /** 格式化执行器参数 */

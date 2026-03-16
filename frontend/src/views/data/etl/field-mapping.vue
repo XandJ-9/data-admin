@@ -132,8 +132,7 @@
 
 <script setup name="ETLFieldMapping">
 import { getCurrentInstance } from 'vue'
-import { listETLTaskSimple } from '@/api/data/etl'
-import {
+import { listETLTaskSimple ,
   listETLFieldMapping,
   getETLFieldMapping,
   addETLFieldMapping,
