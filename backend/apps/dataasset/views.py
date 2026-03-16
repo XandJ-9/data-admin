@@ -218,6 +218,8 @@ class MetaColumnViewSet(BaseViewSet):
 class MetadataCollectionViewSet(BaseViewSet):
     """元数据采集接口"""
     permission_classes = [IsAuthenticated, HasRolePermission]
+    serializer_class = MetaCollectionTaskSerializer
+    lookup_field = 'id'
 
     def _load_ds(self, ds_id):
         try:

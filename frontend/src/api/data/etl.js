@@ -561,3 +561,97 @@ export function listETLExecutionProgress(query) {
     params: query
   })
 }
+
+// ==================== 数据预览 ====================
+
+/**
+ * 预览源表数据
+ * @param {Object} data 预览参数 {datasourceId, database, table, limit}
+ */
+export function previewSourceData(data) {
+  return request({
+    url: '/dataetl/preview/source',
+    method: 'post',
+    data: data,
+    timeout: 60000
+  })
+}
+
+/**
+ * 预览SQL查询结果
+ * @param {Object} data 查询参数 {datasourceId, sql, limit}
+ */
+export function previewQueryResult(data) {
+  return request({
+    url: '/dataetl/preview/query',
+    method: 'post',
+    data: data,
+    timeout: 60000
+  })
+}
+
+// ==================== 任务依赖 ====================
+
+/**
+ * 搜索可依赖的任务
+ * @param {Object} query 搜索参数 {keyword, pageNum, pageSize}
+ */
+export function searchDependentTasks(query) {
+  return request({
+    url: '/dataetl/tasks/search',
+    method: 'get',
+    params: query
+  })
+}
+
+/**
+ * 获取任务的依赖列表
+ * @param {Number} taskId 任务ID
+ */
+export function getTaskDependencies(taskId) {
+  return request({
+    url: `/dataetl/tasks/${taskId}/dependencies`,
+    method: 'get'
+  })
+}
+
+/**
+ * 更新任务依赖
+ * @param {Number} taskId 任务ID
+ * @param {Object} data 依赖数据 {dependentTasks, dependencyStrategy, dependencyTimeout}
+ */
+export function updateTaskDependencies(taskId, data) {
+  return request({
+    url: `/dataetl/tasks/${taskId}/dependencies`,
+    method: 'put',
+    data: data
+  })
+}
+
+// ==================== 表结构 ====================
+
+/**
+ * 获取数据源表结构
+ * @param {Number} datasourceId 数据源ID
+ * @param {String} database 数据库名
+ * @param {String} table 表名
+ */
+export function getTableStructure(datasourceId, database, table) {
+  return request({
+    url: '/dataetl/table/structure',
+    method: 'get',
+    params: { datasourceId, database, table }
+  })
+}
+
+/**
+ * 自动创建表
+ * @param {Object} data 建表参数
+ */
+export function autoCreateTable(data) {
+  return request({
+    url: '/dataetl/table/create',
+    method: 'post',
+    data: data
+  })
+}

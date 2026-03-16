@@ -371,8 +371,8 @@ class ETLTaskTemplateSerializer(BaseModelSerializer):
     templateName = serializers.CharField(source='template_name')
     templateCode = serializers.CharField(source='template_code')
     taskType = serializers.CharField(source='task_type')
-    category = serializers.CharField(source='category')
-    tags = serializers.JSONField(source='tags')
+    category = serializers.CharField()
+    tags = serializers.JSONField()
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     isSystem = serializers.BooleanField(source='is_system', read_only=True)
     usageCount = serializers.IntegerField(source='usage_count', read_only=True)
@@ -427,7 +427,7 @@ class ETLQualityRuleSerializer(BaseModelSerializer):
     thresholdMin = serializers.FloatField(source='threshold_min', required=False, allow_null=True)
     thresholdMax = serializers.FloatField(source='threshold_max', required=False, allow_null=True)
     errorLevel = serializers.CharField(source='error_level')
-    enabled = serializers.BooleanField(source='enabled')
+    enabled = serializers.BooleanField()
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:

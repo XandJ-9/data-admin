@@ -20,7 +20,7 @@ class DataSourceSerializer(BaseModelSerializer):
     status = serializers.CharField(required=False, allow_blank=True)
     remark = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
-    def get_password(self, obj):
+    def get_password(self, obj) -> str:
         return encrypt_password(obj.password)
 
     class Meta:
