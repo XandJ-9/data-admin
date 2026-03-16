@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('dataintegration', '0002_rename_dataintegra_name_5b2a4e_idx_dataintegra_name_f6db92_idx_and_more'),
+        ('dataetl', '0002_rename_dataintegra_name_5b2a4e_idx_dataintegra_name_f6db92_idx_and_more'),
     ]
 
     operations = [

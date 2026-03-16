@@ -4,6 +4,8 @@
       "Bash(python manage.py migrate:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)",
       "Bash(git mv:*)",
       "Bash(find:*)",
       "Bash(python manage.py startapp:*)",

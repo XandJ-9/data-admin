@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.system.serializers import BaseModelSerializer
-from .models import DataTask, TaskLog, AlertRule, AlertRecord
+from .models import DataTask, TaskLog, AlertRule, AlertRecord, TaskExecution, TaskExecutionLog
 from .taskmanager.scheduler import calc_next_run_time
 
 class DataTaskSerializer(BaseModelSerializer):
@@ -147,4 +147,80 @@ class AlertRecordSerializer(BaseModelSerializer):
             'status',
             'handleTime',
             'handleNote',
+        ]
+
+
+class TaskExecutionSerializer(BaseModelSerializer):
+    """
+    通用任务执行记录序列化器
+    支持所有任务类型（ETL、元数据采集、质量检查等）
+    """
+
+    taskType = serializers.CharField(source='task_type', read_only=True)
+    taskTypeDisplay = serializers.CharField(source='get_task_type_display', read_only=True)
+    statusDisplay = serializers.CharField(source='get_status_display', read_only=True)
+
+    startTime = serializers.DateTimeField(source='start_time', format='%Y-%m-%d %H:%M:%S')
+    endTime = serializers.DateTimeField(source='end_time', allow_null=True, required=False, format='%Y-%m-%d %H:%M:%S')
+
+    durationFormatted = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaskExecution
+        fields = [
+            'id', 'taskType', 'taskTypeDisplay', 'taskId',
+            'startTime', 'endTime', 'durationSeconds', 'durationFormatted',
+            'status', 'statusDisplay', 'progress',
+            'rowsRead', 'rowsWritten', 'bytesProcessed',
+            'errorMessage', 'errorStack',
+            'peakMemoryMb', 'logFilePath', 'executorType',
+            'createTime',
+        ]
+
+    def get_duration_formatted(self, obj):
+        """格式化执行时长"""
+        if not obj.duration_seconds:
+            return '-'
+        duration = obj.duration_seconds
+        if duration < 60:
+            return f"{duration}秒"
+        elif duration < 3600:
+            minutes = duration // 60
+            seconds = duration % 60
+            return f"{minutes}分{seconds}秒"
+        else:
+            hours = duration // 3600
+            minutes = (duration % 3600) // 60
+            return f"{hours}小时{minutes}分"
+
+
+class TaskExecutionListSerializer(BaseModelSerializer):
+    """任务执行记录列表序列化器（简化版）"""
+
+    taskType = serializers.CharField(source='task_type', read_only=True)
+    statusDisplay = serializers.CharField(source='get_status_display', read_only=True)
+    startTime = serializers.DateTimeField(source='start_time', format='%Y-%m-%d %H:%M:%S')
+
+    class Meta:
+        model = TaskExecution
+        fields = [
+            'id', 'taskType', 'taskId',
+            'status', 'statusDisplay', 'progress',
+            'rowsRead', 'rowsWritten',
+            'durationSeconds', 'startTime',
+            'errorMessage',
+        ]
+
+
+class TaskExecutionLogSerializer(BaseModelSerializer):
+    """任务执行日志序列化器"""
+
+    executionId = serializers.IntegerField(source='execution_id', read_only=True)
+    logLevel = serializers.CharField(source='log_level')
+    timestamp = serializers.DateTimeField(source='create_time', format='%Y-%m-%d %H:%M:%S')
+
+    class Meta:
+        model = TaskExecutionLog
+        fields = [
+            'id', 'executionId', 'logLevel', 'message', 'metadata', 'timestamp',
         ]

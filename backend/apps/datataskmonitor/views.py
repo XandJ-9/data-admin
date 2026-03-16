@@ -3,14 +3,24 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import DataTask, TaskLog, AlertRule, AlertRecord
-from .serializers import DataTaskSerializer, TaskLogSerializer, AlertRuleSerializer, AlertRecordSerializer
+from .models import DataTask, TaskLog, AlertRule, AlertRecord, TaskExecution, TaskExecutionLog
+from .serializers import (
+    DataTaskSerializer,
+    TaskLogSerializer,
+    AlertRuleSerializer,
+    AlertRecordSerializer,
+    TaskExecutionSerializer,
+    TaskExecutionListSerializer,
+    TaskExecutionLogSerializer,
+)
 from apps.common.pagination import StandardPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.permissions import IsAuthenticated
 
 from apps.system.views.core import BaseViewSet
 from apps.datastudio.models import DataStudioTask
 from .taskmanager.executor import TaskExecutor
+from .services.execution import TaskExecutionService
 
 class DataTaskViewSet(BaseViewSet):
     queryset = DataTask.objects.all().order_by('-create_time')
@@ -223,3 +233,122 @@ class AlertRecordViewSet(BaseViewSet):
         record.update_by = getattr(getattr(request, 'user', None), 'username', '') or ''
         record.save(update_fields=['status', 'handle_note', 'handle_time', 'update_by', 'update_time'])
         return Response({'code': 200, 'msg': '操作成功'})
+
+
+class TaskExecutionViewSet(BaseViewSet):
+    """通用任务执行记录视图集"""
+
+    queryset = TaskExecution.objects.filter(del_flag='0').order_by('-start_time')
+    serializer_class = TaskExecutionSerializer
+    pagination_class = StandardPagination
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['task_type']
+    ordering_fields = ['start_time', 'status']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return TaskExecutionListSerializer
+        return TaskExecutionSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        # 筛选条件
+        task_type = self.request.query_params.get('taskType') or self.request.query_params.get('task_type')
+        if task_type:
+            qs = qs.filter(task_type=task_type)
+
+        status_value = self.request.query_params.get('status')
+        if status_value:
+            qs = qs.filter(status=status_value)
+
+        task_id = self.request.query_params.get('taskId') or self.request.query_params.get('task_id')
+        if task_id:
+            try:
+                qs = qs.filter(task_id=int(task_id))
+            except Exception:
+                pass
+
+        return qs
+
+    @action(detail=True, methods=['get'])
+    def logs(self, request, pk=None):
+        """获取执行日志"""
+        execution = self.get_object()
+
+        # 筛选条件
+        log_level = request.query_params.get('logLevel') or request.query_params.get('log_level')
+        limit = int(request.query_params.get('limit', 100))
+
+        logs = TaskExecutionService.get_logs(execution.id, log_level=log_level, limit=limit)
+
+        serializer = TaskExecutionLogSerializer(logs, many=True)
+        return self.ok({
+            'rows': serializer.data,
+            'total': len(logs)
+        })
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        """取消正在运行的任务"""
+        execution = self.get_object()
+
+        if execution.status != 'running':
+            return self.error('只有运行中的任务可以取消')
+
+        success = TaskExecutionService.cancel_execution(execution.id)
+        if success:
+            return self.ok({'message': '任务已取消'})
+        else:
+            return self.error('取消任务失败')
+
+    @action(detail=True, methods=['get'])
+    def etl_details(self, request, pk=None):
+        """获取ETL特定的执行详情"""
+        execution = self.get_object()
+
+        if execution.task_type != 'etl':
+            return self.error('此记录不是ETL任务执行记录')
+
+        try:
+            etl_details = execution.etl_details
+            return self.ok({
+                'execution_id': execution.id,
+                'task_id': execution.task_id,
+                'etl_execution_id': etl_details.id if etl_details else None,
+                'source_rows': etl_details.rows_read if etl_details else 0,
+                'target_rows': etl_details.rows_written if etl_details else 0,
+                'rows_failed': etl_details.rows_failed if etl_details else 0,
+            })
+        except Exception:
+            return self.error('ETL执行详情不存在')
+
+
+class TaskExecutionLogViewSet(BaseViewSet):
+    """任务执行日志视图集"""
+
+    queryset = TaskExecutionLog.objects.filter(del_flag='0').order_by('-create_time')
+    serializer_class = TaskExecutionLogSerializer
+    pagination_class = StandardPagination
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['message']
+    ordering_fields = ['create_time']
+    filterset_fields = ['execution', 'logLevel']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        execution_id = self.request.query_params.get('executionId') or self.request.query_params.get('execution_id')
+        if execution_id:
+            try:
+                qs = qs.filter(execution_id=int(execution_id))
+            except Exception:
+                pass
+
+        log_level = self.request.query_params.get('logLevel') or self.request.query_params.get('log_level')
+        if log_level:
+            qs = qs.filter(log_level=log_level)
+
+        return qs
