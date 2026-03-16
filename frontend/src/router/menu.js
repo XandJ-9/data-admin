@@ -199,7 +199,7 @@ const menuData = [
     {
         path: '/data-etl',
         component: Layout,
-        redirect: 'noRedirect',
+        redirect: '/data-etl/home',
         name: 'DataETL',
         alwaysShow: true,
         meta: {
@@ -208,31 +208,31 @@ const menuData = [
         },
         children: [
             {
-                path: 'task',
+                path: 'home',
                 component: () => import('@/views/data/etl/index'),
-                name: 'DataETLTask',
+                name: 'ETLHome',
                 meta: {
-                    title: 'ETL任务管理',
+                    title: 'ETL首页',
+                    icon: 'dashboard',
+                    noCache: false
+                },
+                permissions: ['dataetl:task:query']
+            },
+            {
+                path: 'tasks',
+                component: () => import('@/views/data/etl/taskList'),
+                name: 'ETLTaskList',
+                meta: {
+                    title: 'ETL任务',
                     icon: 'list',
                     noCache: false
                 },
-                permissions: ['system:dataetl:task:query']
+                permissions: ['dataetl:task:query']
             },
             {
-                path: 'field-mapping',
-                component: () => import('@/views/data/etl/field-mapping'),
-                name: 'DataETLFieldMapping',
-                meta: {
-                    title: '字段映射管理',
-                    icon: 'guide',
-                    noCache: false
-                },
-                permissions: ['dataetl:fieldmapping:query']
-            },
-            {
-                path: 'execution-log',
-                component: () => import('@/views/data/etl/execution-log'),
-                name: 'DataETLExecutionLog',
+                path: 'execution-logs',
+                component: () => import('@/views/data/etl/executionLogs'),
+                name: 'ETLExecutionLogs',
                 meta: {
                     title: '执行日志',
                     icon: 'log',
@@ -250,18 +250,11 @@ const menuData = [
         hidden: true,
         children: [
             {
-                path: 'task/create',
-                component: () => import('@/views/data/etl/task-detail'),
-                name: 'DataETLTaskCreate',
-                meta: { title: '新增ETL任务', activeMenu: '/data-etl/task', noCache: false },
-                permissions: ['dataetl:task:create']
-            },
-            {
-                path: 'task/edit/:id',
-                component: () => import('@/views/data/etl/task-detail'),
-                name: 'DataETLTaskEdit',
-                meta: { title: '编辑ETL任务', activeMenu: '/data-etl/task', noCache: false },
-                permissions: ['dataetl:task:edit']
+                path: 'task/:id',
+                component: () => import('@/views/data/etl/taskDetail'),
+                name: 'ETLTaskDetail',
+                meta: { title: 'ETL任务详情', activeMenu: '/data-etl/tasks', noCache: false },
+                permissions: ['dataetl:task:query']
             }
         ]
     },
