@@ -127,9 +127,9 @@
                   >
                     <el-option
                       v-for="ds in datasourceList"
-                      :key="ds.id"
-                      :label="ds.datasourceName"
-                      :value="ds.id"
+                      :key="ds.dataSourceId"
+                      :label="ds.dataSourceName"
+                      :value="ds.dataSourceId"
                     />
                   </el-select>
                 </el-form-item>
@@ -145,9 +145,9 @@
                   >
                     <el-option
                       v-for="ds in datasourceList"
-                      :key="ds.id"
-                      :label="ds.datasourceName"
-                      :value="ds.id"
+                      :key="ds.dataSourceId"
+                      :label="ds.dataSourceName"
+                      :value="ds.dataSourceId"
                     />
                   </el-select>
                 </el-form-item>
@@ -393,7 +393,7 @@
 </template>
 
 <script setup name="ETLTaskDetail">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   VideoPlay, Edit, ArrowDown, Plus, MagicStick, Delete
@@ -415,7 +415,7 @@ import {
   listETLQualityRule,
   delETLQualityRule
 } from '@/api/data/etl'
-import { listDataSource } from '@/api/data/asset'
+import { listDatasource } from '@/api/data/asset'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()
@@ -427,7 +427,8 @@ const loadingLogs = ref(false)
 const activeTab = ref('basic')
 const executionDetailVisible = ref(false)
 
-const taskId = ref(route.params.id)
+// 使用 computed 以便实时响应路由参数变化
+const taskId = computed(() => route.params.id)
 const datasourceList = ref([])
 const fieldMappings = ref([])
 const qualityRules = ref([])
@@ -485,9 +486,48 @@ onMounted(async () => {
   }
 })
 
+// 监听路由变化，处理组件缓存的情况
+watch(
+  () => route.params.id,
+  async (newId) => {
+    if (newId === 'new') {
+      // 新建任务：重置表单
+      Object.assign(taskForm, {
+        taskName: '',
+        taskCode: '',
+        description: '',
+        category: '',
+        etlType: route.query.etlType || 'full',
+        executorType: 'mock',
+        executeStrategy: 'full',
+        status: '0',
+        sourceDatasourceId: null,
+        targetDatasourceId: null,
+        sourceTableName: '',
+        targetTable: '',
+        sqlConfig: '',
+        executorParams: null
+      })
+      isEdit.value = true
+      // 清空之前的字段映射和质检规则
+      fieldMappings.value = []
+      qualityRules.value = []
+      executionLogs.value = []
+    } else {
+      // 编辑/查看已有任务：加载数据
+      isEdit.value = false
+      await loadTaskDetail()
+      await loadFieldMappings()
+      await loadQualityRules()
+      await loadExecutionLogs()
+    }
+  },
+  { immediate: false }
+)
+
 async function loadDatasources() {
   try {
-    const res = await listDataSource({ pageNum: 1, pageSize: 1000 })
+    const res = await listDatasource({ pageNum: 1, pageSize: 1000 })
     datasourceList.value = res.rows || []
   } catch (error) {
     console.error('加载数据源列表失败:', error)
@@ -540,25 +580,35 @@ async function loadExecutionLogs() {
 async function handleSave() {
   saving.value = true
   try {
+    let savedTaskId
     if (taskId.value === 'new') {
       const res = await addETLTask(taskForm)
-      taskId.value = res.data.id
+      savedTaskId = res.data.id
       ElMessage.success('创建成功')
     } else {
       await updateETLTask(taskForm)
+      savedTaskId = taskId.value
       ElMessage.success('保存成功')
     }
 
     // 保存字段映射
     if (fieldMappings.value.length > 0) {
       await batchCreateFieldMapping({
-        taskId: taskId.value,
+        taskId: savedTaskId,
         mappings: fieldMappings.value
       })
     }
 
-    isEdit.value = false
-    await loadTaskDetail()
+    // 如果是新建任务，跳转到新任务详情页
+    if (taskId.value === 'new') {
+      router.push({
+        name: 'ETLTaskDetail',
+        params: { id: savedTaskId }
+      })
+    } else {
+      isEdit.value = false
+      await loadTaskDetail()
+    }
   } catch (error) {
     console.error('保存失败:', error)
   } finally {
