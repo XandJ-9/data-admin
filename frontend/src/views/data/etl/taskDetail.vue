@@ -489,7 +489,17 @@ onMounted(async () => {
 // 监听路由变化，处理组件缓存的情况
 watch(
   () => route.params.id,
-  async (newId) => {
+  async (newId, oldId) => {
+    // 只有当真正进入任务详情页时才加载（route.name 匹配）
+    if (route.name !== 'ETLTaskDetail') {
+      return
+    }
+
+    // 避免从新任务切换到新任务时重复加载
+    if (newId === 'new' && oldId === 'new') {
+      return
+    }
+
     if (newId === 'new') {
       // 新建任务：重置表单
       Object.assign(taskForm, {
@@ -514,6 +524,7 @@ watch(
       qualityRules.value = []
       executionLogs.value = []
     } else {
+      console.log('进入任务详情页，加载任务ID:', newId)
       // 编辑/查看已有任务：加载数据
       isEdit.value = false
       await loadTaskDetail()
