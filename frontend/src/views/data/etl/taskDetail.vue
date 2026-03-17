@@ -803,7 +803,7 @@ async function handleViewExecution(row) {
 
 // 辅助函数
 function getEtlTypeColor(etlType) {
-  const colors = { extract: '', transform: 'success', load: 'warning', full: 'danger' }
+  const colors = { extract: 'info', transform: 'success', load: 'warning', full: 'danger' }
   return colors[etlType] || ''
 }
 
