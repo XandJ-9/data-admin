@@ -278,7 +278,7 @@
 <script setup name="DataServiceInterface">
 /* eslint-disable vue/no-v-model-argument */
 import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, executeInterfaceById, exportInterfaceById, importInterfaceMeta } from '@/api/data/service'
-import { listDatasource } from '@/api/data/asset'
+import { listDatasource } from '@/api/data/datasource'
 import { useRouter } from 'vue-router'
 
 const { proxy } = getCurrentInstance()

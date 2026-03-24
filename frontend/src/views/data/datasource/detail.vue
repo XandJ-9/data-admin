@@ -204,7 +204,7 @@
 
 <script setup name="DataSourceDetail">
 import { useRoute, useRouter } from 'vue-router'
-import { getDatasource } from '@/api/data/asset'
+import { getDatasource } from '@/api/data/datasource'
 import { listDatabases, listTables, listColumns, collectMetaAsync, getCollectStatus, cancelCollect, collectMetaTable } from '@/api/data/asset'
 
 const route = useRoute()

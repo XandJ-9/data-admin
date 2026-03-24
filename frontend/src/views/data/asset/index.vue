@@ -131,8 +131,8 @@
 </template>
 
 <script setup name="DataAssetIndex">
+import { listDatasource } from '@/api/data/datasource'
 import {
-  listDatasource,
   listMetaTables,
   listMetaColumns,
   listTableLineage

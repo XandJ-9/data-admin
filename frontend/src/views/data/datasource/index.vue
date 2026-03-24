@@ -209,7 +209,7 @@ import {
   delDatasource,
   testDatasource,
   testDatasourceByBody
-} from '@/api/data/asset'
+} from '@/api/data/datasource'
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')

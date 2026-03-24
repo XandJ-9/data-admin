@@ -210,8 +210,8 @@
 </template>
 
 <script setup name="DataAssetMetadata">
+import { listDatasource } from '@/api/data/datasource'
 import {
-  listDatasource,
   listMetaTables,
   listMetaColumns,
   listTables,

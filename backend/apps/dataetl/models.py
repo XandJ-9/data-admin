@@ -6,7 +6,8 @@ This module defines the data models for ETL task management.
 
 from django.db import models
 from apps.system.models import BaseModel
-from apps.dataasset.models import DataSource, MetaTable
+from apps.datasource.models import DataSource
+from apps.dataasset.models import MetaTable
 
 
 class ETLTask(BaseModel):

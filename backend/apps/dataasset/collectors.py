@@ -8,7 +8,8 @@ import logging
 from django.db import transaction, connections
 from django.utils import timezone
 
-from apps.dataasset.models import MetaCollectionTask, MetaTable, MetaColumn, DataSource
+from apps.dataasset.models import MetaCollectionTask, MetaTable, MetaColumn
+from apps.datasource.models import DataSource
 from apps.dbutils import list_tables, get_table_schema, get_table_info
 
 logger = logging.getLogger(__name__)

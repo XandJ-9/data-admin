@@ -415,7 +415,7 @@ import {
   listETLQualityRule,
   delETLQualityRule
 } from '@/api/data/etl'
-import { listDatasource } from '@/api/data/asset'
+import { listDatasource } from '@/api/data/datasource'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const router = useRouter()

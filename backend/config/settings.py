@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'apps.system',
     'apps.monitor',
     'apps.dataservice',
+    'apps.datasource',  # 数据源管理模块
     'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
     'apps.dataetl',     # ETL任务管理模块
 ]
@@ -94,11 +95,11 @@ SIMPLE_JWT = {
 from .env import DATABASE_CONFIG
 
 DATABASES = {
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.sqlite3',
-    #     'NAME': BASE_DIR / 'db.sqlite3',
-    # }
-    'default': DATABASE_CONFIG
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+    # 'default': DATABASE_CONFIG
 }
 
 

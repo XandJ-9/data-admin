@@ -33,6 +33,7 @@ urlpatterns = [
     path('data-api/', include('apps.system.urls')),
     path('data-api/monitor/', include('apps.monitor.urls')),
     # 业务路由api
+    path('data-api/datasource/', include('apps.datasource.urls')),  # 数据源管理模块
     path('data-api/dataasset/', include('apps.dataasset.urls')),  # 数据资产管理模块（包含元数据管理）
     path('data-api/dataetl/', include('apps.dataetl.urls')),       # ETL任务管理模块
     path('data-api/dataservice/', include('apps.dataservice.urls')),

@@ -6,7 +6,7 @@ from rest_framework.viewsets import ViewSet
 from apps.system.views.core import BaseViewSet, BaseViewMixin
 from apps.system.permission import HasRolePermission
 from apps.system.models import User
-from apps.dataasset.models import DataSource
+from apps.datasource.models import DataSource
 from .models import QueryLog
 from .serializers import (
     DataServiceQuerySerializer, DataServiceQueryLogSerializer,

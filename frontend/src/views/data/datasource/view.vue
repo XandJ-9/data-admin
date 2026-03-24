@@ -2,7 +2,7 @@
     <div class="app-container">
         <el-form :inline="true" style="margin-bottom: 12px">
             <el-form-item label="数据源">
-                <el-select v-model="dsId" placeholder="选择数据源" style="width: 260px" disabled>
+                <el-select v-model="dsId" placeholder="选择数据源" style="width: 260px">
                     <el-option v-for="ds in dsList" :key="ds.dataSourceId"
                         :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
                 </el-select>
@@ -69,7 +69,8 @@
 </template>
 
 <script setup name="DataSourceView">
-import { listDatasource, listTables, listColumns, collectMetaTable, listDatabases,
+import { listDatasource } from '@/api/data/datasource'
+import { listTables, listColumns, collectMetaTable, listDatabases,
          collectMetaAsync, getCollectStatus, cancelCollect } from '@/api/data/asset'
 import { onMounted } from 'vue'
 const { proxy } = getCurrentInstance()

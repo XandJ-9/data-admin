@@ -62,7 +62,7 @@
 <script setup name="DataServiceQuery">
 import { getCurrentInstance } from 'vue'
 import { Plus, Upload, Minus, Download } from '@element-plus/icons-vue';
-import { listDatasource } from '@/api/data/asset'
+import { listDatasource } from '@/api/data/datasource'
 import { executeQuery, exportQuery } from '@/api/data/service'
 import QueryView from './queryView.vue'
 import QueryResult from './queryResult.vue'
