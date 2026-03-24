@@ -21,7 +21,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { listDatasources } from '@/api/data/source'
+import { listDatasource as listDatasources } from '@/api/data/datasource'
 
 defineProps({
   modelValue: {

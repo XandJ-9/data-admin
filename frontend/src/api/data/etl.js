@@ -71,6 +71,16 @@ export function listETLTaskSimple() {
 }
 
 /**
+ * 获取ETL任务统计数据
+ */
+export function getETLTaskStatistics() {
+  return request({
+    url: '/dataetl/tasks/statistics',
+    method: 'get'
+  })
+}
+
+/**
  * 执行ETL任务
  * @param {Number} id 任务ID
  */
@@ -274,6 +284,18 @@ export function batchCreateFieldMapping(data) {
 export function listETLExecutionLog(query) {
   return request({
     url: '/dataetl/execution-logs',
+    method: 'get',
+    params: query
+  })
+}
+
+/**
+ * 获取执行日志统计数据
+ * @param {Object} query 查询参数（可选，支持和列表相同的筛选条件）
+ */
+export function getExecutionLogStatistics(query) {
+  return request({
+    url: '/dataetl/execution-logs/statistics',
     method: 'get',
     params: query
   })

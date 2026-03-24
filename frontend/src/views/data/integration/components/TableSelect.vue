@@ -18,7 +18,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-import { getTableList } from '@/api/data/source'
+import { listDatasource as getTableList } from '@/api/data/datasource'
 
 const props = defineProps({
   modelValue: {

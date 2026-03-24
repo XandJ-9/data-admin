@@ -277,7 +277,7 @@ import {
   Search, Refresh, Plus, Right, VideoPlay, View, Edit, Delete,
   CircleCheck, CircleClose, Loading, Clock
 } from '@element-plus/icons-vue'
-import { listTasks, executeTask, deleteTask, getTaskExecutions, updateTask } from '@/api/data/etl'
+import { listETLTask as listTasks, executeETLTask as executeTask, delETLTask as deleteTask, listETLExecutionLog as getTaskExecutions, updateETLTask as updateTask } from '@/api/data/etl'
 
 const router = useRouter()
 

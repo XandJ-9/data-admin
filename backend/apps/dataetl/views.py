@@ -5,6 +5,8 @@ This module defines ViewSets for ETL task management.
 视图层只负责请求处理和响应，业务逻辑在服务层
 """
 
+from django.utils import timezone
+from django.db.models import Avg, Count, Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -82,6 +84,30 @@ class ETLTaskViewSet(BaseViewSet):
         queryset = self.get_queryset()
         serializer = ETLTaskSimpleSerializer(queryset, many=True)
         return self.data(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='statistics')
+    def statistics(self, request):
+        """获取ETL任务统计数据"""
+        queryset = self.get_queryset()
+        task_stats = queryset.aggregate(
+            total=Count('id'),
+            enabled=Count('id', filter=Q(status='0')),
+        )
+
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        execution_stats = ETLExecutionLog.objects.filter(
+            create_time__gte=today_start
+        ).aggregate(
+            today_executions=Count('id'),
+            failed_executions=Count('id', filter=Q(status='failed')),
+        )
+
+        return self.data({
+            'totalTasks': task_stats['total'],
+            'enabledTasks': task_stats['enabled'],
+            'todayExecutions': execution_stats['today_executions'],
+            'failedExecutions': execution_stats['failed_executions'],
+        })
 
     @action(detail=True, methods=['post'], url_path='execute')
     def execute_task(self, request, pk=None):
@@ -379,7 +405,40 @@ class ETLExecutionLogViewSet(BaseViewSet):
         if executed_by:
             queryset = queryset.filter(executed_by__icontains=executed_by)
 
+        # 日期范围筛选
+        start_time = self.request.query_params.get('startTime')
+        end_time = self.request.query_params.get('endTime')
+        if start_time:
+            queryset = queryset.filter(create_time__gte=start_time)
+        if end_time:
+            queryset = queryset.filter(create_time__lte=end_time)
+
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='statistics')
+    def statistics(self, request):
+        """获取执行日志统计数据"""
+        queryset = self.get_queryset()
+        stats = queryset.aggregate(
+            total=Count('id'),
+            success=Count('id', filter=Q(status='success')),
+            failed=Count('id', filter=Q(status='failed')),
+            avg_duration=Avg('duration_seconds', filter=Q(duration_seconds__isnull=False)),
+        )
+
+        total = stats['total'] or 0
+        success = stats['success'] or 0
+        failed = stats['failed'] or 0
+        avg_duration = round(stats['avg_duration'] or 0, 2)
+
+        return self.data({
+            'total': total,
+            'success': success,
+            'failed': failed,
+            'successRate': round(success / total * 100, 2) if total > 0 else 0,
+            'failedRate': round(failed / total * 100, 2) if total > 0 else 0,
+            'avgDuration': avg_duration,
+        })
 
     def create(self, request, *args, **kwargs):
         """禁用直接创建执行日志"""

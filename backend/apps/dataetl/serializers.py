@@ -36,14 +36,11 @@ class ETLTaskSerializer(BaseModelSerializer):
         required=False
     )
     sourceTableId = serializers.IntegerField(source='source_table_id', required=False, allow_null=True)
-    sourceTableName = serializers.CharField(
-        source='source_table.table_name',
-        read_only=True,
-        required=False
-    )
+    sourceTableName = serializers.CharField(source='source_table_name', required=False, allow_blank=True, allow_null=True)
+    sourceDatabaseName = serializers.CharField(source='source_database_name', required=False, allow_blank=True, allow_null=True)
     targetTable = serializers.CharField(source='target_table', required=False, allow_blank=True, allow_null=True)
     sqlConfig = serializers.CharField(source='sql_config', required=False, allow_blank=True, allow_null=True)
-    executorParams = serializers.JSONField(source='executor_params', required=False)
+    executorParams = serializers.JSONField(source='executor_params', required=False, allow_null=True)
 
     class Meta:
         model = ETLTask
@@ -51,7 +48,7 @@ class ETLTaskSerializer(BaseModelSerializer):
             'taskId', 'taskName', 'taskCode', 'description', 'etlType', 'executorType',
             'executeStrategy', 'sourceDatasourceId', 'sourceDatasourceName',
             'targetDatasourceId', 'targetDatasourceName', 'sourceTableId',
-            'sourceTableName', 'targetTable', 'sqlConfig', 'executorParams'
+            'sourceTableName', 'sourceDatabaseName', 'targetTable', 'sqlConfig', 'executorParams'
         ]
 
 
@@ -206,6 +203,11 @@ class ETLExecutionLogSerializer(serializers.ModelSerializer):
         read_only=True,
         required=False
     )
+    taskCode = serializers.CharField(
+        source='task.task_code',
+        read_only=True,
+        required=False
+    )
     executionId = serializers.CharField(source='execution_id')
     status = serializers.CharField()
     triggerType = serializers.CharField(source='trigger_type')
@@ -267,7 +269,7 @@ class ETLExecutionLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ETLExecutionLog
         fields = [
-            'logId', 'taskId', 'taskName', 'executionId', 'status', 'triggerType',
+            'logId', 'taskId', 'taskName', 'taskCode', 'executionId', 'status', 'triggerType',
             'startTime', 'endTime', 'durationSeconds', 'totalRows', 'successRows',
             'failedRows', 'errorMessage', 'logFile', 'executedBy', 'executorParams',
             'createTime'

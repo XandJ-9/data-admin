@@ -63,301 +63,50 @@
     <!-- 内容区域 -->
     <el-card class="detail-card">
       <el-tabs v-model="activeTab" type="border-card">
-        <!-- 基本信息 -->
         <el-tab-pane label="基本信息" name="basic">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="任务编码">
-              <span v-if="!isEdit">{{ taskForm.taskCode }}</span>
-              <el-input v-else v-model="taskForm.taskCode" placeholder="请输入任务编码" />
-            </el-descriptions-item>
-            <el-descriptions-item label="任务分类">
-              <span v-if="!isEdit">{{ taskForm.category || '-' }}</span>
-              <el-input v-else v-model="taskForm.category" placeholder="请输入任务分类" />
-            </el-descriptions-item>
-            <el-descriptions-item label="ETL类型" :span="2">
-              <span v-if="!isEdit">{{ getEtlTypeText(taskForm.etlType) }}</span>
-              <el-select v-else v-model="taskForm.etlType" style="width: 200px">
-                <el-option label="STG采集" value="extract" />
-                <el-option label="DWD转换" value="transform" />
-                <el-option label="ODS加载" value="load" />
-                <el-option label="全量ETL" value="full" />
-              </el-select>
-            </el-descriptions-item>
-            <el-descriptions-item label="执行器类型" :span="2">
-              <span v-if="!isEdit">{{ getExecutorTypeText(taskForm.executorType) }}</span>
-              <el-select v-else v-model="taskForm.executorType" style="width: 200px">
-                <el-option label="模拟执行器" value="mock" />
-                <el-option label="DataX" value="datax" />
-                <el-option label="Spark SQL" value="spark" />
-                <el-option label="Python脚本" value="python" />
-              </el-select>
-            </el-descriptions-item>
-            <el-descriptions-item label="执行策略">
-              <span v-if="!isEdit">{{ taskForm.executeStrategy === 'full' ? '全量' : '增量' }}</span>
-              <el-radio-group v-else v-model="taskForm.executeStrategy">
-                <el-radio label="full">全量</el-radio>
-                <el-radio label="increment">增量</el-radio>
-              </el-radio-group>
-            </el-descriptions-item>
-            <el-descriptions-item label="任务状态">
-              <span v-if="!isEdit">{{ taskForm.status === '0' ? '启用' : '停用' }}</span>
-              <el-switch v-else v-model="taskForm.status" active-value="0" inactive-value="1" />
-            </el-descriptions-item>
-            <el-descriptions-item label="任务描述" :span="2">
-              <span v-if="!isEdit">{{ taskForm.description || '-' }}</span>
-              <el-input v-else v-model="taskForm.description" type="textarea" :rows="3" />
-            </el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ taskForm.createTime }}</el-descriptions-item>
-            <el-descriptions-item label="更新时间">{{ taskForm.updateTime }}</el-descriptions-item>
-          </el-descriptions>
+          <BasicInfoTab :form="taskForm" :is-edit="isEdit" />
         </el-tab-pane>
 
-        <!-- 数据源配置 -->
         <el-tab-pane label="数据源配置" name="datasource">
-          <el-form :model="taskForm" label-width="120px" :disabled="!isEdit">
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="源数据源">
-                  <el-select
-                    v-model="taskForm.sourceDatasourceId"
-                    placeholder="请选择源数据源"
-                    filterable
-                    style="width: 100%"
-                    @change="handleSourceDatasourceChange"
-                  >
-                    <el-option
-                      v-for="ds in datasourceList"
-                      :key="ds.dataSourceId"
-                      :label="ds.dataSourceName"
-                      :value="ds.dataSourceId"
-                    />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="目标数据源">
-                  <el-select
-                    v-model="taskForm.targetDatasourceId"
-                    placeholder="请选择目标数据源"
-                    filterable
-                    style="width: 100%"
-                    @change="handleTargetDatasourceChange"
-                  >
-                    <el-option
-                      v-for="ds in datasourceList"
-                      :key="ds.dataSourceId"
-                      :label="ds.dataSourceName"
-                      :value="ds.dataSourceId"
-                    />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="源表">
-                  <el-input v-model="taskForm.sourceTableName" placeholder="请输入源表名" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="目标表">
-                  <el-input v-model="taskForm.targetTable" placeholder="请输入目标表名" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </el-form>
+          <DatasourceTab
+            :form="taskForm"
+            :is-edit="isEdit"
+            :datasource-list="datasourceList"
+            @columns-loaded="handleColumnsLoaded"
+          />
         </el-tab-pane>
 
-        <!-- SQL配置 -->
-        <el-tab-pane label="SQL配置" name="sql">
-          <div class="sql-config">
-            <div class="sql-header">
-              <span>SQL配置内容</span>
-              <el-button
-                v-if="isEdit"
-                type="primary"
-                size="small"
-                @click="handleFormatSQL"
-              >格式化SQL</el-button>
-            </div>
-            <el-input
-              v-model="taskForm.sqlConfig"
-              type="textarea"
-              :rows="20"
-              placeholder="请输入SQL配置，支持采集SQL、转换SQL、加载SQL等"
-              :disabled="!isEdit"
-            />
-          </div>
+        <el-tab-pane label="数据映射" name="mapping">
+          <DataMappingTab
+            :form="taskForm"
+            :is-edit="isEdit"
+            :source-columns="sourceColumns"
+            :field-mappings="fieldMappings"
+          />
         </el-tab-pane>
 
-        <!-- 字段映射 -->
-        <el-tab-pane label="字段映射" name="mapping">
-          <div class="mapping-actions">
-            <el-button v-if="isEdit" type="primary" icon="Plus" @click="handleAddMapping">
-              添加字段映射
-            </el-button>
-            <el-button v-if="isEdit" type="success" icon="MagicStick" @click="handleAutoMapping">
-              自动映射
-            </el-button>
-            <el-button v-if="isEdit" type="warning" icon="Delete" @click="handleClearMapping">
-              清空映射
-            </el-button>
-          </div>
-          <el-table :data="fieldMappings" border stripe max-height="400">
-            <el-table-column prop="sourceFieldName" label="源字段" min-width="150">
-              <template #default="{ row, $index }">
-                <el-input
-                  v-if="isEdit"
-                  v-model="row.sourceFieldName"
-                  placeholder="源字段名"
-                />
-                <span v-else>{{ row.sourceFieldName }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="targetFieldName" label="目标字段" min-width="150">
-              <template #default="{ row, $index }">
-                <el-input
-                  v-if="isEdit"
-                  v-model="row.targetFieldName"
-                  placeholder="目标字段名"
-                />
-                <span v-else>{{ row.targetFieldName }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="dataType" label="数据类型" width="120">
-              <template #default="{ row }">
-                <el-select v-if="isEdit" v-model="row.dataType" placeholder="数据类型">
-                  <el-option label="STRING" value="string" />
-                  <el-option label="INTEGER" value="integer" />
-                  <el-option label="LONG" value="long" />
-                  <el-option label="DOUBLE" value="double" />
-                  <el-option label="DECIMAL" value="decimal" />
-                  <el-option label="DATE" value="date" />
-                  <el-option label="DATETIME" value="datetime" />
-                  <el-option label="BOOLEAN" value="boolean" />
-                </el-select>
-                <span v-else>{{ row.dataType }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="transformRule" label="转换规则" min-width="150">
-              <template #default="{ row }">
-                <el-input
-                  v-if="isEdit"
-                  v-model="row.transformRule"
-                  placeholder="转换规则"
-                />
-                <span v-else>{{ row.transformRule || '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="isPrimaryKey" label="主键" width="80" align="center">
-              <template #default="{ row }">
-                <el-checkbox v-if="isEdit" v-model="row.isPrimaryKey" />
-                <el-tag v-else-if="row.isPrimaryKey" type="success" size="small">是</el-tag>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="80" align="center" fixed="right">
-              <template #default="{ $index }">
-                <el-button
-                  v-if="isEdit"
-                  link
-                  type="danger"
-                  icon="Delete"
-                  @click="handleDeleteMapping($index)"
-                />
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-tab-pane>
-
-        <!-- 执行配置 -->
         <el-tab-pane label="执行配置" name="execution">
-          <el-form :model="taskForm" label-width="150px" :disabled="!isEdit">
-            <el-form-item label="执行参数配置">
-              <el-input
-                v-model="executorParamsJson"
-                type="textarea"
-                :rows="10"
-                placeholder='执行参数配置（JSON格式），例如：{"concurrency": 1, "batchSize": 1000}'
-              />
-            </el-form-item>
-          </el-form>
+          <ExecutionConfigTab :form="taskForm" :is-edit="isEdit" />
         </el-tab-pane>
 
-        <!-- 质检规则 -->
         <el-tab-pane label="质检规则" name="quality">
-          <div class="quality-actions">
-            <el-button type="primary" icon="Plus" @click="handleAddQualityRule">
-              添加质检规则
-            </el-button>
-          </div>
-          <el-table :data="qualityRules" border stripe max-height="400">
-            <el-table-column prop="ruleName" label="规则名称" min-width="150" />
-            <el-table-column prop="ruleType" label="规则类型" width="120">
-              <template #default="{ row }">
-                <el-tag :type="getQualityRuleTypeColor(row.ruleType)" size="small">
-                  {{ getQualityRuleTypeText(row.ruleType) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="ruleExpression" label="规则表达式" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="errorMessage" label="错误提示" min-width="150" show-overflow-tooltip />
-            <el-table-column prop="enabled" label="启用状态" width="100" align="center">
-              <template #default="{ row }">
-                <el-switch v-model="row.enabled" @change="handleToggleQualityRule(row)" />
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="150" align="center">
-              <template #default="{ row }">
-                <el-button link type="primary" icon="View" @click="handleViewQualityRule(row)">
-                  查看
-                </el-button>
-                <el-button link type="danger" icon="Delete" @click="handleDeleteQualityRule(row)">
-                  删除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <QualityRulesTab
+            :rules="qualityRules"
+            @add="handleAddQualityRule"
+            @toggle="handleToggleQualityRule"
+            @view="handleViewQualityRule"
+            @delete="handleDeleteQualityRule"
+          />
         </el-tab-pane>
 
-        <!-- 执行历史 -->
         <el-tab-pane label="执行历史" name="history">
-          <el-table :data="executionLogs" border stripe v-loading="loadingLogs">
-            <el-table-column prop="id" label="执行ID" width="80" />
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="getExecutionStatusColor(row.status)" size="small">
-                  {{ getExecutionStatusText(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="读取/写入" width="150">
-              <template #default="{ row }">
-                {{ formatNumber(row.rowsRead) }} / {{ formatNumber(row.rowsWritten) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="duration" label="耗时" width="100">
-              <template #default="{ row }">
-                {{ formatDuration(row.duration) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="startTime" label="开始时间" width="160" />
-            <el-table-column prop="endTime" label="结束时间" width="160" />
-            <el-table-column prop="executedBy" label="执行者" width="100" />
-            <el-table-column label="操作" width="100" align="center">
-              <template #default="{ row }">
-                <el-button link type="primary" icon="View" @click="handleViewExecution(row)">
-                  详情
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <pagination
-            v-show="totalLogs > 0"
+          <ExecutionHistoryTab
+            :logs="executionLogs"
             :total="totalLogs"
-            v-model:page="logQuery.pageNum"
-            v-model:limit="logQuery.pageSize"
-            @pagination="loadExecutionLogs"
+            :query="logQuery"
+            :loading="loadingLogs"
+            @view="handleViewExecution"
+            @load="loadExecutionLogs"
           />
         </el-tab-pane>
       </el-tabs>
@@ -395,9 +144,7 @@
 <script setup name="ETLTaskDetail">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import {
-  VideoPlay, Edit, ArrowDown, Plus, MagicStick, Delete
-} from '@element-plus/icons-vue'
+import { VideoPlay, Edit, ArrowDown } from '@element-plus/icons-vue'
 import {
   getETLTask,
   addETLTask,
@@ -417,6 +164,12 @@ import {
 } from '@/api/data/etl'
 import { listDatasource } from '@/api/data/datasource'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import BasicInfoTab from './components/BasicInfoTab.vue'
+import DatasourceTab from './components/DatasourceTab.vue'
+import DataMappingTab from './components/DataMappingTab.vue'
+import ExecutionConfigTab from './components/ExecutionConfigTab.vue'
+import QualityRulesTab from './components/QualityRulesTab.vue'
+import ExecutionHistoryTab from './components/ExecutionHistoryTab.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -427,10 +180,10 @@ const loadingLogs = ref(false)
 const activeTab = ref('basic')
 const executionDetailVisible = ref(false)
 
-// 使用 computed 以便实时响应路由参数变化
 const taskId = computed(() => route.params.id)
 const datasourceList = ref([])
 const fieldMappings = ref([])
+const sourceColumns = ref([])
 const qualityRules = ref([])
 const executionLogs = ref([])
 const totalLogs = ref(0)
@@ -448,28 +201,20 @@ const taskForm = reactive({
   sourceDatasourceId: null,
   targetDatasourceId: null,
   sourceTableName: '',
+  sourceDatabaseName: '',
   targetTable: '',
   sqlConfig: '',
   executorParams: null
-})
-
-const executorParamsJson = computed({
-  get: () => {
-    return taskForm.executorParams ? JSON.stringify(taskForm.executorParams, null, 2) : '{}'
-  },
-  set: (value) => {
-    try {
-      taskForm.executorParams = JSON.parse(value)
-    } catch (e) {
-      console.error('JSON解析失败:', e)
-    }
-  }
 })
 
 const logQuery = reactive({
   pageNum: 1,
   pageSize: 10
 })
+
+function handleColumnsLoaded(columns) {
+  sourceColumns.value = columns
+}
 
 onMounted(async () => {
   await loadDatasources()
@@ -486,22 +231,13 @@ onMounted(async () => {
   }
 })
 
-// 监听路由变化，处理组件缓存的情况
 watch(
   () => route.params.id,
   async (newId, oldId) => {
-    // 只有当真正进入任务详情页时才加载（route.name 匹配）
-    if (route.name !== 'ETLTaskDetail') {
-      return
-    }
-
-    // 避免从新任务切换到新任务时重复加载
-    if (newId === 'new' && oldId === 'new') {
-      return
-    }
+    if (route.name !== 'ETLTaskDetail') return
+    if (newId === 'new' && oldId === 'new') return
 
     if (newId === 'new') {
-      // 新建任务：重置表单
       Object.assign(taskForm, {
         taskName: '',
         taskCode: '',
@@ -514,18 +250,17 @@ watch(
         sourceDatasourceId: null,
         targetDatasourceId: null,
         sourceTableName: '',
+        sourceDatabaseName: '',
         targetTable: '',
         sqlConfig: '',
         executorParams: null
       })
       isEdit.value = true
-      // 清空之前的字段映射和质检规则
       fieldMappings.value = []
+      sourceColumns.value = []
       qualityRules.value = []
       executionLogs.value = []
     } else {
-      console.log('进入任务详情页，加载任务ID:', newId)
-      // 编辑/查看已有任务：加载数据
       isEdit.value = false
       await loadTaskDetail()
       await loadFieldMappings()
@@ -602,7 +337,6 @@ async function handleSave() {
       ElMessage.success('保存成功')
     }
 
-    // 保存字段映射
     if (fieldMappings.value.length > 0) {
       await batchCreateFieldMapping({
         taskId: savedTaskId,
@@ -610,12 +344,8 @@ async function handleSave() {
       })
     }
 
-    // 如果是新建任务，跳转到新任务详情页
     if (taskId.value === 'new') {
-      router.push({
-        name: 'ETLTaskDetail',
-        params: { id: savedTaskId }
-      })
+      router.push({ name: 'ETLTaskDetail', params: { id: savedTaskId } })
     } else {
       isEdit.value = false
       await loadTaskDetail()
@@ -635,30 +365,19 @@ async function handleExecute() {
     activeTab.value = 'history'
     await loadExecutionLogs()
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('执行任务失败:', error)
-    }
+    if (error !== 'cancel') console.error('执行任务失败:', error)
   }
 }
 
 async function handleMoreCommand(command) {
-  switch (command) {
-    case 'clone':
-      handleClone()
-      break
-    case 'validate':
-      await handleValidate()
-      break
-    case 'datx':
-      await handleGenerateDataX()
-      break
-    case 'dryRun':
-      await handleDryRun()
-      break
-    case 'delete':
-      await handleDelete()
-      break
+  const actions = {
+    clone: handleClone,
+    validate: handleValidate,
+    datx: handleGenerateDataX,
+    dryRun: handleDryRun,
+    delete: handleDelete
   }
+  if (actions[command]) await actions[command]()
 }
 
 async function handleClone() {
@@ -682,7 +401,6 @@ async function handleValidate() {
 async function handleGenerateDataX() {
   try {
     const res = await generateDataXConfig(taskId.value, {})
-    // 显示DataX配置JSON
     ElMessageBox.alert(JSON.stringify(res.data, null, 2), 'DataX配置', {
       customClass: 'json-dialog'
     })
@@ -693,30 +411,22 @@ async function handleGenerateDataX() {
 
 async function handleDryRun() {
   try {
-    await ElMessageBox.confirm('模拟执行不会写入目标数据，确认继续？', '提示', {
-      type: 'warning'
-    })
+    await ElMessageBox.confirm('模拟执行不会写入目标数据，确认继续？', '提示', { type: 'warning' })
     await dryRunETLTask(taskId.value)
     ElMessage.success('模拟执行已完成')
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('模拟执行失败:', error)
-    }
+    if (error !== 'cancel') console.error('模拟执行失败:', error)
   }
 }
 
 async function handleDelete() {
   try {
-    await ElMessageBox.confirm('确认要删除该任务吗？删除后不可恢复！', '警告', {
-      type: 'warning'
-    })
+    await ElMessageBox.confirm('确认要删除该任务吗？删除后不可恢复！', '警告', { type: 'warning' })
     await delETLTask(taskId.value)
     ElMessage.success('删除成功')
     handleBack()
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除失败:', error)
-    }
+    if (error !== 'cancel') console.error('删除失败:', error)
   }
 }
 
@@ -724,57 +434,12 @@ function handleBack() {
   router.back()
 }
 
-function handleSourceDatasourceChange() {
-  // 可以在这里加载源数据源的表列表
-}
-
-function handleTargetDatasourceChange() {
-  // 可以在这里加载目标数据源的表列表
-}
-
-function handleFormatSQL() {
-  // SQL格式化逻辑
-}
-
-function handleAddMapping() {
-  fieldMappings.value.push({
-    sourceFieldName: '',
-    targetFieldName: '',
-    dataType: 'string',
-    transformRule: '',
-    isPrimaryKey: false
-  })
-}
-
-function handleDeleteMapping(index) {
-  fieldMappings.value.splice(index, 1)
-}
-
-async function handleAutoMapping() {
-  try {
-    // 自动映射逻辑
-  } catch (error) {
-    console.error('自动映射失败:', error)
-  }
-}
-
-function handleClearMapping() {
-  fieldMappings.value = []
-}
-
 function handleAddQualityRule() {
-  router.push({
-    name: 'QualityRuleCreate',
-    query: { taskId: taskId.value }
-  })
+  router.push({ name: 'QualityRuleCreate', query: { taskId: taskId.value } })
 }
 
 async function handleToggleQualityRule(row) {
-  try {
-    // 切换质检规则启用状态
-  } catch (error) {
-    console.error('切换状态失败:', error)
-  }
+  // 切换质检规则启用状态
 }
 
 function handleViewQualityRule(row) {
@@ -817,47 +482,13 @@ function getExecutorTypeText(executorType) {
   return texts[executorType] || executorType
 }
 
-function getQualityRuleTypeText(ruleType) {
-  const texts = {
-    completeness: '完整性',
-    accuracy: '准确性',
-    consistency: '一致性',
-    timeliness: '及时性',
-    validity: '有效性'
-  }
-  return texts[ruleType] || ruleType
-}
-
-function getQualityRuleTypeColor(ruleType) {
-  const colors = {
-    completeness: '',
-    accuracy: 'success',
-    consistency: 'warning',
-    timeliness: 'danger',
-    validity: 'info'
-  }
-  return colors[ruleType] || ''
-}
-
 function getExecutionStatusText(status) {
-  const texts = {
-    pending: '等待执行',
-    running: '执行中',
-    success: '成功',
-    failed: '失败',
-    cancelled: '已取消'
-  }
+  const texts = { pending: '等待执行', running: '执行中', success: '成功', failed: '失败', cancelled: '已取消' }
   return texts[status] || status
 }
 
 function getExecutionStatusColor(status) {
-  const colors = {
-    pending: 'info',
-    running: 'warning',
-    success: 'success',
-    failed: 'danger',
-    cancelled: ''
-  }
+  const colors = { pending: 'info', running: 'warning', success: 'success', failed: 'danger', cancelled: '' }
   return colors[status] || ''
 }
 
@@ -879,13 +510,9 @@ function formatDuration(seconds) {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = seconds % 60
-  if (hours > 0) {
-    return `${hours}小时${minutes}分${secs}秒`
-  } else if (minutes > 0) {
-    return `${minutes}分${secs}秒`
-  } else {
-    return `${secs}秒`
-  }
+  if (hours > 0) return `${hours}小时${minutes}分${secs}秒`
+  if (minutes > 0) return `${minutes}分${secs}秒`
+  return `${secs}秒`
 }
 </script>
 
@@ -909,23 +536,6 @@ function formatDuration(seconds) {
     margin-bottom: 16px;
     display: flex;
     gap: 12px;
-  }
-
-  .detail-card {
-    .mapping-actions,
-    .quality-actions {
-      margin-bottom: 16px;
-    }
-
-    .sql-config {
-      .sql-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        font-weight: bold;
-      }
-    }
   }
 }
 

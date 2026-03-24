@@ -88,7 +88,7 @@
       border
       style="margin-top: 16px"
     >
-      <el-table-column prop="id" label="执行ID" width="80" align="center" />
+      <el-table-column prop="logId" label="日志ID" width="80" align="center" />
       <el-table-column prop="taskName" label="任务名称" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">
           <el-link type="primary" @click="handleViewTask(row)">
@@ -106,22 +106,12 @@
       </el-table-column>
       <el-table-column label="读取/写入" width="140" align="center">
         <template #default="{ row }">
-          <span>{{ formatNumber(row.rowsRead) }} / {{ formatNumber(row.rowsWritten) }}</span>
+          <span>{{ formatNumber(row.totalRows) }} / {{ formatNumber(row.successRows) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="dataSize" label="数据大小" width="100" align="center">
+      <el-table-column prop="durationSeconds" label="耗时" width="90" align="center">
         <template #default="{ row }">
-          {{ formatBytes(row.dataSize) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="duration" label="耗时" width="90" align="center">
-        <template #default="{ row }">
-          {{ formatDuration(row.duration) }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="progress" label="进度" width="80" align="center">
-        <template #default="{ row }">
-          {{ row.progress }}%
+          {{ formatDuration(row.durationSeconds) }}
         </template>
       </el-table-column>
       <el-table-column prop="startTime" label="开始时间" width="160" />
@@ -173,7 +163,7 @@
         <!-- 基本信息 -->
         <el-tab-pane label="基本信息" name="basic">
           <el-descriptions :column="2" border>
-            <el-descriptions-item label="执行ID">{{ currentDetail.id }}</el-descriptions-item>
+            <el-descriptions-item label="日志ID">{{ currentDetail.logId }}</el-descriptions-item>
             <el-descriptions-item label="任务名称">{{ currentDetail.taskName }}</el-descriptions-item>
             <el-descriptions-item label="任务编码">{{ currentDetail.taskCode }}</el-descriptions-item>
             <el-descriptions-item label="执行状态">
@@ -181,16 +171,14 @@
                 {{ getExecutionStatusText(currentDetail.status) }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="读取行数">{{ formatNumber(currentDetail.rowsRead) }}</el-descriptions-item>
-            <el-descriptions-item label="写入行数">{{ formatNumber(currentDetail.rowsWritten) }}</el-descriptions-item>
-            <el-descriptions-item label="数据大小">{{ formatBytes(currentDetail.dataSize) }}</el-descriptions-item>
-            <el-descriptions-item label="执行进度">{{ currentDetail.progress }}%</el-descriptions-item>
-            <el-descriptions-item label="执行耗时">{{ formatDuration(currentDetail.duration) }}</el-descriptions-item>
-            <el-descriptions-item label="平均速度">{{ currentDetail.avgSpeed || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="总行数">{{ formatNumber(currentDetail.totalRows) }}</el-descriptions-item>
+            <el-descriptions-item label="成功行数">{{ formatNumber(currentDetail.successRows) }}</el-descriptions-item>
+            <el-descriptions-item label="失败行数">{{ formatNumber(currentDetail.failedRows) }}</el-descriptions-item>
+            <el-descriptions-item label="执行耗时">{{ formatDuration(currentDetail.durationSeconds) }}</el-descriptions-item>
             <el-descriptions-item label="开始时间">{{ currentDetail.startTime }}</el-descriptions-item>
             <el-descriptions-item label="结束时间">{{ currentDetail.endTime }}</el-descriptions-item>
             <el-descriptions-item label="执行者">{{ currentDetail.executedBy }}</el-descriptions-item>
-            <el-descriptions-item label="执行方式">{{ currentDetail.executionMode || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="触发方式">{{ currentDetail.triggerType || '-' }}</el-descriptions-item>
             <el-descriptions-item label="错误信息" :span="2">
               <span v-if="currentDetail.errorMessage" style="color: #F56C6C">
                 {{ currentDetail.errorMessage }}
@@ -203,14 +191,14 @@
         <!-- 执行日志 -->
         <el-tab-pane label="执行日志" name="logs">
           <div class="log-container">
-            <pre class="log-content">{{ currentDetail.executionLog || '暂无日志' }}</pre>
+            <pre class="log-content">{{ currentDetail.logFile || '暂无日志' }}</pre>
           </div>
         </el-tab-pane>
 
-        <!-- DataX配置 -->
-        <el-tab-pane label="DataX配置" name="datx">
+        <!-- 执行参数 -->
+        <el-tab-pane label="执行参数" name="params">
           <div class="json-container">
-            <pre class="json-content">{{ currentDetail.datxConfig || '暂无配置' }}</pre>
+            <pre class="json-content">{{ currentDetail.executorParams ? JSON.stringify(currentDetail.executorParams, null, 2) : '暂无参数' }}</pre>
           </div>
         </el-tab-pane>
 
@@ -241,10 +229,9 @@
               :status="currentDetail.status === 'running' ? undefined : 'success'"
             />
             <div class="progress-info">
-              <p>读取记录：{{ formatNumber(currentDetail.rowsRead) }}</p>
-              <p>写入记录：{{ formatNumber(currentDetail.rowsWritten) }}</p>
-              <p>失败记录：{{ formatNumber(currentDetail.failedRecords) || 0 }}</p>
-              <p>平均速度：{{ currentDetail.avgSpeed || '-' }}</p>
+              <p>总行数：{{ formatNumber(currentDetail.totalRows) }}</p>
+              <p>成功行数：{{ formatNumber(currentDetail.successRows) }}</p>
+              <p>失败行数：{{ formatNumber(currentDetail.failedRows) }}</p>
             </div>
           </div>
           <el-empty v-else description="暂无进度信息" />
@@ -260,6 +247,7 @@ import { useRouter } from 'vue-router'
 import {
   listETLExecutionLog,
   getETLExecutionLogDetail,
+  getExecutionLogStatistics,
   cancelETLExecution,
   executeETLTask
 } from '@/api/data/etl'
@@ -336,23 +324,14 @@ async function getList() {
 
 async function loadStatistics() {
   try {
-    const res = await listETLExecutionLog({ pageNum: 1, pageSize: 10000 })
-    const logs = res.rows || []
-
-    statistics.total = logs.length
-    statistics.success = logs.filter(l => l.status === 'success').length
-    statistics.failed = logs.filter(l => l.status === 'failed').length
-    statistics.successRate = statistics.total > 0
-      ? ((statistics.success / statistics.total) * 100).toFixed(2)
-      : 0
-    statistics.failedRate = statistics.total > 0
-      ? ((statistics.failed / statistics.total) * 100).toFixed(2)
-      : 0
-
-    const totalDuration = logs.reduce((sum, log) => sum + (log.duration || 0), 0)
-    statistics.avgDuration = logs.length > 0
-      ? (totalDuration / logs.length).toFixed(2)
-      : 0
+    const res = await getExecutionLogStatistics()
+    const data = res.data || {}
+    statistics.total = data.total || 0
+    statistics.success = data.success || 0
+    statistics.failed = data.failed || 0
+    statistics.successRate = data.successRate || 0
+    statistics.failedRate = data.failedRate || 0
+    statistics.avgDuration = data.avgDuration || 0
   } catch (error) {
     console.error('加载统计信息失败:', error)
   }
@@ -380,7 +359,7 @@ function handleViewTask(row) {
 
 async function handleViewDetail(row) {
   try {
-    const res = await getETLExecutionLogDetail(row.id)
+    const res = await getETLExecutionLogDetail(row.logId)
     currentDetail.value = res.data
     detailDialogVisible.value = true
   } catch (error) {
@@ -393,7 +372,7 @@ async function handleCancel(row) {
     await ElMessageBox.confirm('确认要取消该执行吗？', '提示', {
       type: 'warning'
     })
-    await cancelETLExecution(row.id)
+    await cancelETLExecution(row.logId)
     ElMessage.success('已取消执行')
     getList()
   } catch (error) {
@@ -446,13 +425,6 @@ function formatNumber(num) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
-function formatBytes(bytes) {
-  if (!bytes) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
-}
 
 function formatDuration(seconds) {
   if (!seconds) return '0秒'

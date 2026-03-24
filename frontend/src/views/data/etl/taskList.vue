@@ -288,7 +288,7 @@ function resetQuery() {
 }
 
 function handleSelectionChange(selection) {
-  selectedIds.value = selection.map(item => item.id)
+  selectedIds.value = selection.map(item => item.taskId)
 }
 
 function handleCreate() {
@@ -296,11 +296,11 @@ function handleCreate() {
 }
 
 function handleView(row) {
-  router.push({ name: 'ETLTaskDetail', params: { id: row.id } })
+  router.push({ name: 'ETLTaskDetail', params: { id: row.taskId } })
 }
 
 function handleEdit(row) {
-  router.push({ name: 'ETLTaskDetail', params: { id: row.id } })
+  router.push({ name: 'ETLTaskDetail', params: { id: row.taskId } })
 }
 
 async function handleExecute(row) {
@@ -308,7 +308,7 @@ async function handleExecute(row) {
     await ElMessageBox.confirm('确认要执行该任务吗？', '提示', {
       type: 'warning'
     })
-    await executeETLTask(row.id)
+    await executeETLTask(row.taskId)
     ElMessage.success('任务已提交执行')
     getList()
   } catch (error) {
@@ -319,7 +319,7 @@ async function handleExecute(row) {
 }
 
 function handleClone(row) {
-  cloneForm.taskId = row.id
+  cloneForm.taskId = row.taskId
   cloneForm.taskName = `${row.taskName} - 副本`
   cloneForm.taskCode = `${row.taskCode}_copy`
   cloneDialogVisible.value = true
@@ -379,7 +379,7 @@ async function handleDelete(row) {
     await ElMessageBox.confirm('确认要删除该任务吗？删除后不可恢复！', '警告', {
       type: 'warning'
     })
-    await delETLTask(row.id)
+    await delETLTask(row.taskId)
     ElMessage.success('删除成功')
     getList()
   } catch (error) {

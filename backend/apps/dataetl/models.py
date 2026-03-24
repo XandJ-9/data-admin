@@ -77,7 +77,9 @@ class ETLTask(BaseModel):
     # Source and Target Configuration
     source_datasource = models.ForeignKey(DataSource, on_delete=models.PROTECT, related_name='source_etl_tasks', verbose_name='源数据源', help_text='源数据源')
     target_datasource = models.ForeignKey(DataSource, on_delete=models.PROTECT, related_name='target_etl_tasks', verbose_name='目标数据源', help_text='目标数据源')
-    source_table = models.ForeignKey(MetaTable, on_delete=models.PROTECT, related_name='source_etl_tasks', verbose_name='源表', help_text='源表信息', null=True, blank=True)
+    source_table = models.ForeignKey(MetaTable, on_delete=models.PROTECT, related_name='source_etl_tasks', verbose_name='源表', help_text='源表信息（元数据关联）', null=True, blank=True)
+    source_table_name = models.CharField(max_length=256, blank=True, null=True, verbose_name='源表名', help_text='直接指定的源表名称')
+    source_database_name = models.CharField(max_length=256, blank=True, null=True, verbose_name='源数据库名', help_text='源数据库名称（多库场景）')
     target_table = models.CharField(max_length=256, verbose_name='目标表', help_text='目标表名')
 
     # SQL Configuration

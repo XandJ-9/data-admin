@@ -161,7 +161,7 @@ import {
   Files, CircleCheck, VideoPlay, Warning, Download, MagicStick,
   Upload, Connection, View
 } from '@element-plus/icons-vue'
-import { listETLTask, executeETLTask } from '@/api/data/etl'
+import { listETLTask, executeETLTask, getETLTaskStatistics } from '@/api/data/etl'
 
 const router = useRouter()
 
@@ -181,14 +181,12 @@ onMounted(() => {
 
 async function loadStatistics() {
   try {
-    const res = await listETLTask({ pageNum: 1, pageSize: 1000 })
-    const tasks = res.rows || []
-    statistics.totalTasks = tasks.length
-    statistics.enabledTasks = tasks.filter(t => t.status === '0').length
-
-    // TODO: 从执行日志获取今日执行和失败数量
-    statistics.todayExecutions = 0
-    statistics.failedExecutions = 0
+    const res = await getETLTaskStatistics()
+    const data = res.data || {}
+    statistics.totalTasks = data.totalTasks || 0
+    statistics.enabledTasks = data.enabledTasks || 0
+    statistics.todayExecutions = data.todayExecutions || 0
+    statistics.failedExecutions = data.failedExecutions || 0
   } catch (error) {
     console.error('加载统计信息失败:', error)
   }
@@ -214,7 +212,7 @@ function handleCreateTask(etlType) {
 function handleViewTask(row) {
   router.push({
     name: 'ETLTaskDetail',
-    params: { id: row.id }
+    params: { id: row.taskId }
   })
 }
 
