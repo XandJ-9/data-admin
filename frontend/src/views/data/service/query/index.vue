@@ -1,30 +1,11 @@
 <template>
-  <div class="app-container">
+  <div class="app-container query-page">
     <el-tabs v-model="active" type="card" @tab-click="onTabClick" @tab-remove="removeTab" :before-leave="beforeLeave">
       <el-tab-pane v-for="t in tabs" :key="t.key" :name="t.key" :label="t.title" :closable="tabs.length > 1">
-        <div class="layout-controls" v-if="t.columns.length > 0">
-          <span class="layout-label">布局预设：</span>
-          <el-button-group size="small">
-            <el-button :type="t.layoutMode === 'editor' ? 'primary' : ''" @click="setLayoutMode(t, 'editor')">
-              <el-icon><Upload /></el-icon> 编辑优先
-            </el-button>
-            <el-button :type="t.layoutMode === 'balanced' ? 'primary' : ''" @click="setLayoutMode(t, 'balanced')">
-              <el-icon><Minus /></el-icon> 均衡布局
-            </el-button>
-            <el-button :type="t.layoutMode === 'result' ? 'primary' : ''" @click="setLayoutMode(t, 'result')">
-              <el-icon><Download /></el-icon> 结果优先
-            </el-button>
-          </el-button-group>
-        </div>
-
-        <div class="tab-content" :style="{ height: getTabHeight(t) + 'px' }">
-          <splitpanes
-            horizontal
-            class="query-splitpanes default-theme"
-            @resize="event => onPaneResize(t, event)"
-          >
-            <pane :size="getQueryPaneSize(t)" :min-size="getQueryPaneMinSize(t)">
-              <div class="query-view-wrapper">
+        <div class="tab-content">
+          <splitpanes horizontal class="query-splitpanes default-theme" @resized="event => onPaneResized(t, event)">
+            <pane :size="t.splitSize" :min-size="20">
+              <div class="pane-inner">
                 <query-view
                   :dataSourceId="t.dataSourceId"
                   :sqlText="t.sqlText"
@@ -34,7 +15,7 @@
                   :next="t.next"
                   :ds-list="dsList"
                   :running="t.running"
-                  :editorHeight="getEditorHeight(t)"
+                  :hasResult="t.columns.length > 0"
                   @update:dataSourceId="v => (t.dataSourceId = v)"
                   @update:sqlText="v => (t.sqlText = v)"
                   @update:pageSize="v => (t.pageSize = v)"
@@ -45,9 +26,8 @@
                 />
               </div>
             </pane>
-
-            <pane :size="100 - getQueryPaneSize(t)" :min-size="getResultPaneMinSize(t)">
-              <div class="query-result-wrapper">
+            <pane :size="100 - t.splitSize" :min-size="15">
+              <div class="pane-inner">
                 <div v-if="t.columns.length === 0" class="empty-result">
                   <el-empty description="执行查询后在此显示结果" :image-size="80" />
                 </div>
@@ -68,7 +48,7 @@
 
 <script setup name="DataServiceQuery">
 import { getCurrentInstance } from 'vue'
-import { Plus, Upload, Minus, Download } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import { listDatasource } from '@/api/data/datasource'
@@ -82,175 +62,18 @@ const active = ref('')
 const tabs = ref([])
 const dsList = ref([])
 const addKey = '__add__'
-const windowHeight = ref(window.innerHeight)
 
-const LAYOUT_PRESETS = {
-  editor: 0.65,
-  balanced: 0.5,
-  result: 0.35,
-}
+const DEFAULT_SPLIT = 55
 
-const STORAGE_KEY = 'query-layout-preference'
-const BREAKPOINTS = {
-  mobile: 768,
-  tablet: 1024,
-  desktop: 1440,
-}
-
-function getDeviceType() {
-  const width = window.innerWidth
-  if (width < BREAKPOINTS.mobile) return 'mobile'
-  if (width < BREAKPOINTS.tablet) return 'tablet'
-  return 'desktop'
-}
-
-function loadLayoutPreference() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    const preference = saved ? JSON.parse(saved) : { mode: 'balanced' }
-    if (!saved && getDeviceType() === 'mobile') {
-      preference.mode = 'result'
-    }
-    return preference
-  } catch {
-    return { mode: 'balanced' }
+function onPaneResized(tab, event) {
+  const first = event?.[0]
+  if (first) {
+    tab.splitSize = Number(first.size.toFixed(1))
   }
-}
-
-function saveLayoutPreference(mode) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode }))
-  } catch (error) {
-    console.warn('保存布局偏好失败:', error)
-  }
-}
-
-function getHeaderHeight() {
-  switch (getDeviceType()) {
-    case 'mobile':
-      return 140
-    case 'tablet':
-      return 160
-    default:
-      return 180
-  }
-}
-
-function getMinTabHeight() {
-  switch (getDeviceType()) {
-    case 'mobile':
-      return 400
-    case 'tablet':
-      return 450
-    default:
-      return 500
-  }
-}
-
-function getMinQueryHeight() {
-  return getDeviceType() === 'mobile' ? 220 : 260
-}
-
-function getMinResultHeight() {
-  return getDeviceType() === 'mobile' ? 150 : 180
-}
-
-function clampRatio(tabHeight, ratio) {
-  const minQueryRatio = getMinQueryHeight() / tabHeight
-  const maxQueryRatio = 1 - getMinResultHeight() / tabHeight
-  return Math.min(maxQueryRatio, Math.max(minQueryRatio, ratio))
-}
-
-function buildHeights(tabHeight, ratio) {
-  const splitRatio = clampRatio(tabHeight, ratio)
-  const queryViewHeight = Math.round(tabHeight * splitRatio)
-  return {
-    tabHeight,
-    splitRatio,
-    queryViewHeight,
-    resultHeight: Math.max(getMinResultHeight(), Math.round(tabHeight * (1 - splitRatio))),
-    editorHeight: Math.max(180, queryViewHeight - 120),
-  }
-}
-
-function getDefaultHeights() {
-  const headerHeight = getHeaderHeight()
-  const minHeight = getMinTabHeight()
-  const tabHeight = Math.max(minHeight, windowHeight.value - headerHeight)
-  return buildHeights(tabHeight, LAYOUT_PRESETS.balanced)
-}
-
-function getHeightByMode(tabHeight, mode) {
-  return buildHeights(tabHeight, LAYOUT_PRESETS[mode] || LAYOUT_PRESETS.balanced)
-}
-
-function getTabHeight(tab) {
-  return tab.heights?.tabHeight ?? getDefaultHeights().tabHeight
-}
-
-function getQueryPaneSize(tab) {
-  return Number(((tab.heights?.splitRatio ?? LAYOUT_PRESETS.balanced) * 100).toFixed(2))
-}
-
-function getEditorHeight(tab) {
-  return tab.heights?.editorHeight ?? getDefaultHeights().editorHeight
-}
-
-function getQueryPaneMinSize(tab) {
-  return Number(((getMinQueryHeight() / getTabHeight(tab)) * 100).toFixed(2))
-}
-
-function getResultPaneMinSize(tab) {
-  return Number(((getMinResultHeight() / getTabHeight(tab)) * 100).toFixed(2))
-}
-
-function setLayoutMode(tab, mode) {
-  tab.heights = getHeightByMode(getTabHeight(tab), mode)
-  tab.layoutMode = mode
-  saveLayoutPreference(mode)
-}
-
-function updateAllTabsHeight() {
-  const nextTabHeight = getDefaultHeights().tabHeight
-
-  tabs.value.forEach(tab => {
-    const currentRatio = tab.heights?.splitRatio ?? LAYOUT_PRESETS.balanced
-    if (tab.layoutMode && tab.layoutMode !== 'custom') {
-      tab.heights = getHeightByMode(nextTabHeight, tab.layoutMode)
-    } else {
-      tab.heights = buildHeights(nextTabHeight, currentRatio)
-    }
-  })
-}
-
-let resizeTimer = null
-function handleWindowResize() {
-  if (resizeTimer) {
-    clearTimeout(resizeTimer)
-  }
-
-  resizeTimer = setTimeout(() => {
-    windowHeight.value = window.innerHeight
-    updateAllTabsHeight()
-  }, 200)
-}
-
-function onPaneResize(tab, event) {
-  const queryPane = event?.panes?.[0]
-  if (!queryPane) {
-    return
-  }
-
-  tab.heights = buildHeights(getTabHeight(tab), Number(queryPane.size) / 100)
-  tab.layoutMode = 'custom'
 }
 
 function addTab() {
   const key = 'new-' + Date.now()
-  const preference = loadLayoutPreference()
-  const mode = preference.mode || 'balanced'
-  const defaultHeights = getDefaultHeights()
-
   tabs.value.push({
     key,
     title: '查询页',
@@ -263,8 +86,7 @@ function addTab() {
     columns: [],
     rows: [],
     running: false,
-    layoutMode: mode,
-    heights: getHeightByMode(defaultHeights.tabHeight, mode),
+    splitSize: DEFAULT_SPLIT,
   })
   active.value = key
 }
@@ -347,43 +169,42 @@ function onTabClick(tab) {
 }
 
 function beforeLeave(activeName) {
-  return new Promise(resolve => {
-    resolve(activeName !== addKey)
-  })
+  return activeName !== addKey
 }
 
 onMounted(() => {
   getDsList()
   addTab()
-  window.addEventListener('resize', handleWindowResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', handleWindowResize)
-  if (resizeTimer) {
-    clearTimeout(resizeTimer)
-  }
 })
 </script>
 
 <style scoped>
-.layout-controls {
+.query-page {
   display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  background-color: #f5f7fa;
-  border-bottom: 1px solid #e4e7ed;
-  margin-bottom: 0;
+  flex-direction: column;
+  height: calc(100vh - 84px);
+  overflow: hidden;
 }
 
-.layout-label {
-  font-size: 13px;
-  color: #606266;
-  margin-right: 12px;
-  font-weight: 500;
+.query-page :deep(.el-tabs) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.query-page :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.query-page :deep(.el-tab-pane) {
+  height: 100%;
 }
 
 .tab-content {
+  height: 100%;
   overflow: hidden;
 }
 
@@ -391,20 +212,13 @@ onUnmounted(() => {
   height: 100%;
 }
 
+.pane-inner {
+  height: 100%;
+  overflow: hidden;
+}
+
 :deep(.query-splitpanes > .splitpanes__pane) {
   background-color: transparent;
-}
-
-.query-view-wrapper {
-  height: 100%;
-  overflow: hidden;
-}
-
-.query-result-wrapper {
-  height: 100%;
-  overflow: hidden;
-  min-height: 0;
-  box-sizing: border-box;
 }
 
 .empty-result {
@@ -412,30 +226,36 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
+  color: #909399;
 }
 
-:deep(.query-splitpanes .splitpanes__splitter) {
+:deep(.query-splitpanes > .splitpanes__splitter) {
+  background: #f0f2f5;
+  border-top: 1px solid #e4e7ed;
+  border-bottom: 1px solid #e4e7ed;
+  height: 7px;
   position: relative;
-  background: linear-gradient(180deg, #eef3fb 0%, #dbe7f8 100%);
-  border-top: 1px solid #c6d6f0;
-  border-bottom: 1px solid #c6d6f0;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s;
 }
 
-:deep(.query-splitpanes .splitpanes__splitter::before) {
+:deep(.query-splitpanes > .splitpanes__splitter::before) {
   content: '';
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 52px;
-  height: 6px;
-  border-radius: 999px;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
   transform: translate(-50%, -50%);
-  background: rgba(64, 158, 255, 0.35);
+  background: #c0c4cc;
+  transition: background 0.2s;
 }
 
-:deep(.query-splitpanes .splitpanes__splitter:hover) {
-  background: linear-gradient(180deg, #dfeafb 0%, #c9dcf8 100%);
-  border-color: #8fb3ea;
+:deep(.query-splitpanes > .splitpanes__splitter:hover) {
+  background: #e6e9ed;
+}
+
+:deep(.query-splitpanes > .splitpanes__splitter:hover::before) {
+  background: #409eff;
 }
 </style>
