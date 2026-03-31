@@ -136,17 +136,23 @@ class TerminalConsumer(AsyncWebsocketConsumer):
                 pass
 
     def _wait_child(self):
+        """Non-blocking wait for child exit status (used by reader task finally)."""
         if self.pid is None:
             return -1
         try:
-            _, status = os.waitpid(self.pid, os.WNOHANG)
+            wpid, status = os.waitpid(self.pid, os.WNOHANG)
+            if wpid == 0:
+                return -1  # Still running
             if os.WIFEXITED(status):
                 return os.WEXITSTATUS(status)
+            if os.WIFSIGNALED(status):
+                return -os.WTERMSIG(status)
             return -1
         except ChildProcessError:
             return -1
 
     async def disconnect(self, close_code):
+        # 1. Stop PTY output reader
         if self._reader_task and not self._reader_task.done():
             self._reader_task.cancel()
             try:
@@ -154,21 +160,7 @@ class TerminalConsumer(AsyncWebsocketConsumer):
             except asyncio.CancelledError:
                 pass
 
-        if self.pid:
-            try:
-                os.kill(self.pid, signal.SIGHUP)
-                await asyncio.sleep(0.3)
-                try:
-                    os.kill(self.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                try:
-                    os.waitpid(self.pid, os.WNOHANG)
-                except ChildProcessError:
-                    pass
-            except ProcessLookupError:
-                pass
-
+        # 2. Close PTY fd — kernel sends SIGHUP to child process group
         if self.fd is not None:
             try:
                 os.close(self.fd)
@@ -176,9 +168,51 @@ class TerminalConsumer(AsyncWebsocketConsumer):
                 pass
             self.fd = None
 
+        # 3. Ensure child process is terminated and reaped
+        if self.pid is not None:
+            await self._kill_and_reap(self.pid)
+            self.pid = None
+
+        # 4. Update session status
         if self.session:
             await self.update_session_status(self.session, '1')
             logger.info(f"PTY session closed: {self.user.username}")
+
+    async def _kill_and_reap(self, pid: int):
+        """Terminate child process with escalating signals and reap zombie."""
+        for sig, wait_secs in [
+            (signal.SIGHUP, 0.5),
+            (signal.SIGTERM, 0.5),
+            (signal.SIGKILL, 1.0),
+        ]:
+            # Check if already exited
+            if self._try_reap(pid):
+                return
+
+            # Send signal
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                self._try_reap(pid)
+                return
+
+            # Poll for exit
+            intervals = int(wait_secs / 0.05)
+            for _ in range(intervals):
+                await asyncio.sleep(0.05)
+                if self._try_reap(pid):
+                    return
+
+        logger.warning(f"Child process {pid} could not be reaped after SIGKILL")
+
+    @staticmethod
+    def _try_reap(pid: int) -> bool:
+        """Attempt to reap child. Returns True if child is gone."""
+        try:
+            wpid, _ = os.waitpid(pid, os.WNOHANG)
+            return wpid != 0
+        except ChildProcessError:
+            return True  # Already reaped
 
     async def receive(self, text_data):
         try:
