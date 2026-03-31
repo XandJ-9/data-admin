@@ -2,6 +2,7 @@
  * Terminal WebSocket Connection Manager
  * Handles real-time terminal communication with backend
  */
+import { getToken } from '@/utils/auth'
 
 class TerminalWebSocket {
   constructor(sessionId = '') {
@@ -22,7 +23,11 @@ class TerminalWebSocket {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
     const basePath = '/ws/terminal/' + this.sessionId
-    return `${protocol}//${host}${basePath}`
+    const token = getToken()
+    if (!token) {
+      return `${protocol}//${host}${basePath}`
+    }
+    return `${protocol}//${host}${basePath}?token=${encodeURIComponent(token)}`
   }
 
   /**
@@ -73,7 +78,21 @@ class TerminalWebSocket {
   }
 
   /**
-   * Send command to backend
+   * Send raw input to backend PTY
+   */
+  sendInput(data) {
+    if (!this.isConnected) return false
+    try {
+      this.ws.send(JSON.stringify({ type: 'input', data }))
+      return true
+    } catch (error) {
+      console.error('[Terminal WS] Send input failed:', error)
+      return false
+    }
+  }
+
+  /**
+   * Send command to backend (legacy)
    */
   sendCommand(command) {
     if (!this.isConnected) {
@@ -92,6 +111,18 @@ class TerminalWebSocket {
     } catch (error) {
       console.error('[Terminal WS] Send failed:', error)
       return false
+    }
+  }
+
+  /**
+   * Send terminal resize event
+   */
+  sendResize(cols, rows) {
+    if (!this.isConnected) return
+    try {
+      this.ws.send(JSON.stringify({ type: 'resize', cols, rows }))
+    } catch (error) {
+      console.error('[Terminal WS] Send resize failed:', error)
     }
   }
 

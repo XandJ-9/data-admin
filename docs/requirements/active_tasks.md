@@ -53,3 +53,40 @@
 - 创建 ADR-004-数据库选型.md
 
 - 删除 `views/data/integration/` 目录（taskList.vue、taskDetail.vue 及全部子组件）
+
+### 2026-03-31: Terminal 模块问题修复（第1条）
+
+- 已补齐后端依赖声明：`channels==4.3.2`、`daphne==4.2.1`
+- 修复目标：避免 terminal 模块在新环境启动时报 `No module named 'channels'` / `No module named 'daphne'`
+
+### 2026-03-31: Terminal 模块问题修复（第2条）
+
+- 新增 WebSocket JWT 认证中间件：`backend/apps/terminal/auth.py`
+- 后端 WebSocket 认证链调整为 Session + JWT 双支持，优先兼容 `?token=` 查询参数与 `Authorization: Bearer <token>`
+- 前端 terminal WebSocket 连接自动附带 token 参数，修复“文档声明 JWT、实现仅 Session”的不一致问题
+
+### 2026-03-31: Terminal 模块问题修复（第3条）
+
+- 修复 terminal 会话详情/命令历史/关闭接口在越权或不存在场景返回 `HTTP 200 + code=404` 的语义问题
+- 现在上述接口返回真实 `HTTP 404`，并保持 `{code: 404, message: ...}` 响应体结构
+
+### 2026-03-31: Terminal 前端 Bug 修复
+
+- 修复前端 `useMessage` 导入错误（element-plus 无此导出），替换为 `ElMessage`
+- 新增 Vite WebSocket 代理规则 `/ws` → `localhost:8000`，修复 WS 连接 pending
+- 后端 `INSTALLED_APPS` 添加 `daphne`，使 `runserver` 启用 ASGI 模式
+
+### 2026-03-31: Terminal 后端 PTY 架构重构
+
+- **重构**：后端 consumer 从 subprocess 逐命令执行改为 PTY 交互式 Shell
+  - 使用 `pty.fork()` 创建真实伪终端，支持 Tab 补全、方向键历史、交互式程序
+  - 使用 `loop.add_reader()` 事件驱动读取 PTY 输出，替代忙轮询
+  - 新增 `input` 消息类型转发原始按键，保留 `command` 类型兼容
+  - 新增 `resize` 消息类型同步终端窗口尺寸
+  - 安全审计：按 Enter 时拦截黑名单命令，发送 ANSI 红色 BLOCKED 提示
+- **重构**：前端终端组件改为 PTY 直通模式
+  - 移除本地行缓冲和 prompt 渲染逻辑，所有按键直接转发后端
+  - Shell 自行处理回显、补全、颜色输出
+  - 添加 `sendInput()`、`sendResize()` WebSocket 方法
+  - 窗口 resize 时自动同步终端尺寸
+- **UI**：Tokyo Night 主题配色 + 16色 ANSI 调色板 + 自定义滚动条

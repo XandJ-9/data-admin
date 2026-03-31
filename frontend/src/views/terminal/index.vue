@@ -45,46 +45,22 @@
     <div class="terminal-status-bar">
       <span>{{ statusMessage }}</span>
     </div>
-
-    <!-- Command Input (Legacy fallback) -->
-    <div class="terminal-input-area">
-      <el-input
-        v-model="inputCommand"
-        @keyup.enter="handleSendCommand"
-        :disabled="!wsConnected"
-        placeholder="Type command and press Enter..."
-        size="small"
-      >
-        <template #suffix>
-          <el-icon
-            v-if="inputCommand"
-            @click="inputCommand = ''"
-            class="is-clear"
-          >
-            <Close />
-          </el-icon>
-        </template>
-      </el-input>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import TerminalWebSocket from '@/utils/terminalWs'
-import { useMessage } from 'element-plus'
-
-const $message = useMessage()
+import { ElMessage } from 'element-plus'
 
 // State
 const terminalRef = ref(null)
 const terminal = ref(null)
 const fitAddon = ref(null)
 const wsConnected = ref(false)
-const inputCommand = ref('')
 const statusMessage = ref('Ready')
 let ws = null
 let sessionId = ref('')
@@ -98,11 +74,31 @@ const initTerminal = () => {
   terminal.value = new Terminal({
     cursorBlink: true,
     theme: {
-      background: '#1e1e1e',
-      foreground: '#d4d4d4',
+      background: '#1a1b26',
+      foreground: '#c0caf5',
+      cursor: '#c0caf5',
+      cursorAccent: '#1a1b26',
+      selectionBackground: '#33467c',
+      black: '#15161e',
+      red: '#f7768e',
+      green: '#9ece6a',
+      yellow: '#e0af68',
+      blue: '#7aa2f7',
+      magenta: '#bb9af7',
+      cyan: '#7dcfff',
+      white: '#a9b1d6',
+      brightBlack: '#414868',
+      brightRed: '#f7768e',
+      brightGreen: '#9ece6a',
+      brightYellow: '#e0af68',
+      brightBlue: '#7aa2f7',
+      brightMagenta: '#bb9af7',
+      brightCyan: '#7dcfff',
+      brightWhite: '#c0caf5',
     },
-    fontSize: 13,
-    fontFamily: 'Courier New, Courier, monospace',
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+    scrollback: 5000,
   })
 
   fitAddon.value = new FitAddon()
@@ -111,23 +107,30 @@ const initTerminal = () => {
   terminal.value.open(terminalRef.value)
   fitAddon.value.fit()
 
-  // Handle Terminal input (for direct typing)
+  // Forward all keystrokes directly to backend PTY
   terminal.value.onData(input => {
     if (ws && ws.connected()) {
-      ws.sendCommand(input)
+      ws.sendInput(input)
     }
   })
 
-  // Handle resize
-  window.addEventListener('resize', () => {
+  // Handle resize: update xterm fit and notify backend
+  const handleResize = () => {
     if (fitAddon.value && terminalRef.value) {
       fitAddon.value.fit()
+      if (ws && ws.connected() && terminal.value) {
+        ws.sendResize(terminal.value.cols, terminal.value.rows)
+      }
+    }
+  }
+  window.addEventListener('resize', handleResize)
+
+  // Also send resize when terminal dimensions change
+  terminal.value.onResize(({ cols, rows }) => {
+    if (ws && ws.connected()) {
+      ws.sendResize(cols, rows)
     }
   })
-
-  terminal.value.writeln('Web Terminal Ready')
-  terminal.value.writeln('Commands will be executed on the server')
-  terminal.value.writeln('')
 }
 
 /**
@@ -137,10 +140,8 @@ const handleConnect = async () => {
   try {
     statusMessage.value = 'Connecting...'
 
-    // Create new session
     ws = new TerminalWebSocket(sessionId.value)
 
-    // Setup message handlers before connecting
     ws.onMessage(handleWsMessage)
     ws.onError(handleWsError)
     ws.onClose(handleWsClose)
@@ -149,17 +150,23 @@ const handleConnect = async () => {
 
     wsConnected.value = true
     statusMessage.value = 'Connected'
-    terminal.value.writeln('Connected to server terminal')
 
-    // Start keep-alive ping
-    setInterval(() => {
+    // Send initial terminal size
+    if (terminal.value) {
+      ws.sendResize(terminal.value.cols, terminal.value.rows)
+    }
+
+    // Keep-alive ping
+    const pingInterval = setInterval(() => {
       if (ws && ws.connected()) {
         ws.ping()
+      } else {
+        clearInterval(pingInterval)
       }
     }, 30000)
 
   } catch (error) {
-    $message.error('Failed to connect: ' + error.message)
+    ElMessage.error('Failed to connect: ' + error.message)
     statusMessage.value = 'Connection failed'
   }
 }
@@ -172,22 +179,21 @@ const handleWsMessage = (message) => {
 
   switch (message.type) {
     case 'output':
+      // Write PTY output directly to xterm (already has proper formatting)
       terminal.value.write(message.data)
       break
 
+    case 'exit':
+      terminal.value.writeln('\r\n[Session ended]')
+      statusMessage.value = 'Session ended'
+      break
+
     case 'error':
-      terminal.value.writeln('\r\n[ERROR] ' + message.data + '\r\n')
+      terminal.value.writeln(`\r\n\x1b[1;31m[ERROR] ${message.data}\x1b[0m`)
       statusMessage.value = 'Error: ' + message.data
       break
 
-    case 'exit':
-      const exitCode = message.code
-      terminal.value.writeln(`\r\n[Process exited with code ${exitCode}]`)
-      statusMessage.value = `Process exited (code: ${exitCode})`
-      break
-
     case 'pong':
-      // Keep-alive response
       break
 
     default:
@@ -195,63 +201,29 @@ const handleWsMessage = (message) => {
   }
 }
 
-/**
- * Handle WebSocket errors
- */
 const handleWsError = (error) => {
-  $message.error('WebSocket error: ' + error.message)
-  terminal.value?.writeln('WebSocket error: ' + error.message)
+  ElMessage.error('WebSocket error')
   wsConnected.value = false
   statusMessage.value = 'WebSocket error'
 }
 
-/**
- * Handle WebSocket close
- */
 const handleWsClose = () => {
   wsConnected.value = false
   statusMessage.value = 'Disconnected'
-  terminal.value?.writeln('\r\n[Connection closed]')
+  terminal.value?.writeln('\r\n\x1b[90m[Connection closed]\x1b[0m')
 }
 
-/**
- * Send command via input field (legacy mode)
- */
-const handleSendCommand = () => {
-  if (!inputCommand.value.trim()) return
-
-  if (ws && ws.connected()) {
-    terminal.value.writeln('$ ' + inputCommand.value)
-    ws.sendCommand(inputCommand.value + '\n')
-    inputCommand.value = ''
-  } else {
-    $message.warning('Not connected to terminal')
-  }
-}
-
-/**
- * Create new session
- */
 const handleNewSession = () => {
   if (ws) ws.close()
-
   sessionId.value = ''
   terminal.value?.clear()
-
   handleConnect()
 }
 
-/**
- * Clear terminal
- */
 const handleClearTerminal = () => {
   terminal.value?.clear()
-  statusMessage.value = 'Terminal cleared'
 }
 
-/**
- * Lifecycle hooks
- */
 onMounted(async () => {
   await nextTick()
   initTerminal()
@@ -259,10 +231,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (ws) {
-    ws.close()
-  }
-  window.removeEventListener('resize', () => {})
+  if (ws) ws.close()
 })
 </script>
 
@@ -271,18 +240,19 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 100px);
-  background-color: #1e1e1e;
-  border-radius: 4px;
+  background-color: #1a1b26;
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .terminal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background-color: #252526;
-  border-bottom: 1px solid #3e3e42;
+  padding: 10px 16px;
+  background-color: #16161e;
+  border-bottom: 1px solid #292e42;
 }
 
 .header-info {
@@ -292,9 +262,10 @@ onUnmounted(() => {
 }
 
 .title {
-  font-size: 16px;
-  font-weight: 500;
-  color: #d4d4d4;
+  font-size: 14px;
+  font-weight: 600;
+  color: #c0caf5;
+  letter-spacing: 0.5px;
 }
 
 .status-badge {
@@ -309,23 +280,16 @@ onUnmounted(() => {
 .terminal-area {
   flex: 1;
   overflow: hidden;
-  padding: 8px;
+  padding: 4px 8px;
 }
 
 .terminal-status-bar {
-  padding: 8px 16px;
-  background-color: #252526;
-  border-top: 1px solid #3e3e42;
-  color: #858585;
+  padding: 6px 16px;
+  background-color: #16161e;
+  border-top: 1px solid #292e42;
+  color: #565f89;
   font-size: 12px;
-  height: 22px;
   line-height: 1;
-}
-
-.terminal-input-area {
-  padding: 8px 16px;
-  background-color: #252526;
-  border-top: 1px solid #3e3e42;
 }
 
 /* xterm styling adjustments */
@@ -334,6 +298,23 @@ onUnmounted(() => {
 }
 
 :deep(.xterm-viewport) {
-  background-color: #1e1e1e;
+  background-color: #1a1b26 !important;
+}
+
+:deep(.xterm-viewport::-webkit-scrollbar) {
+  width: 8px;
+}
+
+:deep(.xterm-viewport::-webkit-scrollbar-track) {
+  background: #1a1b26;
+}
+
+:deep(.xterm-viewport::-webkit-scrollbar-thumb) {
+  background: #292e42;
+  border-radius: 4px;
+}
+
+:deep(.xterm-viewport::-webkit-scrollbar-thumb:hover) {
+  background: #3b4261;
 }
 </style>

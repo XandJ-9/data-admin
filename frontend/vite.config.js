@@ -48,6 +48,12 @@ export default defineConfig(({ mode, command }) => {
       host: '0.0.0.0',
       open: true,
       proxy: {
+          // WebSocket proxy for terminal
+          '/ws': {
+            target: baseUrl,
+            changeOrigin: true,
+            ws: true
+          },
           // https://cn.vitejs.dev/config/#server-proxy
           [`${VITE_APP_BASE_API}/docs`]: {
             target: baseUrl,

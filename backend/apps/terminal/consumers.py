@@ -1,47 +1,47 @@
 """
-WebSocket Consumer for Terminal
+WebSocket Consumer for Terminal - PTY based
 """
 import asyncio
-import subprocess
+import fcntl
 import json
 import logging
+import os
+import pty
+import signal
+import struct
+import termios
+
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import TerminalSession, TerminalCommand
 from .security import is_command_allowed
-from apps.system.models import User
 
 logger = logging.getLogger(__name__)
 
 
 class TerminalConsumer(AsyncWebsocketConsumer):
     """
-    WebSocket consumer for terminal functionality.
-    Handles command execution and output streaming.
+    WebSocket consumer for terminal functionality using PTY.
+    Provides a full interactive shell experience.
     """
 
     async def connect(self):
-        """Handle WebSocket connection"""
         self.user = self.scope['user']
         self.session_id = self.scope['url_route']['kwargs'].get('session_id')
         self.session = None
-        self.process = None
-        self.reader = None
-        self.writer = None
+        self.fd = None
+        self.pid = None
+        self._reader_task = None
+        self._input_buffer = ''
 
-        # Check permissions
         if not self.user.is_authenticated:
             await self.close(code=4001)
-            logger.warning(f"Unauthenticated connection attempt from {self.scope['client']}")
             return
 
-        # Check if user is admin (terminal access control)
         if not await self.check_terminal_permission():
             await self.close(code=4003)
-            logger.warning(f"Unauthorized terminal access attempt by {self.user.username}")
             return
 
-        # Get or create session
         if self.session_id:
             self.session = await self.get_session(self.session_id)
             if not self.session:
@@ -51,181 +51,228 @@ class TerminalConsumer(AsyncWebsocketConsumer):
             self.session = await self.create_session()
 
         await self.accept()
-        logger.info(f"WebSocket connection established: {self.user.username} (session: {self.session.session_id})")
+
+        try:
+            self._spawn_shell()
+            self._reader_task = asyncio.ensure_future(self._read_pty_output())
+        except Exception as e:
+            logger.error(f"Failed to spawn shell: {e}")
+            await self.send_json({'type': 'error', 'data': f'Failed to start shell: {e}'})
+            await self.close()
+            return
+
+        logger.info(f"PTY session started: {self.user.username} (session: {self.session.session_id})")
+
+    def _spawn_shell(self):
+        """Fork a child process with PTY using pty.fork()"""
+        pid, fd = pty.fork()
+
+        if pid == 0:
+            # Child process - exec shell
+            env = os.environ.copy()
+            env['TERM'] = 'xterm-256color'
+            env['LANG'] = 'en_US.UTF-8'
+            shell = os.environ.get('SHELL', '/bin/zsh')
+            os.execvpe(shell, [shell, '--login'], env)
+        else:
+            # Parent process
+            self.fd = fd
+            self.pid = pid
+
+            # Set non-blocking
+            flags = fcntl.fcntl(self.fd, fcntl.F_GETFL)
+            fcntl.fcntl(self.fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+            # Set default size
+            self._set_pty_size(120, 30)
+
+    def _set_pty_size(self, cols, rows):
+        if self.fd is not None:
+            try:
+                winsize = struct.pack('HHHH', rows, cols, 0, 0)
+                fcntl.ioctl(self.fd, termios.TIOCSWINSZ, winsize)
+            except OSError:
+                pass
+
+    async def _read_pty_output(self):
+        """Read PTY output using asyncio event loop fd reader"""
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+
+        def _on_readable():
+            if not future.done():
+                future.set_result(True)
+
+        try:
+            while True:
+                future = loop.create_future()
+                loop.add_reader(self.fd, _on_readable)
+                try:
+                    await future
+                finally:
+                    loop.remove_reader(self.fd)
+
+                try:
+                    data = os.read(self.fd, 4096)
+                    if not data:
+                        break
+                    text = data.decode('utf-8', errors='replace')
+                    await self.send_json({'type': 'output', 'data': text})
+                except OSError as e:
+                    if e.errno == 5:  # EIO - child exited
+                        break
+                    if e.errno == 11:  # EAGAIN
+                        continue
+                    break
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            logger.error(f"PTY read error: {e}")
+        finally:
+            exit_code = self._wait_child()
+            try:
+                await self.send_json({'type': 'exit', 'code': exit_code})
+            except Exception:
+                pass
+
+    def _wait_child(self):
+        if self.pid is None:
+            return -1
+        try:
+            _, status = os.waitpid(self.pid, os.WNOHANG)
+            if os.WIFEXITED(status):
+                return os.WEXITSTATUS(status)
+            return -1
+        except ChildProcessError:
+            return -1
 
     async def disconnect(self, close_code):
-        """Handle WebSocket disconnection"""
-        if self.process:
+        if self._reader_task and not self._reader_task.done():
+            self._reader_task.cancel()
             try:
-                self.process.terminate()
-                self.process.wait(timeout=5)
-            except (ProcessLookupError, subprocess.TimeoutExpired):
-                self.process.kill()
+                await self._reader_task
+            except asyncio.CancelledError:
+                pass
+
+        if self.pid:
+            try:
+                os.kill(self.pid, signal.SIGHUP)
+                await asyncio.sleep(0.3)
+                try:
+                    os.kill(self.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                try:
+                    os.waitpid(self.pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass
+            except ProcessLookupError:
+                pass
+
+        if self.fd is not None:
+            try:
+                os.close(self.fd)
+            except OSError:
+                pass
+            self.fd = None
 
         if self.session:
-            await self.update_session_status(self.session, '1')  # disconnected
-            logger.info(f"WebSocket disconnected: {self.user.username} (session: {self.session.session_id})")
+            await self.update_session_status(self.session, '1')
+            logger.info(f"PTY session closed: {self.user.username}")
 
     async def receive(self, text_data):
-        """Handle incoming WebSocket message"""
         try:
             data = json.loads(text_data)
         except json.JSONDecodeError:
             await self.send_error("Invalid JSON format")
             return
 
-        command_type = data.get('type')
+        msg_type = data.get('type')
 
-        if command_type == 'command':
-            await self.handle_command(data.get('data', ''))
-        elif command_type == 'resize':
-            await self.handle_resize(data.get('cols'), data.get('rows'))
-        elif command_type == 'ping':
+        if msg_type == 'input':
+            await self._handle_input(data.get('data', ''))
+        elif msg_type == 'command':
+            await self._handle_input(data.get('data', '') + '\r')
+        elif msg_type == 'resize':
+            self._set_pty_size(data.get('cols', 120), data.get('rows', 30))
+        elif msg_type == 'ping':
             await self.send_json({'type': 'pong'})
         else:
-            await self.send_error(f"Unknown message type: {command_type}")
+            await self.send_error(f"Unknown message type: {msg_type}")
 
-    async def handle_command(self, command: str):
-        """Execute shell command and send output"""
-        if not command.strip():
+    async def _handle_input(self, input_data: str):
+        if self.fd is None:
             return
 
-        # Validate command
-        is_allowed, reason = is_command_allowed(command)
-        if not is_allowed:
-            await self.send_error(f"Command denied: {reason}")
-            await self.save_command_history(command, "", exit_code=None, blocked=True, reason=reason)
-            return
+        # Track input for command auditing
+        for ch in input_data:
+            if ch in ('\r', '\n'):
+                command = self._input_buffer.strip()
+                if command:
+                    is_allowed, reason = is_command_allowed(command)
+                    if not is_allowed:
+                        os.write(self.fd, b'\x15')  # Ctrl+U clears line
+                        await self.send_json({
+                            'type': 'output',
+                            'data': f'\r\n\x1b[1;31m[BLOCKED] {reason}\x1b[0m\r\n'
+                        })
+                        os.write(self.fd, b'\n')
+                        await self.save_command_history(command, "", blocked=True, reason=reason)
+                        self._input_buffer = ''
+                        return
+                    await self.save_command_history(command, "")
+                self._input_buffer = ''
+            elif ch == '\x7f':
+                self._input_buffer = self._input_buffer[:-1] if self._input_buffer else ''
+            elif ch == '\x03':
+                self._input_buffer = ''
+            elif ch >= ' ':
+                self._input_buffer += ch
 
         try:
-            import time
-            start_time = time.time()
-
-            # Execute command
-            if True:  # Windows/Unix compatible approach
-                process = await asyncio.create_subprocess_shell(
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT,
-                    shell=True,
-                )
-            else:
-                process = await asyncio.create_subprocess_exec(
-                    'sh', '-c', command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT,
-                )
-
-            # Read output in chunks
-            output_buffer = []
-            try:
-                while True:
-                    line = await asyncio.wait_for(process.stdout.read(1024), timeout=30.0)
-                    if not line:
-                        break
-
-                    try:
-                        text = line.decode('utf-8', errors='replace')
-                        output_buffer.append(text)
-                        await self.send_json({'type': 'output', 'data': text})
-                    except Exception as e:
-                        logger.error(f"Error decoding output: {e}")
-
-            except asyncio.TimeoutError:
-                process.terminate()
-                await self.send_error("Command execution timeout (30s)")
-
-            # Wait for process to complete
-            return_code = await process.wait()
-            execution_time = time.time() - start_time
-
-            # Send completion signal
-            await self.send_json({'type': 'exit', 'code': return_code})
-
-            # Save command history
-            output_text = ''.join(output_buffer)
-            await self.save_command_history(
-                command,
-                output_text,
-                exit_code=return_code,
-                execution_time=execution_time
-            )
-
-        except Exception as e:
-            logger.error(f"Error executing command: {e}")
-            await self.send_error(f"Execution error: {str(e)}")
-
-    async def handle_resize(self, cols: int, rows: int):
-        """Handle terminal resize (not implemented yet)"""
-        # This would be used if we implement proper PTY support
-        pass
+            os.write(self.fd, input_data.encode('utf-8'))
+        except OSError as e:
+            logger.error(f"PTY write error: {e}")
 
     async def send_json(self, content):
-        """Send JSON data to client"""
         await self.send(text_data=json.dumps(content))
 
     async def send_error(self, message: str):
-        """Send error message to client"""
         await self.send_json({'type': 'error', 'data': message})
 
-    # Database operations
     @database_sync_to_async
     def check_terminal_permission(self) -> bool:
-        """Check if user has permission to access terminal"""
-        # For now, only allow admin users
         return self.user.is_superuser or self.user.is_staff
 
     @database_sync_to_async
     def create_session(self) -> TerminalSession:
-        """Create a new terminal session"""
-        session = TerminalSession.objects.create(
-            user=self.user,
-            status='0',  # connected
-            host='localhost',
+        return TerminalSession.objects.create(
+            user=self.user, status='0', host='localhost',
             create_by=self.user.username,
         )
-        return session
 
     @database_sync_to_async
     def get_session(self, session_id: str) -> TerminalSession:
-        """Retrieve an existing session"""
         try:
-            session = TerminalSession.objects.get(session_id=session_id, user=self.user)
-            return session
+            return TerminalSession.objects.get(session_id=session_id, user=self.user)
         except TerminalSession.DoesNotExist:
             return None
 
     @database_sync_to_async
     def update_session_status(self, session: TerminalSession, status: str):
-        """Update session status"""
         session.status = status
         session.update_by = self.user.username
         session.save()
 
     @database_sync_to_async
-    def save_command_history(
-        self,
-        command: str,
-        output: str = "",
-        exit_code: int = None,
-        execution_time: float = None,
-        blocked: bool = False,
-        reason: str = ""
-    ):
-        """Save command execution history"""
+    def save_command_history(self, command: str, output: str = "",
+                             blocked: bool = False, reason: str = ""):
         if not self.session:
             return
-
-        # Prefix output with block reason if command was blocked
         if blocked:
-            output = f"[BLOCKED] {reason}\n{output}"
-
+            output = f"[BLOCKED] {reason}"
         TerminalCommand.objects.create(
-            session=self.session,
-            user=self.user,
-            command=command,
-            output=output[:5000],  # Limit output to 5000 chars for storage
-            exit_code=exit_code,
-            execution_time=execution_time,
+            session=self.session, user=self.user,
+            command=command, output=output[:5000],
             create_by=self.user.username,
         )

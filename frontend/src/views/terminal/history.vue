@@ -79,10 +79,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useMessage } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import terminalApi from '@/api/terminal'
-
-const $message = useMessage()
 
 // State
 const queryParams = ref({
@@ -122,7 +120,7 @@ const getList = async () => {
       total.value = res.total || 0
     }
   } catch (error) {
-    $message.error('Failed to load commands: ' + error.message)
+    ElMessage.error('Failed to load commands: ' + error.message)
   } finally {
     loading.value = false
   }
@@ -165,9 +163,9 @@ const copyOutput = async () => {
 
   try {
     await navigator.clipboard.writeText(currentCommand.value.output)
-    $message.success('Output copied to clipboard')
+    ElMessage.success('Output copied to clipboard')
   } catch (error) {
-    $message.error('Failed to copy: ' + error.message)
+    ElMessage.error('Failed to copy: ' + error.message)
   }
 }
 

@@ -27,6 +27,10 @@ class TerminalSessionViewSet(BaseViewSet):
             qs = qs.filter(user=self.request.user)
         return qs
 
+    def _get_session_or_none(self, pk):
+        """Get session from filtered queryset, return None when not found."""
+        return self.get_queryset().filter(pk=pk).first()
+
     @audit_log
     def create(self, request, *args, **kwargs):
         """Create new terminal session"""
@@ -45,7 +49,9 @@ class TerminalSessionViewSet(BaseViewSet):
     @action(detail=True, methods=['get'])
     def commands(self, request, pk=None):
         """Get command history for a session"""
-        session = self.get_object()
+        session = self._get_session_or_none(pk)
+        if not session:
+            return Response({'code': 404, 'message': 'No TerminalSession matches the given query.'}, status=status.HTTP_404_NOT_FOUND)
         commands = session.commands.all().order_by('create_time')
 
         # Pagination
@@ -61,12 +67,22 @@ class TerminalSessionViewSet(BaseViewSet):
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
         """Close a terminal session"""
-        session = self.get_object()
+        session = self._get_session_or_none(pk)
+        if not session:
+            return Response({'code': 404, 'message': 'No TerminalSession matches the given query.'}, status=status.HTTP_404_NOT_FOUND)
         session.status = '1'  # Disconnected
         session.update_by = request.user.username
         session.save()
         serializer = self.get_serializer(session)
         return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Return true HTTP 404 when session is not visible to current user."""
+        session = self._get_session_or_none(kwargs.get(self.lookup_field))
+        if not session:
+            return Response({'code': 404, 'message': 'No TerminalSession matches the given query.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer(session)
+        return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
 
     @action(detail=False, methods=['get'])
     def active(self, request):
