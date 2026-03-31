@@ -38,4 +38,4 @@ Default credentials: `admin / admin123`
 
 - [backend/README.md](backend/README.md) - Backend API details
 - [frontend/README.md](frontend/README.md) - Frontend architecture
-- [docs/development-guide.md](docs/development-guide.md) - Full development guide
+- [docs/architecture/development-guide.md](docs/architecture/development-guide.md) - Full development guide

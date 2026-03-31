@@ -67,4 +67,4 @@ Error: `{code: 400|404|500, msg: '...'}`
 
 - Backend: `backend/README.md`
 - Frontend: `frontend/README.md`
-- Development: `docs/development-guide.md`
+- Development: `docs/architecture/development-guide.md`

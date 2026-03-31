@@ -241,11 +241,17 @@ data-admin/
 │   │   └── layout/                #   布局组件（侧边栏/头部）
 │   └── vite.config.js             # Vite 构建配置
 └── docs/                          # 项目文档
-    ├── development-guide.md       #   开发指南
-    ├── data-asset-module.md       #   数据资产模块文档
-    ├── data-service-module.md     #   数据服务模块文档
-    ├── data-etl-module.md         #   ETL 模块文档
-    └── project-retrospective.md   #   项目复盘
+    ├── changelog.md               #   版本变更日志
+    ├── architecture/              #   技术架构与设计文档
+    │   ├── development-guide.md   #     开发指南
+    │   ├── ETL设计(gemini版).md   #     ETL 设计方案
+    │   ├── dev-log-2025-03-25.md  #     开发日志
+    │   └── project-retrospective.md #   项目复盘
+    ├── requirements/              #   需求与功能文档
+    │   ├── data-asset-module.md   #     数据资产模块文档
+    │   ├── data-service-module.md #     数据服务模块文档
+    │   └── data-etl-module.md     #     ETL 模块文档
+    └── adr/                       #   架构决策记录
 ```
 
 详细的代码规范、接口设计、抽象层说明请参考各子项目文档：
@@ -302,11 +308,11 @@ server {
 
 | 文档 | 说明 |
 |------|------|
-| [development-guide.md](docs/development-guide.md) | 开发指南，包含核心抽象层、命名规范、开发模式 |
-| [data-asset-module.md](docs/data-asset-module.md) | 数据资产管理模块详细文档 |
-| [data-service-module.md](docs/data-service-module.md) | 数据服务模块详细文档 |
-| [data-etl-module.md](docs/data-etl-module.md) | ETL 任务管理模块详细文档 |
-| [project-retrospective.md](docs/project-retrospective.md) | 项目复盘记录 |
+| [development-guide.md](docs/architecture/development-guide.md) | 开发指南，包含核心抽象层、命名规范、开发模式 |
+| [data-asset-module.md](docs/requirements/data-asset-module.md) | 数据资产管理模块详细文档 |
+| [data-service-module.md](docs/requirements/data-service-module.md) | 数据服务模块详细文档 |
+| [data-etl-module.md](docs/requirements/data-etl-module.md) | ETL 任务管理模块详细文档 |
+| [project-retrospective.md](docs/architecture/project-retrospective.md) | 项目复盘记录 |
 
 ## 贡献指南
 
