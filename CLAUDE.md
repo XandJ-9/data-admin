@@ -16,8 +16,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Backend
 cd backend && uv pip install -r requirements.txt
-python manage.py migrate && python manage.py init_system
-python manage.py runserver 0.0.0.0:8000
+uv run manage.py migrate && uv run manage.py initdata
+uv run manage.py runserver 0.0.0.0:8000
 
 # Frontend
 cd frontend && pnpm install && pnpm dev

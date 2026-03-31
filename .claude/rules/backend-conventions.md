@@ -128,15 +128,15 @@ uv venv && .venv\Scripts\activate
 uv pip install -r requirements.txt
 
 # Database
-python manage.py migrate
-python manage.py makemigrations
-python manage.py init_system  # admin user, roles, menus
+uv run manage.py migrate
+uv run manage.py makemigrations
+uv run manage.py initdata  # admin user, roles, menus
 
 # Run
-python manage.py runserver 0.0.0.0:8000
+uv run manage.py runserver 0.0.0.0:8000
 
 # Test
-python manage.py test apps.<module_name>
+uv run manage.py test apps.<module_name>
 ```
 
 ## Important Notes
