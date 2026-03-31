@@ -413,9 +413,6 @@ function pollTaskStatus(taskId, databaseName) {
       // response 是 {code: 200, msg: "操作成功", data: {...}}
       const status = response.data
 
-      // 调试日志
-      console.log('任务状态更新:', status)
-
       const dbIndex = databaseList.value.findIndex(db => db.databaseName === databaseName)
 
       if (dbIndex !== -1 && status) {
@@ -564,21 +561,16 @@ function resetState() {
 
 // 组件被 keep-alive 缓存激活时调用
 onActivated(() => {
-  console.log('数据源详情页面已激活')
   // 可以在这里恢复轮询或其他操作
-  // 如果需要刷新数据，可以调用 loadDataSourceInfo()
 })
 
 // 组件被 keep-alive 缓存停用时调用
 onDeactivated(() => {
-  console.log('数据源详情页面已停用（缓存）')
   // 页面被缓存时，不清除状态和定时器
-  // 这样切换回来时，采集进度仍然显示
 })
 
 // 组件卸载时清理定时器
 onUnmounted(() => {
-  console.log('数据源详情页面已卸载')
   Object.values(pollTimers.value).forEach(timer => clearInterval(timer))
   pollTimers.value = {}
 })

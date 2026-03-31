@@ -397,5 +397,42 @@
         "icon": ""
       }
     ]
+  },
+  {
+    "menuName": "Web Terminal",
+    "orderNum": 10,
+    "path": "/terminal",
+    "routeName": "Terminal",
+    "menuType": "M",
+    "icon": "computer",
+    "visible": "0",
+    "status": "0",
+    "perms": "",
+    "children": [
+      {
+        "menuName": "终端",
+        "orderNum": 1,
+        "path": "index",
+        "component": "terminal/index",
+        "routeName": "WebTerminal",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "terminal:index:view",
+        "icon": "terminal"
+      },
+      {
+        "menuName": "会话历史",
+        "orderNum": 2,
+        "path": "history",
+        "component": "terminal/history",
+        "routeName": "TerminalHistory",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "terminal:history:view",
+        "icon": "time"
+      }
+    ]
   }
 ]

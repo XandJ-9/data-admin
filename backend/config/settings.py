@@ -32,12 +32,14 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'drf_spectacular',
     'captcha',
+    'channels',  # WebSocket support
     'apps.system',
     'apps.monitor',
     'apps.dataservice',
     'apps.datasource',  # 数据源管理模块
     'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
     'apps.dataetl',     # ETL任务管理模块
+    'apps.terminal',    # Web Terminal
 ]
 
 MIDDLEWARE = [
@@ -71,6 +73,14 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
+
+# Channels Configuration
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

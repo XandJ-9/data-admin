@@ -5,8 +5,6 @@ import createVitePlugins from './vite/plugins'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
-    console.log('=== 所有环境变量 ===')
-    console.log(JSON.stringify(env, null, 2))
     const { VITE_APP_BASE_URL, VITE_APP_BASE_API, VITE_APP_BASE_BACKEND_URL } = env
     const baseUrl = VITE_APP_BASE_BACKEND_URL || 'http://localhost:8000'
 

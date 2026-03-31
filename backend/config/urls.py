@@ -37,6 +37,8 @@ urlpatterns = [
     path('data-api/dataasset/', include('apps.dataasset.urls')),  # 数据资产管理模块（包含元数据管理）
     path('data-api/dataetl/', include('apps.dataetl.urls')),       # ETL任务管理模块
     path('data-api/dataservice/', include('apps.dataservice.urls')),
+    path('data-api/terminal/', include('apps.terminal.urls')),     # Web Terminal
+
     # path('data-api/dataintegration/', include('apps.dataintegration.urls')),
     # path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     # path('data-api/datastudio/', include('apps.datastudio.urls')),

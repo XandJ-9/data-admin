@@ -84,6 +84,26 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  {
+    path: '/terminal',
+    component: Layout,
+    hidden: true,
+    redirect: 'noredirect',
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/terminal/index'),
+        name: 'WebTerminal',
+        meta: { title: 'Web Terminal', icon: 'terminal' }
+      },
+      {
+        path: 'history',
+        component: () => import('@/views/terminal/history'),
+        name: 'TerminalHistory',
+        meta: { title: 'Terminal History', icon: 'time' }
+      }
+    ]
   }
 ]
 
