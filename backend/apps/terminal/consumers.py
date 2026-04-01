@@ -1,17 +1,28 @@
 """
-WebSocket Consumer for Terminal - Cross-platform PTY using pywinpty
+WebSocket Consumer for Terminal - Cross-platform PTY process support.
+Supports Windows (pywinpty), macOS, and Linux (ptyprocess).
 """
 import asyncio
 import json
 import logging
 import os
+import signal
+import time
 
-try:
-    import winpty as pywinpty
-except ImportError:
-    raise ImportError(
-        "pywinpty is required. Install it with: uv pip install pywinpty\n"
-    )
+if os.name == 'nt':
+    try:
+        import winpty as pty_backend
+    except ImportError as exc:
+        raise ImportError(
+            "pywinpty is required on Windows. Install it with: uv pip install pywinpty\n"
+        ) from exc
+else:
+    try:
+        import ptyprocess as pty_backend
+    except ImportError as exc:
+        raise ImportError(
+            "ptyprocess is required on macOS/Linux. Install it with: uv pip install ptyprocess\n"
+        ) from exc
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
@@ -20,10 +31,36 @@ from .security import is_command_allowed
 
 logger = logging.getLogger(__name__)
 
+# Configurable limits
+HEARTBEAT_INTERVAL = 30        # seconds between pings
+HEARTBEAT_TIMEOUT = 90         # close if no pong/input for this many seconds
+SESSION_MAX_IDLE = 1800        # auto-close after 30 min idle (no input)
+
+# Safe environment keys to pass through to the PTY process
+_SAFE_ENV_KEYS = {
+    'PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE',
+    'TERM', 'COLORTERM', 'EDITOR', 'VISUAL', 'TMPDIR', 'TZ',
+    'HOSTNAME', 'LOGNAME', 'MAIL', 'PWD',
+    # Windows
+    'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'TEMP', 'TMP',
+    'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'PROGRAMFILES',
+    'PROGRAMFILES(X86)', 'COMMONPROGRAMFILES', 'HOMEDRIVE', 'HOMEPATH',
+}
+
+
+def _build_safe_env() -> dict:
+    """Build a sanitised environment dict for the PTY child process."""
+    env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_KEYS}
+    env.setdefault('TERM', 'xterm-256color')
+    env.setdefault('COLORTERM', 'truecolor')
+    if os.name != 'nt':
+        env.setdefault('LANG', 'en_US.UTF-8')
+    return env
+
 
 class TerminalConsumer(AsyncWebsocketConsumer):
     """
-    WebSocket consumer for terminal functionality using pywinpty.
+    WebSocket consumer for terminal functionality using platform PTY backend.
     Provides a full interactive shell experience with cross-platform support.
     """
 
@@ -33,7 +70,9 @@ class TerminalConsumer(AsyncWebsocketConsumer):
         self.session = None
         self.process = None
         self._reader_task = None
+        self._heartbeat_task = None
         self._input_buffer = ''
+        self._last_activity = time.monotonic()
 
         if not self.user.is_authenticated:
             await self.close(code=4001)
@@ -56,6 +95,7 @@ class TerminalConsumer(AsyncWebsocketConsumer):
         try:
             self._spawn_shell()
             self._reader_task = asyncio.ensure_future(self._read_pty_output())
+            self._heartbeat_task = asyncio.ensure_future(self._heartbeat_loop())
         except Exception as e:
             logger.error(f"Failed to spawn shell: {e}")
             await self.send_json({'type': 'error', 'data': f'Failed to start shell: {e}'})
@@ -64,21 +104,21 @@ class TerminalConsumer(AsyncWebsocketConsumer):
 
         logger.info(f"PTY session started: {self.user.username} (session: {self.session.session_id})")
 
+    # ── Shell Management ──────────────────────────────────────────────
+
     def _spawn_shell(self):
-        """Spawn a shell process using pywinpty"""
-        # Determine shell command based on platform
-        if os.name == 'nt':  # Windows
+        """Spawn a shell process using platform PTY backend."""
+        if os.name == 'nt':
             shell_cmd = ['cmd.exe']
-        else:  # Unix/Linux/macOS
+        else:
             shell = os.environ.get('SHELL', '/bin/bash')
             shell_cmd = [shell, '--login']
 
         try:
-            # Create pseudo-terminal process
-            self.process = pywinpty.PtyProcess.spawn(
+            self.process = pty_backend.PtyProcess.spawn(
                 shell_cmd,
-                dimensions=(30, 120),  # rows, cols
-                env=os.environ.copy()
+                dimensions=(30, 120),
+                env=_build_safe_env(),
             )
             logger.info(f"Spawned shell: {shell_cmd} with pid={self.process.pid}")
         except Exception as e:
@@ -86,42 +126,27 @@ class TerminalConsumer(AsyncWebsocketConsumer):
             raise
 
     def _set_pty_size(self, cols, rows):
-        """Set the terminal window size"""
+        """Set the terminal window size."""
         if self.process is not None and self.process.isalive():
             try:
                 self.process.setwinsize(rows, cols)
             except Exception as e:
                 logger.warning(f"Failed to set window size: {e}")
 
+    # ── PTY I/O ───────────────────────────────────────────────────────
+
     async def _read_pty_output(self):
-        """Read PTY output using asyncio with timeout"""
+        """Continuously read PTY output and forward to WebSocket client."""
         try:
-            while True:
-                # Check if process is still alive
-                if not self.process.isalive():
-                    exit_code = self.process.exitstatus
-                    logger.info(f"Shell process exited with code: {exit_code}")
-                    try:
-                        await self.send_json({'type': 'exit', 'code': exit_code})
-                    except Exception:
-                        pass
-                    break
-
-                try:
-                    # Try to read data with a small timeout
-                    data = await asyncio.to_thread(self.process.read, timeout=50)
-                    if data:
-                        await self.send_json({'type': 'output', 'data': data})
-                except Exception:
-                    # No data available, continue
-                    await asyncio.sleep(0.01)
-
+            if os.name == 'nt':
+                await self._read_pty_loop_windows()
+            else:
+                await self._read_pty_loop_unix()
         except asyncio.CancelledError:
             return
         except Exception as e:
             logger.error(f"PTY read error: {e}")
         finally:
-            # Ensure exit message is sent
             try:
                 if self.process and not self.process.isalive():
                     exit_code = self.process.exitstatus if self.process.exitstatus is not None else -1
@@ -129,50 +154,126 @@ class TerminalConsumer(AsyncWebsocketConsumer):
             except Exception:
                 pass
 
-    async def disconnect(self, close_code):
-        # 1. Stop PTY output reader
-        if self._reader_task and not self._reader_task.done():
-            self._reader_task.cancel()
-            try:
-                await self._reader_task
-            except asyncio.CancelledError:
-                pass
+    async def _read_pty_loop_unix(self):
+        """Read PTY via asyncio fd monitoring — no threads, no data race."""
+        fd = self.process.fd
+        loop = asyncio.get_running_loop()
 
-        # 2. Terminate shell process
+        while True:
+            future = loop.create_future()
+            loop.add_reader(fd, lambda f=future: f.done() or f.set_result(None))
+            try:
+                await future
+            finally:
+                loop.remove_reader(fd)
+
+            try:
+                data = os.read(fd, 4096)
+            except OSError:
+                break
+            if not data:
+                break
+
+            text = data.decode('utf-8', errors='replace')
+            await self.send_json({'type': 'output', 'data': text})
+
+        if self.process and not self.process.isalive():
+            logger.info(f"Shell process exited with code: {self.process.exitstatus}")
+
+    async def _read_pty_loop_windows(self):
+        """Read PTY via thread — pywinpty provides its own read timeout."""
+        while True:
+            if not self.process.isalive():
+                logger.info(f"Shell process exited with code: {self.process.exitstatus}")
+                break
+            try:
+                data = await asyncio.to_thread(self.process.read, timeout=100)
+                if data:
+                    await self.send_json({'type': 'output', 'data': data})
+            except EOFError:
+                break
+            except Exception:
+                await asyncio.sleep(0.05)
+
+    # ── Heartbeat & Idle Timeout ──────────────────────────────────────
+
+    async def _heartbeat_loop(self):
+        """Server-side heartbeat: send ping and auto-close on idle timeout."""
+        try:
+            while True:
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                idle = time.monotonic() - self._last_activity
+                if idle > SESSION_MAX_IDLE:
+                    logger.info(f"Session idle timeout ({idle:.0f}s), closing")
+                    await self.send_json({
+                        'type': 'output',
+                        'data': '\r\n\x1b[33m[Session timed out due to inactivity]\x1b[0m\r\n',
+                    })
+                    await self.close()
+                    return
+                if idle > HEARTBEAT_TIMEOUT:
+                    logger.info(f"Heartbeat timeout ({idle:.0f}s), closing")
+                    await self.close()
+                    return
+                await self.send_json({'type': 'ping'})
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            logger.error(f"Heartbeat error: {e}")
+
+    # ── Connection Lifecycle ──────────────────────────────────────────
+
+    async def disconnect(self, close_code):
+        for task in (self._reader_task, self._heartbeat_task):
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
         if self.process is not None:
             await self._terminate_process()
             self.process = None
 
-        # 3. Update session status
         if self.session:
             await self.update_session_status(self.session, '1')
             logger.info(f"PTY session closed: {self.user.username}")
 
     async def _terminate_process(self):
-        """Terminate the shell process cleanly"""
+        """Terminate the shell process cleanly."""
         if self.process is None:
             return
-
         try:
             if self.process.isalive():
-                # Try graceful termination first
                 self.process.terminate()
-
-                # Wait a bit for cleanup
-                for _ in range(20):  # Up to 1 second
+                for _ in range(20):
                     await asyncio.sleep(0.05)
                     if not self.process.isalive():
                         break
-
-                # Force kill if still alive
                 if self.process.isalive():
                     logger.warning("Process did not terminate gracefully, forcing kill")
-                    self.process.kill()
+                    self._force_kill_process()
                     await asyncio.sleep(0.1)
         except Exception as e:
             logger.error(f"Error terminating process: {e}")
 
+    def _force_kill_process(self):
+        """Force kill process with best-effort cross-platform signal handling."""
+        if os.name == 'nt':
+            self.process.kill()
+            return
+        kill_signal = getattr(signal, 'SIGKILL', None)
+        if kill_signal is not None:
+            self.process.kill(kill_signal)
+        else:
+            self.process.terminate()
+
+    # ── Message Handling ──────────────────────────────────────────────
+
     async def receive(self, text_data):
+        self._last_activity = time.monotonic()
+
         try:
             data = json.loads(text_data)
         except json.JSONDecodeError:
@@ -186,9 +287,12 @@ class TerminalConsumer(AsyncWebsocketConsumer):
         elif msg_type == 'command':
             await self._handle_input(data.get('data', '') + '\r')
         elif msg_type == 'resize':
-            self._set_pty_size(data.get('cols', 120), data.get('rows', 30))
-        elif msg_type == 'ping':
-            await self.send_json({'type': 'pong'})
+            cols = min(max(int(data.get('cols', 120)), 10), 500)
+            rows = min(max(int(data.get('rows', 30)), 2), 200)
+            self._set_pty_size(cols, rows)
+        elif msg_type in ('ping', 'pong'):
+            if msg_type == 'ping':
+                await self.send_json({'type': 'pong'})
         else:
             await self.send_error(f"Unknown message type: {msg_type}")
 
@@ -196,34 +300,36 @@ class TerminalConsumer(AsyncWebsocketConsumer):
         if self.process is None or not self.process.isalive():
             return
 
-        # Track input for command auditing
         for ch in input_data:
             if ch in ('\r', '\n'):
                 command = self._input_buffer.strip()
                 if command:
                     is_allowed, reason = is_command_allowed(command)
                     if not is_allowed:
-                        # Clear line visually
                         await self.send_json({
                             'type': 'output',
-                            'data': '\r\n\x1b[1;31m[BLOCKED] {reason}\x1b[0m\r\n'
+                            'data': f'\r\n\x1b[1;31m[BLOCKED] {reason}\x1b[0m\r\n',
                         })
-                        await self.save_command_history(command, "", blocked=True, reason=reason)
+                        await self.save_command_history(command, blocked=True, reason=reason)
                         self._input_buffer = ''
                         return
-                    await self.save_command_history(command, "")
+                    await self.save_command_history(command)
                 self._input_buffer = ''
-            elif ch == '\x7f':  # Backspace
+            elif ch == '\x7f':
                 self._input_buffer = self._input_buffer[:-1] if self._input_buffer else ''
-            elif ch == '\x03':  # Ctrl+C
+            elif ch == '\x03':
                 self._input_buffer = ''
             elif ch >= ' ':
                 self._input_buffer += ch
 
         try:
+            if os.name != 'nt' and isinstance(input_data, str):
+                input_data = input_data.encode('utf-8')
             self.process.write(input_data)
         except Exception as e:
             logger.error(f"PTY write error: {e}")
+
+    # ── Helpers ───────────────────────────────────────────────────────
 
     async def send_json(self, content):
         await self.send(text_data=json.dumps(content))
@@ -256,14 +362,13 @@ class TerminalConsumer(AsyncWebsocketConsumer):
         session.save()
 
     @database_sync_to_async
-    def save_command_history(self, command: str, output: str = "",
+    def save_command_history(self, command: str,
                              blocked: bool = False, reason: str = ""):
         if not self.session:
             return
-        if blocked:
-            output = f"[BLOCKED] {reason}"
+        output = f"[BLOCKED] {reason}" if blocked else ""
         TerminalCommand.objects.create(
             session=self.session, user=self.user,
-            command=command, output=output[:5000],
+            command=command, output=output,
             create_by=self.user.username,
         )

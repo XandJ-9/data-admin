@@ -14,15 +14,16 @@ Web Terminal 模块最初采用 subprocess 逐命令执行方案：前端拼装�
 
 ## Decision
 
-采用 **PTY（伪终端）+ WebSocket 直通** 架构：
+采用 **跨平台 PTY（pywinpty）+ WebSocket 直通** 架构：
 
 ### 后端（Django Channels AsyncWebsocketConsumer）
 
-- 使用 `pty.fork()` 创建真实伪终端，spawn `/bin/zsh`
-- 通过 `asyncio loop.add_reader()` 事件驱动读取 PTY 输出，替代 busy-polling
+- 使用 `pywinpty.PtyProcess.spawn()` 创建伪终端进程（Windows/Unix 统一接口）
+- Shell 启动策略：Windows 使用 `cmd.exe`，Unix/macOS 使用 `$SHELL --login`
+- 通过 `asyncio.to_thread(process.read, timeout=...)` 异步读取输出，避免阻塞事件循环
 - 支持三种 WebSocket 消息类型：
-  - `input`：原始按键转发到 PTY（`os.write(fd, data)`）
-  - `resize`：同步窗口尺寸（`fcntl.ioctl(fd, TIOCSWINSZ, ...)`）
+  - `input`：原始按键转发到 PTY（`process.write(data)`）
+  - `resize`：同步窗口尺寸（`process.setwinsize(rows, cols)`）
   - `command`：兼容旧协议，写入命令 + `\n`
 - 安全审计：维护输入缓冲区，Enter 时提取命令并校验黑名单（`security.is_command_allowed()`），拦截时发送 ANSI 红色 BLOCKED 提示并 `Ctrl+U` 清除输入
 
@@ -57,11 +58,11 @@ Web Terminal 模块最初采用 subprocess 逐命令执行方案：前端拼装�
 **优点**：
 - 完整终端体验：Tab 补全、方向键、Ctrl+C/D、交互式程序均原生支持
 - 前端极简：无需管理 prompt、行编辑、命令历史，全部由 Shell 处理
-- 事件驱动 I/O：`loop.add_reader()` 高效利用 asyncio 事件循环，无 CPU 空转
+- 跨平台能力增强：统一 PTY 抽象，支持 Windows 与 Unix/macOS 终端场景
 - 协议向前兼容：保留 `command` 类型支持旧版前端
 
 **缺点/风险**：
-- **平台限制**：`pty.fork()` 仅支持 Unix/macOS，不可在 Windows 上运行（开发环境约束可接受）
+- **平台差异**：不同系统 Shell 行为不完全一致（如命令补全、ANSI 渲染与快捷键语义）
 - **资源管理**：每个 WebSocket 连接占用一个 PTY + 子进程，需关注并发连接数上限
 - **安全边界**：PTY 模式下命令拦截基于输入缓冲模式匹配，存在绕过风险（如通过管道、别名），属深度防御而非绝对安全
-- **进程清理**：需确保 disconnect 时正确 kill 子进程并关闭 fd，避免僵尸进程
+- **进程清理**：需确保 disconnect 时正确终止子进程并释放 PTY 资源，避免僵尸进程

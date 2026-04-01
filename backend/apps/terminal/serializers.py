@@ -9,15 +9,25 @@ from .models import TerminalSession, TerminalCommand
 class TerminalSessionSerializer(BaseModelSerializer):
     """Serializer for TerminalSession"""
     userName = serializers.CharField(source='user.username', read_only=True)
+    commandCount = serializers.IntegerField(source='command_count', read_only=True, default=0)
+    duration = serializers.SerializerMethodField()
 
     class Meta:
         model = TerminalSession
-        fields = ['id', 'sessionId', 'status', 'host', 'userName', 'createTime', 'createBy', 'remark']
+        fields = ['id', 'sessionId', 'status', 'host', 'userName',
+                  'commandCount', 'duration', 'createTime', 'updateTime', 'createBy', 'remark']
         extra_kwargs = {
             'sessionId': {'source': 'session_id'},
             'createTime': {'source': 'create_time'},
+            'updateTime': {'source': 'update_time'},
             'createBy': {'source': 'create_by'},
         }
+
+    def get_duration(self, obj):
+        if obj.create_time and obj.update_time:
+            delta = obj.update_time - obj.create_time
+            return int(delta.total_seconds())
+        return None
 
 
 class TerminalCommandSerializer(BaseModelSerializer):

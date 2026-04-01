@@ -1,6 +1,7 @@
 """
 REST API Views for Terminal
 """
+from django.db.models import Count
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -20,9 +21,7 @@ class TerminalSessionViewSet(BaseViewSet):
     required_roles = None  # Allow all authenticated users, check in consumer
 
     def get_queryset(self):
-        """Filter sessions for current user"""
-        qs = super().get_queryset()
-        # Show own sessions + admin can see all
+        qs = super().get_queryset().annotate(command_count=Count('commands'))
         if not self.request.user.is_staff:
             qs = qs.filter(user=self.request.user)
         return qs
@@ -33,18 +32,35 @@ class TerminalSessionViewSet(BaseViewSet):
 
     @audit_log
     def create(self, request, *args, **kwargs):
-        """Create new terminal session"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
-        """Set user when creating session"""
         serializer.save(
             user=self.request.user,
             create_by=self.request.user.username
         )
+
+    def list(self, request, *args, **kwargs):
+        """List sessions with filters: status, host, beginTime, endTime."""
+        qs = self.get_queryset().order_by('-create_time')
+        params = request.query_params
+        if params.get('status'):
+            qs = qs.filter(status=params['status'])
+        if params.get('host'):
+            qs = qs.filter(host__icontains=params['host'])
+        if params.get('beginTime'):
+            qs = qs.filter(create_time__gte=params['beginTime'])
+        if params.get('endTime'):
+            qs = qs.filter(create_time__lte=params['endTime'])
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response({'code': 200, 'rows': serializer.data, 'total': qs.count()})
 
     @action(detail=True, methods=['get'])
     def commands(self, request, pk=None):
@@ -113,10 +129,20 @@ class TerminalCommandViewSet(BaseViewSet):
 
     @action(detail=False, methods=['get'])
     def recent(self, request):
-        """Get recent commands for current user"""
-        commands = self.get_queryset().order_by('-create_time')[:50]
-        serializer = self.get_serializer(commands, many=True)
-        return Response({'code': 200, 'rows': serializer.data})
+        """Recent commands with pagination, keyword and session filter."""
+        qs = self.get_queryset().order_by('-create_time')
+        keyword = request.query_params.get('keyword', '').strip()
+        session_id = request.query_params.get('sessionId', '').strip()
+        if keyword:
+            qs = qs.filter(command__icontains=keyword)
+        if session_id:
+            qs = qs.filter(session__session_id=session_id)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs[:50], many=True)
+        return Response({'code': 200, 'rows': serializer.data, 'total': qs.count()})
 
     @action(detail=False, methods=['post'])
     def search(self, request):

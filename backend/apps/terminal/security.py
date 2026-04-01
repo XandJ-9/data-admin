@@ -1,63 +1,102 @@
 """
 Terminal Security Module - Command Validation & Blacklist
+Cross-platform: covers Unix/macOS and Windows dangerous commands.
 """
+import re
 
-# Commands that are forbidden for security reasons
-FORBIDDEN_COMMANDS = {
-    # File system destructive commands
-    'rm', 'dd', 'shred', 'wipe',
+# ── Forbidden commands (Unix / macOS / Linux) ─────────────────────
+_FORBIDDEN_UNIX = {
+    # Destructive file operations
+    'rm', 'dd', 'shred', 'wipe', 'truncate',
 
-    # Filesystem creation/modification commands
+    # Filesystem creation / modification
     'mkfs', 'mkfs.ext4', 'mkfs.ntfs', 'mkfs.fat',
     'fdisk', 'parted', 'gdisk', 'fsck', 'fsck.ext4',
-    'format', 'diskpart',
 
-    # System state modification
+    # System state
     'shutdown', 'reboot', 'halt', 'poweroff', 'init', 'systemctl',
-    'service', 'chkconfig', 'insserv',
+    'service', 'chkconfig', 'insserv', 'launchctl',
 
     # Process termination
-    'kill', 'killall', 'pkill', 'pkill9',
+    'kill', 'killall', 'pkill',
 
-    # Filesystem sync
-    'sync', 'fsync',
-
-    # Boot/Recovery
-    'grub-install', 'grub2-install', 'bootloader',
+    # Boot / Recovery
+    'grub-install', 'grub2-install',
 
     # Network - potentially dangerous
-    'iptables', 'firewall-cmd', 'ufw',
-    'route', 'ip route', 'ip link',
+    'iptables', 'ip6tables', 'nftables', 'firewall-cmd', 'ufw', 'pfctl',
+    'route', 'ip',
 
-    # User/Group management
+    # User / Group management
     'useradd', 'userdel', 'usermod', 'groupadd', 'groupdel', 'groupmod',
-    'passwd', 'shadow', 'sudoedit',
+    'passwd', 'chpasswd', 'sudoedit', 'visudo', 'dscl',
 
-    # Package management (could break system)
-    'apt-get remove', 'apt remove', 'yum remove', 'dnf remove',
-    'rpm -e', 'dpkg -r', 'pacman -R',
+    # Package management (removal)
+    'apt-get', 'apt', 'yum', 'dnf', 'rpm', 'dpkg', 'pacman', 'brew',
 
-    # Kernel/Module
+    # Kernel
     'insmod', 'rmmod', 'modprobe', 'depmod',
 
-    # Dangerous tar/compression (could extract to wrong location)
-    'tar -xf /', 'unzip /',
+    # Cron / scheduling
+    'crontab', 'at', 'atq', 'atrm',
+
+    # Chroot / container escape
+    'chroot', 'nsenter', 'unshare',
 }
 
-# Patterns that indicate operations on critical directories
+# ── Forbidden commands (Windows) ──────────────────────────────────
+_FORBIDDEN_WINDOWS = {
+    'format', 'diskpart', 'bcdedit', 'bootrec',
+    'shutdown', 'taskkill', 'schtasks', 'sc',
+    'reg', 'regedit', 'wmic',
+    'net', 'netsh',
+    'cipher', 'takeown', 'icacls',
+    'del', 'rmdir', 'rd',
+}
+
+FORBIDDEN_COMMANDS = _FORBIDDEN_UNIX | _FORBIDDEN_WINDOWS
+
+# Patterns that indicate dangerous shell tricks
+_DANGEROUS_PATTERNS = [
+    re.compile(r'>\s*/dev/sd[a-z]', re.IGNORECASE),            # write to raw disk
+    re.compile(r':\(\)\{\s*:\|:\s*&\s*\};:', re.IGNORECASE),   # fork bomb
+    re.compile(r'\bsudo\b', re.IGNORECASE),                     # privilege escalation
+    re.compile(r'\bsu\s+-?\s*$', re.IGNORECASE),                # switch user
+    re.compile(r'\bchmod\s+[0-7]*777\b', re.IGNORECASE),       # world-writable
+    re.compile(r'\bcurl\b.*\|\s*(ba)?sh', re.IGNORECASE),      # pipe to shell
+    re.compile(r'\bwget\b.*\|\s*(ba)?sh', re.IGNORECASE),
+    re.compile(r'\bmkfifo\b', re.IGNORECASE),                   # named pipe (reverse shell)
+    re.compile(r'/dev/tcp/', re.IGNORECASE),                    # bash tcp redirect
+    re.compile(r'\bnc\b.*-[elp]', re.IGNORECASE),              # netcat listen
+    re.compile(r'\bncat\b.*-[elp]', re.IGNORECASE),
+    re.compile(r'\bpython[23]?\s+-c\b', re.IGNORECASE),        # inline code execution
+    re.compile(r'\bperl\s+-e\b', re.IGNORECASE),
+    re.compile(r'\bruby\s+-e\b', re.IGNORECASE),
+]
+
+# Paths that should not be modified
 FORBIDDEN_PATHS = [
     '/etc', '/sys', '/proc', '/boot', '/root',
     '/lib', '/bin', '/sbin', '/usr/bin', '/usr/sbin',
     'C:\\Windows', 'C:\\System32', 'C:\\Program Files',
 ]
 
+# Read-only commands that are always safe on sensitive paths
+_READ_ONLY_CMDS = {'cat', 'ls', 'lsof', 'grep', 'file', 'head', 'tail', 'less', 'more', 'wc', 'stat', 'find', 'which', 'type', 'dir'}
+
+
+def _extract_base_cmd(part: str) -> str:
+    """Extract the base command name from a pipeline segment."""
+    part = part.strip()
+    # Skip env var assignments like FOO=bar cmd
+    while '=' in part.split()[0] if part.split() else False:
+        part = part.split(maxsplit=1)[1] if ' ' in part else ''
+    return part.split()[0].lower() if part.split() else ''
+
 
 def is_command_allowed(command: str) -> tuple[bool, str]:
     """
     Check if a command is allowed to execute.
-
-    Args:
-        command: The shell command to validate
 
     Returns:
         tuple: (is_allowed, reason_if_denied)
@@ -65,45 +104,34 @@ def is_command_allowed(command: str) -> tuple[bool, str]:
     if not command or not isinstance(command, str):
         return False, "Invalid command"
 
-    command_lower = command.lower().strip()
+    command_stripped = command.strip()
+    command_lower = command_stripped.lower()
 
-    # Check against forbidden commands
-    for forbidden in FORBIDDEN_COMMANDS:
-        # Match the command at the start (word boundary)
-        if command_lower.startswith(forbidden + ' ') or command_lower == forbidden:
-            return False, f"Command '{forbidden}' is not allowed for security reasons"
+    # Check dangerous patterns
+    for pattern in _DANGEROUS_PATTERNS:
+        if pattern.search(command_stripped):
+            return False, f"Dangerous pattern detected: {pattern.pattern}"
 
-        # Check if it's a pipe/redirect to a forbidden command
-        for sep in ['|', '&&', '||', ';']:
-            if sep in command:
-                parts = command.split(sep)
-                for part in parts:
-                    part_lower = part.strip().lower()
-                    if part_lower.startswith(forbidden + ' ') or part_lower == forbidden:
-                        return False, f"Command '{forbidden}' in pipe/sequence is not allowed"
+    # Split by shell separators and check each segment
+    segments = re.split(r'\s*(?:\|{1,2}|&&|;)\s*', command_stripped)
 
-    # Check against critical paths
+    for segment in segments:
+        base_cmd = _extract_base_cmd(segment)
+        if not base_cmd:
+            continue
+
+        if base_cmd in FORBIDDEN_COMMANDS:
+            return False, f"Command '{base_cmd}' is not allowed for security reasons"
+
+    # Check against critical paths (only block modification)
     for path in FORBIDDEN_PATHS:
-        if f' {path}' in command.lower() or f'/{path}' in command.lower():
-            # Allow reading/viewing (cat, ls, grep)
-            if any(cmd in command.lower() for cmd in ['cat', 'ls', 'lsof', 'grep', 'file', 'head', 'tail', 'less', 'more']):
-                continue
-            # Disallow modifications
-            if any(cmd in command.lower() for cmd in ['rm', 'mv', 'cp', 'mkdir', 'touch', 'chmod', 'chown', 'sed', 'awk']):
-                return False, f"Modifications to critical path '{path}' are not allowed"
+        if path.lower() in command_lower:
+            if not any(cmd in command_lower for cmd in _READ_ONLY_CMDS):
+                return False, f"Operations on critical path '{path}' are not allowed"
 
     return True, ""
 
 
 def sanitize_command(command: str) -> str:
-    """
-    Basic command sanitization (remove special shell characters if needed).
-    Currently just returns the command as-is after validation.
-
-    Args:
-        command: Raw command string
-
-    Returns:
-        Sanitized command string
-    """
+    """Basic command sanitization."""
     return command.strip()

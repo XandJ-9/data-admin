@@ -31,6 +31,40 @@
 
 ## 已完成
 
+### 2026-04-01: PTY 数据竞争修复 + 多标签终端 + 会话历史优化（v1.2.1 ~ v1.3.0）
+
+- 修复 Unix PTY 读取数据竞争（`loop.add_reader(fd)` 替代 `asyncio.wait_for(to_thread)`），解决键盘输入不可见
+- 终端支持多标签页（最多 8 个 Tab），每个 Tab 独立 PTY + WebSocket
+- 会话历史页重写：双标签页（会话记录 + 命令历史），支持状态/日期/关键词/会话 ID 筛选
+- 后端 Serializer 新增 commandCount/duration/updateTime，ViewSet 新增列表筛选和分页
+- 移除命令输出缓冲机制（shell 输出格式不可控），output 字段仅记录 blocked 命令原因
+- 会话历史页移除无意义的"关闭"按钮和"输出"查看功能
+
+### 2026-04-01: Web Terminal 全面优化（v1.2.0）
+
+- 前端 xterm 升级至 v6，加载 WebGL/WebLinks/Search/Unicode11 四个 addon
+- WebSocket 管理器增加自动重连（指数退避 × 8 次）与双向心跳保活
+- 后端 consumer 增加服务端心跳、空闲超时自动关闭、PTY 环境变量白名单隔离
+- 安全模块扩展 Windows 黑名单命令 + 正则检测危险模式（fork bomb、reverse shell、sudo 等）
+- 终端 UI 增加搜索栏（Ctrl+Shift+F）、尺寸显示、macOS 快捷键适配
+
+### 2026-04-01: Terminal macOS 依赖兼容修复
+
+- 修复 `pywinpty` 在 macOS 环境不可安装导致后端启动失败问题
+- `backend/apps/terminal/consumers.py` 改为按平台加载 PTY 后端：Windows 使用 `pywinpty`，macOS/Linux 使用 `ptyprocess`
+- `backend/pyproject.toml` 依赖改为平台条件安装，避免非 Windows 环境错误拉取 `pywinpty`
+
+### 2026-04-01: 同步最新 Git 变更（fc066de）
+
+- 后端 terminal consumer 升级为基于 `pywinpty` 的跨平台 PTY 实现，支持 Windows 终端场景
+- 依赖清单新增 `pywinpty>=2.0.0`（`backend/pyproject.toml` 与 `backend/uv.lock`）
+- ADR-005 已同步更新为“跨平台 PTY + WebSocket 直通”决策说明，消除文档与实现不一致
+
+### 2026-04-01: 文档信息同步更新
+
+- 按项目指引补充文档更新追踪：同步维护活跃任务与版本日志
+- 统一变更记录口径，后续功能点落地时需同时更新 `docs/requirements/active_tasks.md` 与 `docs/changelog.md`
+
 ### 2026-03-31: 清理调试代码
 
 - 删除 `vite.config.js` 中的 `console.log` 环境变量打印
