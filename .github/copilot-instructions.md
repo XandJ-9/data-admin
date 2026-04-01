@@ -31,4 +31,4 @@
 ## 5. 与我的交互模式
 - **保持简洁：** 不要长篇大论，直接给出核心逻辑和代码。
 - **质疑反馈：** 如果你发现我提出的需求在架构上有缺陷，或者有更优雅的替代方案，请务必直言不讳地指出。
-- **Git 友好：** 提交建议时，请为我提供符合 Conventional Commits 规范的提交信息建议（例如：`feat(auth): add login validation`）。
+- **Git 友好：** 提交建议时，请为我提供符合 Conventional Commits 规范的提交信息建议（例如：`feat(auth): add login validation`），除特定的字母，英文外，都使用中文描述。
