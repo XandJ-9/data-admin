@@ -181,18 +181,26 @@ class TerminalConsumer(AsyncWebsocketConsumer):
             logger.info(f"Shell process exited with code: {self.process.exitstatus}")
 
     async def _read_pty_loop_windows(self):
-        """Read PTY via thread — pywinpty provides its own read timeout."""
+        """Read PTY via thread — pywinpty blocks in read(), offloaded to thread."""
         while True:
             if not self.process.isalive():
+                # Drain remaining output
+                try:
+                    remaining = self.process.read(4096)
+                    if remaining:
+                        await self.send_json({'type': 'output', 'data': remaining})
+                except Exception:
+                    pass
                 logger.info(f"Shell process exited with code: {self.process.exitstatus}")
                 break
             try:
-                data = await asyncio.to_thread(self.process.read, timeout=100)
+                data = await asyncio.to_thread(self.process.read, 4096)
                 if data:
                     await self.send_json({'type': 'output', 'data': data})
             except EOFError:
                 break
-            except Exception:
+            except Exception as e:
+                logger.debug(f"PTY read exception: {e}")
                 await asyncio.sleep(0.05)
 
     # ── Heartbeat & Idle Timeout ──────────────────────────────────────
