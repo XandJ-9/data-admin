@@ -70,3 +70,9 @@
 - [Refactor] 后端 TerminalCommandViewSet.recent() 支持分页 + keyword + sessionId 过滤。
 - [Refactor] 移除命令输出缓冲机制：output 字段仅用于记录 blocked 命令的拦截原因，不再尝试捕获 PTY 输出（shell 输出格式不可控、异步间隙丢数据、ANSI 清理不可靠）。
 - [Refactor] 会话历史页面移除"关闭"操作按钮（审计视角不需要操作入口）和"输出"查看功能。
+
+## [v1.3.1] - 2026-04-02
+- [Bugfix] 修复 Windows 终端 PTY 读取无响应问题：pywinpty PtyProcess.read() 不接受 timeout 参数，改为 read(4096)，修复 TypeError 被静默捕获问题。
+- [Bugfix] 增加进程退出时剩余输出的排空逻辑，确保数据完整性。
+- [Bugfix] 前端添加缺失的 sortablejs 依赖。
+- [Bugfix] 配置 pnpm 允许 esbuild 和 vue-demi 执行构建脚本，解决依赖加载失败问题。

@@ -1,6 +1,13 @@
 # 任务追踪
 
 
+### 2026-04-02: Windows 终端 PTY 读取稳定性修复（v1.3.1）
+
+- 修复 Windows 终端 PTY 读取无响应问题：pywinpty `PtyProcess.read()` 不接受 timeout 参数，改为 `read(4096)` 直接传入 buffer size
+- 增加进程退出时剩余输出的排空逻辑，确保所有输出都被捕获并转发到前端
+- 前端添加缺失的 sortablejs 依赖（多标签页拖拽排序）
+- 配置 pnpm `onlyBuiltDependencies` 允许 esbuild 和 vue-demi 执行构建脚本，解决依赖加载失败
+
 ### 2026-04-01: PTY 数据竞争修复 + 多标签终端 + 会话历史优化（v1.2.1 ~ v1.3.0）
 
 - 修复 Unix PTY 读取数据竞争（`loop.add_reader(fd)` 替代 `asyncio.wait_for(to_thread)`），解决键盘输入不可见
