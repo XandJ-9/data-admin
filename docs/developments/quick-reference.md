@@ -1,0 +1,122 @@
+# 快速参考
+
+## 项目概览
+
+- **后端**：Django 5.2 + DRF 3.16 + SimpleJWT + Channels 4.3
+- **前端**：Vue 3.5 + Element Plus 2.10 + Vite 6 + Pinia 3.0
+- **包管理器**：`uv`（后端）、`pnpm`（前端）
+- **数据库**：SQLite（开发环境），支持连接外部 MySQL/PostgreSQL/Presto/StarRocks
+
+## 启动命令
+
+### 后端
+```bash
+cd backend
+uv sync                                        # 安装依赖
+uv run manage.py migrate                       # 数据库迁移
+uv run manage.py initdata                      # 初始化管理员、角色、菜单
+uv run manage.py runserver 0.0.0.0:8000        # 启动服务
+```
+
+### 前端
+```bash
+cd frontend
+pnpm install                                   # 安装依赖
+pnpm dev                                       # 启动开发服务器（端口 80）
+```
+
+## 默认账号
+
+- 用户名：`admin`
+- 密码：`admin123`
+
+## API 端点
+
+| 端点 | 地址 |
+|------|------|
+| 后端 API | `http://localhost:8000/data-api/` |
+| Swagger 文档 | `http://localhost:8000/api/docs/` |
+| API Schema | `http://localhost:8000/api/schema/` |
+| 前端开发 | `http://localhost:80`（代理到后端） |
+| WebSocket | `ws://localhost:8000/ws/terminal/` |
+
+## 后端模块
+
+| 模块 | 说明 | 关键模型 |
+|------|------|----------|
+| `system` | 用户、角色、菜单、部门、岗位、字典、配置 | User, Role, Menu, Dept, DictType, Config |
+| `datasource` | 外部数据源连接管理 | DataSource |
+| `dataasset` | 元数据采集、表血缘关系 | MetaTable, MetaColumn, MetaCollectionTask, TableLineage |
+| `dataservice` | SQL 查询、数据接口服务 | QueryLog, InterfaceInfo, InterfaceField |
+| `dataetl` | ETL 任务定义、执行、版本管理 | ETLTask, ETLExecutionLog, ETLTaskVersion |
+| `monitor` | 服务器监控、操作日志 | OperLog |
+| `terminal` | Web 终端（PTY + WebSocket） | TerminalSession, TerminalCommand |
+| `dbutils` | 数据库执行器抽象层 | — |
+
+## 前端模块
+
+| 模块 | 页面路径 | API 路径 |
+|------|----------|----------|
+| 数据源 | `views/data/datasource/` | `api/data/datasource.js` |
+| 元数据 | `views/data/asset/` | `api/data/asset.js`, `api/data/meta.js` |
+| ETL | `views/data/etl/` | `api/data/etl.js` |
+| 数据服务 | `views/data/service/` | `api/data/service.js` |
+| 系统管理 | `views/system/` | `api/system/` |
+| 监控 | `views/monitor/` | `api/monitor/` |
+| 终端 | `views/terminal/` | `api/terminal.js` |
+
+## 关键文件位置
+
+| 文件 | 说明 |
+|------|------|
+| `apps/system/models.py` | BaseModel（审计字段、软删除） |
+| `apps/system/views/core.py` | BaseViewSet（CRUD 基类） |
+| `apps/system/serializers.py` | BaseModelSerializer（camelCase 自动映射） |
+| `apps/system/permission.py` | HasRolePermission（角色权限） |
+| `apps/system/common.py` | audit_log 审计日志装饰器 |
+| `apps/common/mixins.py` | BaseViewMixin（响应辅助方法） |
+| `apps/common/pagination.py` | StandardPagination（分页器） |
+| `apps/common/exceptions.py` | 全局异常处理器 |
+| `apps/common/encrypt.py` | 密码加密工具 |
+| `apps/dbutils/factory.py` | get_executor（数据库执行器工厂） |
+| `apps/dbutils/base.py` | DataSourceExecutor（执行器基类） |
+| `config/settings.py` | Django 配置 |
+| `config/urls.py` | 主 URL 路由 |
+| `config/routing.py` | WebSocket 路由 |
+
+## 响应格式
+
+```javascript
+// 成功 - 列表
+{ code: 200, msg: '操作成功', rows: [...], total: 100, pageNum: 1, pageSize: 10 }
+
+// 成功 - 详情
+{ code: 200, msg: '操作成功', data: { id: 1, name: '...' } }
+
+// 成功 - 操作
+{ code: 200, msg: '操作成功' }
+
+// 错误
+{ code: 400|404|500, message: '错误描述' }
+```
+
+## URL 注册路径
+
+| URL 前缀 | 模块 |
+|----------|------|
+| `/data-api/` | system（用户、角色、菜单等） |
+| `/data-api/monitor/` | monitor（操作日志、服务器监控） |
+| `/data-api/datasource/` | datasource（数据源管理） |
+| `/data-api/dataasset/` | dataasset（元数据、血缘） |
+| `/data-api/dataetl/` | dataetl（ETL 任务） |
+| `/data-api/dataservice/` | dataservice（查询、接口） |
+| `/data-api/terminal/` | terminal（终端会话） |
+| `/api/docs/` | Swagger 文档 |
+
+## 外部文档
+
+- 后端文档：`backend/README.md`
+- 前端文档：`frontend/README.md`
+- 开发指南：`docs/architecture/development-guide.md`
+- ADR 记录：`docs/adr/`
+- 变更日志：`docs/changelog.md`

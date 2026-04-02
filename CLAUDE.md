@@ -22,15 +22,14 @@
 
 | 文件 | 说明 |
 |------|------|
-| [.claude/rules/backend-conventions.md](.claude/rules/backend-conventions.md) | 后端开发模式、命名规范、API 设计 |
-| [.claude/rules/frontend-conventions.md](.claude/rules/frontend-conventions.md) | 前端 API 封装、组件模式、命名规范 |
-| [.claude/rules/creating-modules.md](.claude/rules/creating-modules.md) | 创建新模块的完整步骤 |
-| [.claude/rules/quick-reference.md](.claude/rules/quick-reference.md) | 常用命令、文件位置、端点速查 |
+| [docs/developments/backend-conventions.md](docs/developments/backend-conventions.md) | 后端开发模式、命名规范、API 设计 |
+| [docs/developments/frontend-conventions.md](docs/developments/frontend-conventions.md) | 前端 API 封装、组件模式、命名规范 |
+| [docs/developments/creating-modules.md](docs/developments/creating-modules.md) | 创建新模块的完整步骤 |
+| [docs/developments/quick-reference.md](docs/developments/quick-reference.md) | 常用命令、文件位置、端点速查 |
 
 **外部文档**：
 - [backend/README.md](backend/README.md) - 后端 API 详情
 - [frontend/README.md](frontend/README.md) - 前端架构说明
-- [docs/architecture/development-guide.md](docs/architecture/development-guide.md) - 完整开发指南
 
 ---
 

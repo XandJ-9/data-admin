@@ -1,35 +1,5 @@
-# 活跃任务追踪
+# 任务追踪
 
-## 技术债务（待处理）
-
-### TD-002: 组件行数超过 200 行限制
-
-**优先级**: 中  
-**违反原则**: 模块化 — 组件/函数长度不得超过 200 行  
-**超限文件清单**（核心业务文件）:
-
-| 文件 | 行数 | 建议 |
-|------|------|------|
-| `views/tool/build/RightPanel.vue` | 845 | 拆分为子组件 |
-| `views/data/service/interface/index.vue` | 564 | 拆分列表/表单组件 |
-| `views/data/asset/lineage/index.vue` | 525 | 拆分图谱/面板组件 |
-| `views/data/etl/taskDetail.vue` | 499 | 已拆分 Tab 子组件，继续拆分脚本逻辑 |
-| `backend/apps/dataetl/serializers_legacy.py` | 已删除 | ✅ 已拆分为 serializers/ 包 |
-| `backend/apps/dataetl/views_legacy.py` | 已删除 | ✅ 已拆分为 views/ 包 |
-
----
-
-### TD-003: ADR 文档缺失
-
-**优先级**: 中  
-**违反原则**: ADR 优先 — 任何技术选型必须有 ADR 记录  
-**待补充 ADR**:
-- ADR-001: 技术栈选型（Django + Vue3）✅ 已完成
-- ADR-002: ETL 执行器架构✅ 已完成
-- ADR-003: 包管理器选择（pnpm / uv）✅ 已完成
-- ADR-004: 数据库选型✅ 已完成
-
-## 已完成
 
 ### 2026-04-01: PTY 数据竞争修复 + 多标签终端 + 会话历史优化（v1.2.1 ~ v1.3.0）
 

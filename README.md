@@ -96,7 +96,7 @@ Nginx 反向代理 `/data-api/` 到后端，静态文件指向 `backend/dist/`�
 
 ## 文档
 
-- [开发指南](docs/architecture/development-guide.md)
+- [开发说明](docs/developments/quick-reference.md)
 - [版本日志](docs/changelog.md)
 - [架构决策记录](docs/adr/)
 

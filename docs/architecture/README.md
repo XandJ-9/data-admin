@@ -6,7 +6,4 @@
 
 ## 已归档文档
 
-- [development-guide.md](development-guide.md) - 开发指南与工程规范
-- [ETL设计(gemini版).md](ETL设计(gemini版).md) - ETL 设计方案草案
-- [dev-log-2025-03-25.md](dev-log-2025-03-25.md) - 开发日志记录
 - [project-retrospective.md](project-retrospective.md) - 项目复盘总结
