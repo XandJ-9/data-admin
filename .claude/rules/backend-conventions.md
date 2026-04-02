@@ -4,6 +4,7 @@
 
 Use `uv` instead of `pip`:
 ```bash
+uv add <package>
 uv pip install <package>
 uv pip freeze > requirements.txt
 ```

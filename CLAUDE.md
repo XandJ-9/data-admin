@@ -79,7 +79,7 @@
 
 ```bash
 # 后端
-cd backend && uv pip install -r requirements.txt
+cd backend && uv sync
 uv run manage.py migrate && uv run manage.py initdata
 uv run manage.py runserver 0.0.0.0:8000
 
