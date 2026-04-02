@@ -50,15 +50,9 @@ python manage.py migrate
 python manage.py init_system
 python manage.py collectstatic --noinput
 
-# 启动应用服务器（选择其中一种）
-# 推荐：Daphne（支持 WebSocket）
+# 启动应用服务器（必须使用 Daphne）
+# 本项目使用 Django Channels，Gunicorn+Uvicorn Worker 无法正确路由 WebSocket
 daphne -b 127.0.0.1 -p 8000 config.asgi:application
-
-# 或：Gunicorn（简单同步应用）
-# gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 4
-
-# 或：uWSGI（高级功能）
-# uwsgi --socket 127.0.0.1:8000 --protocol http --module config.wsgi --callable application
 
 # 2. 前端部署
 cd ../frontend
@@ -67,33 +61,23 @@ pnpm build:prod
 # 输出到 dist/ 目录，由 Nginx 提供静态文件服务
 ```
 
-### 应用服务器选项
+### 应用服务器说明
 
-| 服务器 | 协议 | WebSocket | 性能 | 推荐度 | 适用场景 |
-|--------|------|----------|------|--------|---------|
-| **Daphne** | ASGI | ✅ 完全支持 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | **本项目推荐**（Web 终端需要 WebSocket） |
-| **Gunicorn** | WSGI | ❌ 不支持 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | 纯 HTTP 的同步应用 |
-| **uWSGI** | WSGI/ASGI | ⚠️ 需配置 | ⭐⭐⭐⭐ | ⭐⭐ | 需要高级功能的应用 |
-| **Hypercorn** | ASGI | ✅ 完全支持 | ⭐⭐⭐⭐⭐ | ⭐⭐ | 高性能异步应用（实验性） |
+本项目**必须使用 Daphne** 作为应用服务器。
 
-#### 安装与启动
+| 服务器 | 是否可用 | 原因 |
+|--------|----------|------|
+| **Daphne** | ✅ 必须使用 | Django Channels 官方 ASGI 服务器，正确处理 `ProtocolTypeRouter` 的 HTTP/WebSocket 协议分发 |
+| Gunicorn + Uvicorn Worker | ❌ 不可用 | 无法正确路由 WebSocket 请求到 Django Channels，WebSocket 连接会 404 |
+| Gunicorn (WSGI) | ❌ 不可用 | WSGI 协议不支持 WebSocket |
+| Hypercorn | ⚠️ 未验证 | 理论支持 ASGI，但未经本项目测试 |
 
-**Daphne（推荐）**
 ```bash
+# 安装（已包含在 pyproject.toml 中）
 pip install daphne
-daphne -b 127.0.0.1 -p 8000 config.asgi:application
-```
 
-**Gunicorn**
-```bash
-pip install gunicorn
-gunicorn config.asgi:application --bind 127.0.0.1:8000 --workers 4
-```
-
-**uWSGI**
-```bash
-pip install uwsgi
-uwsgi --socket 127.0.0.1:8000 --protocol http --module config.wsgi --callable application
+# 启动
+daphne -b 0.0.0.0 -p 8000 config.asgi:application
 ```
 
 ### 部署检查清单

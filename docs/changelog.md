@@ -79,6 +79,8 @@
 
 ## [v1.3.2] - 2026-04-03
 - [Bugfix] 修复 ASGI 入口（config/asgi.py）模块导入顺序问题：将 JwtAuthMiddleware 导入移到 `get_asgi_application()` 之后，解决 Gunicorn + Uvicorn Worker 启动时 Django 未初始化报错。
+- [Bugfix] 确认 Gunicorn + Uvicorn Worker 无法正确路由 Django Channels 的 WebSocket 请求（返回 404），生产环境必须使用 Daphne。
 - [Feature] README.md 新增完整生产环境部署指南：系统要求、后端/前端部署步骤、Nginx 反向代理配置（含 WebSocket）、Systemd 服务管理、性能调优建议、常见问题排查。
-- [Feature] quick-reference.md 新增生产环境部署速查：快速部署流程、应用服务器选项对比（Daphne/Gunicorn/uWSGI/Hypercorn）、部署检查清单、部署验证命令。
+- [Feature] quick-reference.md 新增生产环境部署速查：快速部署流程、应用服务器兼容性说明、部署检查清单、部署验证命令。
 - [Refactor] 删除错误的 pnpm-workspace.yaml 配置文件，修复前端 pnpm 启动失败问题。
+- [Refactor] 统一部署文档推荐 Daphne 作为唯一应用服务器，移除 Gunicorn/uWSGI 方案。

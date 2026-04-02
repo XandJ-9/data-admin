@@ -136,26 +136,10 @@ python manage.py init_system     # 创建 admin 用户和初始数据
 # 收集静态文件
 python manage.py collectstatic --noinput
 
-# 创建 Gunicorn 配置
-cat > gunicorn_config.py << EOF
-import multiprocessing
+# 启动 Daphne（本项目使用 Django Channels，必须使用 Daphne）
+daphne -b 127.0.0.1 -p 8000 config.asgi:application
 
-bind = "127.0.0.1:8000"
-workers = multiprocessing.cpu_count() * 2 + 1
-worker_class = "sync"
-worker_connections = 1000
-max_requests = 1000
-max_requests_jitter = 50
-timeout = 30
-keepalive = 5
-preload_app = True
-errorlog = "logs/error.log"
-accesslog = "logs/access.log"
-loglevel = "info"
-EOF
-
-# 启动 Gunicorn
-gunicorn config.wsgi:application -c gunicorn_config.py
+# 注意：Gunicorn + Uvicorn Worker 无法正确处理 Django Channels 的 WebSocket 路由，不可使用
 ```
 
 #### 3. 前端部署
@@ -244,7 +228,7 @@ User=dataadmin
 Group=dataadmin
 WorkingDirectory=/opt/dataadmin/backend
 Environment="PATH=/home/dataadmin/.local/bin"
-ExecStart=/home/dataadmin/.local/bin/gunicorn config.wsgi:application -c gunicorn_config.py
+ExecStart=/home/dataadmin/.local/bin/daphne -b 127.0.0.1 -p 8000 config.asgi:application
 Restart=always
 RestartSec=10
 
@@ -278,7 +262,7 @@ curl http://your.domain.com/
 
 ### 性能调优建议
 
-- **Gunicorn 工作进程**：一般设为 `CPU 核心数 * 2 + 1`
+- **Daphne 并发**：默认单进程异步模式，高并发场景可用 Supervisor/Systemd 启动多实例配合 Nginx 负载均衡
 - **数据库连接池**：启用 Redis 缓存可显著提升性能
 - **CDN**：生产环境建议为静态资源配置 CDN
 - **监控告警**：建议集成 Prometheus/Grafana 监控
@@ -287,10 +271,10 @@ curl http://your.domain.com/
 
 | 问题 | 解决方案 |
 |------|---------|
-| 502 Bad Gateway | 检查 Gunicorn 是否启动，查看日志 `backend/logs/error.log` |
+| 502 Bad Gateway | 检查 Daphne 是否启动，查看日志输出 |
 | 数据库连接失败 | 验证数据库用户权限，检查 `.env.production` 配置 |
 | 前端 404 错误 | 确保 Nginx `root` 指向正确的 `dist` 目录 |
-| WebSocket 连接失败 | 检查 Nginx 是否正确配置 WebSocket 转发头 |
+| WebSocket 连接失败 | 确认使用 Daphne（非 Gunicorn），检查 Nginx WebSocket 转发头 |
 
 ## 文档
 
