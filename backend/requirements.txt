@@ -1,0 +1,70 @@
+asgiref==3.10.0
+attrs==25.4.0
+autobahn==25.12.2
+automat==25.4.16
+bcrypt==5.0.0
+cbor2==5.9.0
+certifi==2025.11.12
+cffi==2.0.0
+channels==4.3.2
+charset-normalizer==3.4.4
+constantly==23.10.4
+cryptography==43.0.1
+daphne==4.2.1
+django==5.2.8
+django-ranged-response==0.2.0
+django-simple-captcha==0.6.2
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
+dotenv==0.9.9
+drf-spectacular==0.27.1
+et-xmlfile==2.0.0
+future==1.0.0
+hyperlink==21.0.0
+idna==3.11
+incremental==24.11.0
+inflection==0.5.1
+invoke==2.2.1
+jsonschema==4.25.1
+jsonschema-specifications==2025.9.1
+lz4==4.4.5
+msgpack==1.1.2 ; platform_python_implementation == 'CPython'
+openpyxl==3.1.5
+orjson==3.11.5 ; platform_python_implementation != 'PyPy'
+packaging==26.0
+paramiko==4.0.0
+pillow==12.0.0
+psycopg2==2.9.11
+ptyprocess==0.7.0 ; sys_platform != 'win32'
+py-ubjson==0.16.1
+pyasn1==0.6.3
+pyasn1-modules==0.4.2
+pycparser==2.23 ; implementation_name != 'PyPy'
+pyhive==0.7.0
+pyjwt==2.10.1
+pymysql==1.1.2
+pynacl==1.6.2
+pyopenssl==25.1.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.1
+pytz==2025.2
+pywinpty==3.0.3 ; sys_platform == 'win32'
+pyyaml==6.0.3
+referencing==0.37.0
+requests==2.32.5
+rpds-py==0.29.0
+service-identity==24.2.0
+six==1.17.0
+sqlparse==0.5.3
+trino==0.336.0
+twisted==25.5.0
+txaio==25.12.2
+typing-extensions==4.15.0
+tzdata==2025.2
+tzlocal==5.3.1
+u-msgpack-python==2.8.0 ; platform_python_implementation != 'CPython'
+ujson==5.12.0
+uritemplate==4.2.0
+urllib3==2.6.0
+zope-interface==8.2
+zstandard==0.25.0

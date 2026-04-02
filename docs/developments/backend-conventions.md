@@ -14,6 +14,9 @@
 uv add <package>          # 添加依赖到 pyproject.toml
 uv sync                   # 根据 pyproject.toml 同步依赖
 uv pip install <package>  # 直接安装（不推荐）
+
+uv export --format requirements-txt --no-hashes -o requirements.txt  # 生成 requirements.txt
+
 ```
 
 ## 模块目录结构
