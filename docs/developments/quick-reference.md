@@ -25,6 +25,100 @@ pnpm install                                   # 安装依赖
 pnpm dev                                       # 启动开发服务器（端口 80）
 ```
 
+## 生产环境部署
+
+### 快速部署流程
+
+```bash
+# 1. 后端部署
+cd backend
+uv sync
+cat > .env.production << EOF
+DEBUG=False
+ALLOWED_HOSTS=your.domain.com
+SECRET_KEY=<generate-random-key>
+DATABASE_ENGINE=django.db.backends.mysql
+DATABASE_NAME=dataadmin
+DATABASE_USER=dataadmin_user
+DATABASE_PASSWORD=<password>
+DATABASE_HOST=localhost
+DATABASE_PORT=3306
+REDIS_URL=redis://localhost:6379/0
+EOF
+
+python manage.py migrate
+python manage.py init_system
+python manage.py collectstatic --noinput
+
+# 启动应用服务器（选择其中一种）
+# 推荐：Daphne（支持 WebSocket）
+daphne -b 127.0.0.1 -p 8000 config.asgi:application
+
+# 或：Gunicorn（简单同步应用）
+# gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 4
+
+# 或：uWSGI（高级功能）
+# uwsgi --socket 127.0.0.1:8000 --protocol http --module config.wsgi --callable application
+
+# 2. 前端部署
+cd ../frontend
+pnpm install --prod
+pnpm build:prod
+# 输出到 dist/ 目录，由 Nginx 提供静态文件服务
+```
+
+### 应用服务器选项
+
+| 服务器 | 协议 | WebSocket | 性能 | 推荐度 | 适用场景 |
+|--------|------|----------|------|--------|---------|
+| **Daphne** | ASGI | ✅ 完全支持 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | **本项目推荐**（Web 终端需要 WebSocket） |
+| **Gunicorn** | WSGI | ❌ 不支持 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | 纯 HTTP 的同步应用 |
+| **uWSGI** | WSGI/ASGI | ⚠️ 需配置 | ⭐⭐⭐⭐ | ⭐⭐ | 需要高级功能的应用 |
+| **Hypercorn** | ASGI | ✅ 完全支持 | ⭐⭐⭐⭐⭐ | ⭐⭐ | 高性能异步应用（实验性） |
+
+#### 安装与启动
+
+**Daphne（推荐）**
+```bash
+pip install daphne
+daphne -b 127.0.0.1 -p 8000 config.asgi:application
+```
+
+**Gunicorn**
+```bash
+pip install gunicorn
+gunicorn config.asgi:application --bind 127.0.0.1:8000 --workers 4
+```
+
+**uWSGI**
+```bash
+pip install uwsgi
+uwsgi --socket 127.0.0.1:8000 --protocol http --module config.wsgi --callable application
+```
+
+### 部署检查清单
+
+- [ ] 设置 `SECRET_KEY`（强随机密钥）
+- [ ] 配置数据库（MySQL 5.7+ 或 PostgreSQL 12+）
+- [ ] 配置 Redis（缓存和会话存储）
+- [ ] 前端构建并生成 dist/ 产物
+- [ ] 配置 Nginx 反向代理（含 WebSocket）
+- [ ] 配置 HTTPS 证书（推荐 Let's Encrypt）
+- [ ] 配置 Systemd 服务自启
+- [ ] 配置日志轮转（logrotate）
+
+### 部署验证
+
+```bash
+# 检查后端健康状态
+curl http://localhost:8000/data-api/system/health/
+
+# 访问前端
+curl http://your.domain.com/
+```
+
+📖 **详细部署指南**：见 [README.md](../../README.md#部署) 的生产环境部署章节
+
 ## 默认账号
 
 - 用户名：`admin`

@@ -34,4 +34,6 @@ dependencies = [
   "dotenv>=0.9.9",
   "pywinpty>=2.0.0; sys_platform == 'win32'",
   "ptyprocess>=0.7.0; sys_platform != 'win32'",
+  "uvicorn>=0.42.0",
+  "gunicorn>=25.3.0",
 ]
