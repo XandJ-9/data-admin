@@ -76,3 +76,17 @@
 - [Bugfix] 增加进程退出时剩余输出的排空逻辑，确保数据完整性。
 - [Bugfix] 前端添加缺失的 sortablejs 依赖。
 - [Bugfix] 配置 pnpm 允许 esbuild 和 vue-demi 执行构建脚本，解决依赖加载失败问题。
+
+## [v1.3.2] - 2026-04-03
+- [Bugfix] 修复 ASGI 入口（config/asgi.py）模块导入顺序问题：将 JwtAuthMiddleware 导入移到 `get_asgi_application()` 之后，解决 Gunicorn + Uvicorn Worker 启动时 Django 未初始化报错。
+- [Bugfix] 确认 Gunicorn + Uvicorn Worker 无法正确路由 Django Channels 的 WebSocket 请求（返回 404），生产环境必须使用 Daphne。
+- [Feature] README.md 新增完整生产环境部署指南：系统要求、后端/前端部署步骤、Nginx 反向代理配置（含 WebSocket）、Systemd 服务管理、性能调优建议、常见问题排查。
+- [Feature] quick-reference.md 新增生产环境部署速查：快速部署流程、应用服务器兼容性说明、部署检查清单、部署验证命令。
+- [Refactor] 删除错误的 pnpm-workspace.yaml 配置文件，修复前端 pnpm 启动失败问题。
+- [Refactor] 统一部署文档推荐 Daphne 作为唯一应用服务器，移除 Gunicorn/uWSGI 方案。
+
+## [v1.3.3] - 2026-04-03
+- [Bugfix] 修复 Nginx 反向代理下浏览器终端 vim 等全屏程序无法正常使用的问题：WebSocket location 添加 `proxy_buffering off` 禁用响应缓冲，确保 PTY 输出逐帧实时转发；同时添加 `proxy_send_timeout 3600s` 防止发送方向空闲断连。
+
+## [v1.3.4] - 2026-04-03
+- [Bugfix] 切换生产构建压缩器为 terser，修复 esbuild 对 `@xterm/xterm` TypeScript 枚举 IIFE 二次压缩时丢失 `let` 变量声明，导致 ESM 严格模式下 `requestMode` 抛出 `ReferenceError: i is not defined` 的问题。详见 `docs/postmortem/esbuild-xterm-requestMode-bug.md`。

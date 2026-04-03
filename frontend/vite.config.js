@@ -29,6 +29,7 @@ export default defineConfig(({ mode, command }) => {
     // 打包配置
     build: {
       // https://vite.dev/config/build-options.html
+      minify: 'terser',
       sourcemap: command === 'build' ? false : 'inline',
       outDir: 'dist',
       assetsDir: 'assets',
@@ -37,7 +38,17 @@ export default defineConfig(({ mode, command }) => {
         output: {
           chunkFileNames: 'static/js/[name]-[hash].js',
           entryFileNames: 'static/js/[name]-[hash].js',
-          assetFileNames: 'static/[ext]/[name]-[hash].[ext]'
+          assetFileNames: 'static/[ext]/[name]-[hash].[ext]',
+          manualChunks: {
+            'xterm': [
+              '@xterm/xterm',
+              '@xterm/addon-fit',
+              '@xterm/addon-search',
+              '@xterm/addon-unicode11',
+              '@xterm/addon-web-links',
+              '@xterm/addon-webgl'
+            ]
+          }
         }
       }
     },

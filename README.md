@@ -80,19 +80,201 @@ data-admin/
 
 ## 部署
 
+### 系统要求
+
+- **操作系统**：Linux （推荐 CentOS 7+, Ubuntu 18.04+）
+- **Python**：3.11+
+- **Node.js**：18+
+- **数据库**：SQLite（开发）、MySQL 5.7+ 或 PostgreSQL 12+（生产）
+- **内存**：最小 2GB，推荐 4GB+
+- **磁盘**：最小 20GB
+
+### 生产环境部署步骤
+
+#### 1. 环境准备
+
 ```bash
-# 构建前端
-cd frontend && pnpm build:prod
+# 创建应用用户
+useradd -m -s /bin/bash dataadmin
 
-# 复制到后端静态目录
-cp -r dist/* ../backend/dist/
+# 创建应用目录
+mkdir -p /opt/dataadmin && chown dataadmin:dataadmin /opt/dataadmin
+cd /opt/dataadmin
 
-# 启动后端
-cd ../backend
-gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+# 克隆项目（或上传源码）
+git clone https://github.com/yourusername/data-admin.git .
 ```
 
-Nginx 反向代理 `/data-api/` 到后端，静态文件指向 `backend/dist/`。
+#### 2. 后端部署
+
+```bash
+# 安装 uv 包管理器
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 安装后端依赖
+cd backend
+uv sync
+
+# 配置生产环境变量
+cat > .env.production << EOF
+DEBUG=False
+ALLOWED_HOSTS=your.domain.com,localhost
+SECRET_KEY=your-secret-key-here
+DATABASE_ENGINE=django.db.backends.mysql
+DATABASE_NAME=dataadmin
+DATABASE_USER=dataadmin_user
+DATABASE_PASSWORD=your-db-password
+DATABASE_HOST=localhost
+DATABASE_PORT=3306
+REDIS_URL=redis://localhost:6379/0
+EOF
+
+# 数据库初始化（首次部署）
+python manage.py migrate
+python manage.py init_system     # 创建 admin 用户和初始数据
+
+# 收集静态文件
+python manage.py collectstatic --noinput
+
+# 启动 Daphne（本项目使用 Django Channels，必须使用 Daphne）
+daphne -b 127.0.0.1 -p 8000 config.asgi:application
+
+# 注意：Gunicorn + Uvicorn Worker 无法正确处理 Django Channels 的 WebSocket 路由，不可使用
+```
+
+#### 3. 前端部署
+
+```bash
+cd ../frontend
+
+# 安装依赖
+pnpm install --prod
+
+# 构建生产包
+pnpm build:prod
+
+# 验证产物
+ls -lh dist/
+```
+
+#### 4. 反向代理配置（Nginx）
+
+```nginx
+upstream dataadmin_backend {
+    server 127.0.0.1:8000;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name your.domain.com;
+    
+    # 重定向到 HTTPS（生产环境建议启用）
+    # return 301 https://$server_name$request_uri;
+    
+    client_max_body_size 100M;
+    
+    # 前端静态文件
+    location / {
+        root /opt/dataadmin/frontend/dist;
+        try_files $uri $uri/ /index.html;
+        expires 1d;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # 后端 API
+    location /data-api/ {
+        proxy_pass http://dataadmin_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 30s;
+    }
+    
+    # WebSocket 支持（Web 终端）
+    location /ws/ {
+        proxy_pass http://dataadmin_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;
+    }
+    
+    # 日志
+    access_log /var/log/nginx/dataadmin_access.log;
+    error_log /var/log/nginx/dataadmin_error.log;
+}
+```
+
+#### 5. Systemd 服务配置
+
+```ini
+# /etc/systemd/system/dataadmin.service
+[Unit]
+Description=Data Admin Backend
+After=network.target
+
+[Service]
+Type=notify
+User=dataadmin
+Group=dataadmin
+WorkingDirectory=/opt/dataadmin/backend
+Environment="PATH=/home/dataadmin/.local/bin"
+ExecStart=/home/dataadmin/.local/bin/daphne -b 127.0.0.1 -p 8000 config.asgi:application
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启动与管理：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable dataadmin
+sudo systemctl start dataadmin
+sudo systemctl status dataadmin
+```
+
+#### 6. 验证部署
+
+```bash
+# 检查后端健康状态
+curl http://localhost:8000/data-api/system/health/
+
+# 检查前端
+curl http://your.domain.com/
+
+# 访问应用
+# 前端：http://your.domain.com
+# API 文档：http://your.domain.com/data-api/docs/
+# 默认账号：admin / admin123
+```
+
+### 性能调优建议
+
+- **Daphne 并发**：默认单进程异步模式，高并发场景可用 Supervisor/Systemd 启动多实例配合 Nginx 负载均衡
+- **数据库连接池**：启用 Redis 缓存可显著提升性能
+- **CDN**：生产环境建议为静态资源配置 CDN
+- **监控告警**：建议集成 Prometheus/Grafana 监控
+
+### 常见问题
+
+| 问题 | 解决方案 |
+|------|---------|
+| 502 Bad Gateway | 检查 Daphne 是否启动，查看日志输出 |
+| 数据库连接失败 | 验证数据库用户权限，检查 `.env.production` 配置 |
+| 前端 404 错误 | 确保 Nginx `root` 指向正确的 `dist` 目录 |
+| WebSocket 连接失败 | 确认使用 Daphne（非 Gunicorn），检查 Nginx WebSocket 转发头 |
 
 ## 文档
 
