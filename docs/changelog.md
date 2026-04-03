@@ -84,3 +84,9 @@
 - [Feature] quick-reference.md 新增生产环境部署速查：快速部署流程、应用服务器兼容性说明、部署检查清单、部署验证命令。
 - [Refactor] 删除错误的 pnpm-workspace.yaml 配置文件，修复前端 pnpm 启动失败问题。
 - [Refactor] 统一部署文档推荐 Daphne 作为唯一应用服务器，移除 Gunicorn/uWSGI 方案。
+
+## [v1.3.3] - 2026-04-03
+- [Bugfix] 修复 Nginx 反向代理下浏览器终端 vim 等全屏程序无法正常使用的问题：WebSocket location 添加 `proxy_buffering off` 禁用响应缓冲，确保 PTY 输出逐帧实时转发；同时添加 `proxy_send_timeout 3600s` 防止发送方向空闲断连。
+
+## [v1.3.4] - 2026-04-03
+- [Bugfix] 切换生产构建压缩器为 terser，修复 esbuild 对 `@xterm/xterm` TypeScript 枚举 IIFE 二次压缩时丢失 `let` 变量声明，导致 ESM 严格模式下 `requestMode` 抛出 `ReferenceError: i is not defined` 的问题。详见 `docs/postmortem/esbuild-xterm-requestMode-bug.md`。
