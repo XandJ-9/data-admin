@@ -234,6 +234,30 @@ const queryParams = ref({
 })
 
 const form = ref({})
+
+/** 验证连接参数是否为有效的JSON格式 */
+function validateParamsJson(rule, value, callback) {
+  if (!value) {
+    callback()
+    return
+  }
+  try {
+    JSON.parse(value)
+    callback()
+  } catch (e) {
+    callback(new Error('连接参数格式错误，请输入有效的JSON格式'))
+  }
+}
+
+/** 条件验证：非SQLite时必填 */
+function validateRequiredIfNotSqlite(rule, value, callback) {
+  if (form.value.dbType !== 'sqlite' && !value) {
+    callback(new Error(rule.message || '此项不能为空'))
+  } else {
+    callback()
+  }
+}
+
 const rules = ref({
   dataSourceName: [
     { required: true, message: '数据源名称不能为空', trigger: 'blur' }
@@ -242,19 +266,22 @@ const rules = ref({
     { required: true, message: '数据库类型不能为空', trigger: 'change' }
   ],
   host: [
-    { required: true, message: '主机不能为空', trigger: 'blur' }
+    { validator: validateRequiredIfNotSqlite, trigger: 'blur', message: '主机不能为空' }
   ],
   port: [
-    { required: true, message: '端口不能为空', trigger: 'blur' }
+    { validator: validateRequiredIfNotSqlite, trigger: 'blur', message: '端口不能为空' }
   ],
   dbName: [
     { required: true, message: '数据库不能为空', trigger: 'blur' }
   ],
   username: [
-    { required: true, message: '用户名不能为空', trigger: 'blur' }
+    { validator: validateRequiredIfNotSqlite, trigger: 'blur', message: '用户名不能为空' }
   ],
   password: [
-    { required: true, message: '密码不能为空', trigger: 'blur' }
+    { validator: validateRequiredIfNotSqlite, trigger: 'blur', message: '密码不能为空' }
+  ],
+  params: [
+    { validator: validateParamsJson, trigger: 'blur' }
   ]
 })
 
@@ -278,16 +305,16 @@ function cancel() {
 function reset() {
   form.value = {
     dataSourceId: null,
-    dataSourceName: null,
+    dataSourceName: '',
     dbType: 'mysql',
     host: 'localhost',
     port: 3306,
-    dbName: null,
-    username: null,
-    password: null,
+    dbName: '',
+    username: '',
+    password: '',
     params: '{}',
     status: '0',
-    remark: null
+    remark: ''
   }
   proxy.resetForm('formRef')
 }
@@ -323,7 +350,11 @@ function handleUpdate(row) {
   reset()
   const id = row.dataSourceId || ids.value[0]
   getDatasource(id).then(response => {
-    form.value = response.data
+    form.value = {
+      ...response.data,
+      // 如果密码是加密的，在编辑时清空，用户可以选择不修改密码
+      password: response.data.password ? '' : ''
+    }
     open.value = true
     title.value = '修改数据源'
   })
