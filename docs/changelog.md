@@ -90,3 +90,15 @@
 
 ## [v1.3.4] - 2026-04-03
 - [Bugfix] 切换生产构建压缩器为 terser，修复 esbuild 对 `@xterm/xterm` TypeScript 枚举 IIFE 二次压缩时丢失 `let` 变量声明，导致 ESM 严格模式下 `requestMode` 抛出 `ReferenceError: i is not defined` 的问题。详见 `docs/postmortem/esbuild-xterm-requestMode-bug.md`。
+
+## [v1.3.5] - 2026-04-04
+- [Refactor] 字典管理页面代码质量改进：
+  - 添加统一的错误处理函数 `handleApiError`，区分开发/生产环境错误输出
+  - 所有 API 调用添加 `.catch()` 错误处理和 `.finally()` 清理逻辑
+  - 修复非严格相等比较（`!=` → `!==`）
+  - 迁移至标准 ref 引用方式（`dictRef.value?.validate`），替代 `proxy.$refs`
+  - 添加字典数据防御性检查（`sys_normal_disable = []`）
+  - 使用 `defineOptions` 替代 `<script setup name="Dict">` 语法
+  - 改进删除操作错误处理，区分用户取消和真实错误
+  - 显式导入 Vue Composition API（`ref`, `reactive`, `toRefs`, `getCurrentInstance`）
+  - 使用模板字符串替代字符串拼接
