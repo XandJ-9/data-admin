@@ -333,16 +333,26 @@ class GetRoutersView(generics.GenericAPIView):
             }
             if m.query:
                 meta["query"] = m.query
+            if m.active_menu:
+                meta["activeMenu"] = m.active_menu
+            if not m.is_breadcrumb:
+                meta["breadcrumb"] = False
+            if m.is_affix:
+                meta["affix"] = True
+            if is_outer and (m.path.startswith('http://') or m.path.startswith('https://')):
+                meta["link"] = m.path
 
             if m.menu_type == 'M':
                 route = {
                     "path": m.path or ("/" + str(m.menu_id)),
                     "component": "Layout" if m.parent_id == 0 else "ParentView",
                     "hidden": hidden,
-                    "alwaysShow": True,
+                    "alwaysShow": m.always_show,
                     "name": m.route_name or None,
                     "meta": meta
                 }
+                if m.redirect:
+                    route["redirect"] = m.redirect
                 route["children"] = [r for r in [to_router(c) for c in children] if r is not None]
                 return route
             elif m.menu_type == 'C':

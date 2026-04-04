@@ -146,6 +146,11 @@ class Menu(BaseModel):
     status = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '停用')], default='0', verbose_name='菜单状态')
     perms = models.CharField(max_length=100, blank=True, default='', verbose_name='权限标识')
     icon = models.CharField(max_length=100, blank=True, default='', verbose_name='菜单图标')
+    redirect = models.CharField(max_length=200, blank=True, default='', verbose_name='重定向地址')
+    active_menu = models.CharField(max_length=200, blank=True, default='', verbose_name='高亮菜单')
+    is_affix = models.BooleanField(default=False, verbose_name='是否固定标签')
+    is_breadcrumb = models.BooleanField(default=True, verbose_name='是否显示面包屑')
+    always_show = models.BooleanField(default=True, verbose_name='是否总是显示')
     remark = models.TextField(blank=True, default='', verbose_name='备注')
     
 

@@ -288,6 +288,80 @@
                      </el-radio-group>
                   </el-form-item>
                </el-col>
+               <el-col :span="12" v-if="form.menuType == 'M'">
+                  <el-form-item>
+                     <template #label>
+                        <span>
+                           <el-tooltip content="目录的默认重定向路径，如：`noRedirect`表示不可点击" placement="top">
+                              <el-icon><question-filled /></el-icon>
+                           </el-tooltip>
+                           重定向
+                        </span>
+                     </template>
+                     <el-input v-model="form.redirect" placeholder="请输入重定向地址" />
+                  </el-form-item>
+               </el-col>
+               <el-col :span="12" v-if="form.menuType == 'C'">
+                  <el-form-item>
+                     <template #label>
+                        <span>
+                           <el-tooltip content="指定侧边栏高亮的菜单路径，如编辑页面高亮列表页：`/system/user`" placement="top">
+                              <el-icon><question-filled /></el-icon>
+                           </el-tooltip>
+                           高亮菜单
+                        </span>
+                     </template>
+                     <el-input v-model="form.activeMenu" placeholder="请输入高亮菜单路径" />
+                  </el-form-item>
+               </el-col>
+               <el-col :span="12" v-if="form.menuType == 'C'">
+                  <el-form-item>
+                     <template #label>
+                        <span>
+                           <el-tooltip content="选择固定则该标签页不可关闭，始终显示在标签栏" placement="top">
+                              <el-icon><question-filled /></el-icon>
+                           </el-tooltip>
+                           固定标签
+                        </span>
+                     </template>
+                     <el-radio-group v-model="form.isAffix">
+                        <el-radio :value="true">固定</el-radio>
+                        <el-radio :value="false">不固定</el-radio>
+                     </el-radio-group>
+                  </el-form-item>
+               </el-col>
+               <el-col :span="12" v-if="form.menuType != 'F'">
+                  <el-form-item>
+                     <template #label>
+                        <span>
+                           <el-tooltip content="选择隐藏则该路由不会出现在面包屑导航中" placement="top">
+                              <el-icon><question-filled /></el-icon>
+                           </el-tooltip>
+                           面包屑
+                        </span>
+                     </template>
+                     <el-radio-group v-model="form.isBreadcrumb">
+                        <el-radio :value="true">显示</el-radio>
+                        <el-radio :value="false">隐藏</el-radio>
+                     </el-radio-group>
+                  </el-form-item>
+               </el-col>
+               <el-col :span="12" v-if="form.menuType == 'M'">
+                  <el-form-item>
+                     <template #label>
+                        <span>
+                           <el-tooltip content="当目录只有一个子菜单时，是否仍显示目录节点" placement="top">
+                              <el-icon><question-filled /></el-icon>
+                           </el-tooltip>
+                           总是显示
+                        </span>
+                     </template>
+                     <el-radio-group v-model="form.alwaysShow">
+                        <el-radio :value="true">是</el-radio>
+                        <el-radio :value="false">否</el-radio>
+                     </el-radio-group>
+                  </el-form-item>
+               </el-col>
             </el-row>
          </el-form>
          <template #footer>
@@ -433,7 +507,12 @@ function reset() {
     isFrame: "1",
     isCache: "0",
     visible: "0",
-    status: "0"
+    status: "0",
+    redirect: "",
+    activeMenu: "",
+    isAffix: false,
+    isBreadcrumb: true,
+    alwaysShow: true
   }
   proxy.resetForm("menuRef")
 }

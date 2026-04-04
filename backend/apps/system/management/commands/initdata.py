@@ -96,6 +96,11 @@ class Command(BaseCommand):
                 'status': node.get('status', '0'),
                 'perms': node.get('perms', ''),
                 'icon': node.get('icon', ''),
+                'redirect': node.get('redirect', ''),
+                'active_menu': node.get('activeMenu', ''),
+                'is_affix': node.get('isAffix', False),
+                'is_breadcrumb': node.get('isBreadcrumb', True),
+                'always_show': node.get('alwaysShow', True),
             }
             result.append(menu)
             if children:
