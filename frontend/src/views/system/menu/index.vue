@@ -48,13 +48,16 @@
       </el-row>
 
       <el-table
-         v-if="refreshTable"
+         ref="menuTable"
          v-loading="loading"
          :data="menuList"
          row-key="menuId"
          :default-expand-all="isExpandAll"
          :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
+         <template #empty>
+            <el-empty description="暂无菜单数据" />
+         </template>
          <el-table-column prop="menuName" label="菜单名称" :show-overflow-tooltip="true" width="160"></el-table-column>
          <el-table-column prop="icon" label="图标" align="center" width="100">
             <template #default="scope">
@@ -312,23 +315,81 @@ const showSearch = ref(true)
 const title = ref("")
 const menuOptions = ref([])
 const isExpandAll = ref(false)
-const refreshTable = ref(true)
 const iconSelectRef = ref(null)
 
 const data = reactive({
   form: {},
   queryParams: {
     menuName: undefined,
-    visible: undefined
+    status: undefined
   },
   rules: {
     menuName: [{ required: true, message: "菜单名称不能为空", trigger: "blur" }],
     orderNum: [{ required: true, message: "菜单顺序不能为空", trigger: "blur" }],
-    path: [{ required: true, message: "路由地址不能为空", trigger: "blur" }]
+    path: [
+      { 
+        validator: (rule, value, callback) => {
+          // 按钮类型不需要路径
+          if (form.value.menuType === 'F') {
+            callback()
+            return
+          }
+          // 目录和菜单类型必须填写路径
+          if (!value) {
+            callback(new Error("路由地址不能为空"))
+            return
+          }
+          // 验证路径格式
+          if (!/^[\/a-zA-Z0-9_\-]*$/.test(value)) {
+            callback(new Error("路由地址只能包含字母、数字、斜杠、下划线和连字符"))
+            return
+          }
+          callback()
+        }, 
+        trigger: "blur" 
+      }
+    ]
   },
 })
 
 const { queryParams, form, rules } = toRefs(data)
+
+/** 统一 API 错误处理 */
+function handleApiError(error, message = '操作失败') {
+  // 开发环境才输出详细错误
+  if (import.meta.env.MODE === 'development') {
+    console.error('[Menu API Error]:', error)
+  } else {
+    // 生产环境只记录错误类型
+    console.error(`[Menu Error]: ${message}`)
+  }
+  proxy.$modal.msgError(message)
+}
+
+/** 安全的路由名称生成 */
+function generateRouteName(name, path) {
+  if (!name) return ''
+  
+  // 优先使用路径生成英文路由名
+  if (path) {
+    const pathName = path.split('/').filter(Boolean).join('-')
+    const routeName = pathName
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .replace(/(?:^|[-_])(\w)/g, (_, c) => c ? c.toUpperCase() : '')
+    if (routeName) return routeName
+  }
+  
+  // 退路：使用菜单名称
+  const safeName = name.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5]/g, '')
+  const routeName = safeName.replace(/(?:^|[-_])(\w)/g, (_, c) => c ? c.toUpperCase() : '')
+  
+  // 开发环境警告：路由名称包含中文
+  if (import.meta.env.MODE === 'development' && /[\u4e00-\u9fa5]/.test(routeName)) {
+    console.warn(`路由名称 "${routeName}" 包含中文字符，建议使用英文路径`)
+  }
+  
+  return routeName
+}
 
 /** 查询菜单列表 */
 function getList() {
@@ -336,6 +397,9 @@ function getList() {
   listMenu(queryParams.value).then(response => {
     menuList.value = proxy.handleTree(response.data, "menuId")
     loading.value = false
+  }).catch(error => {
+    loading.value = false
+    handleApiError(error, '获取菜单列表失败')
   })
 }
 
@@ -346,6 +410,8 @@ function getTreeselect() {
     const menu = { menuId: 0, menuName: "主类目", children: [] }
     menu.children = proxy.handleTree(response.data, "menuId")
     menuOptions.value.push(menu)
+  }).catch(error => {
+    handleApiError(error, '获取菜单树结构失败')
   })
 }
 
@@ -397,22 +463,29 @@ function resetQuery() {
 function handleAdd(row) {
   reset()
   getTreeselect()
-  if (row != null && row.menuId) {
-    form.value.parentId = row.menuId
-  } else {
-    form.value.parentId = 0
-  }
+  // 使用可选链简化
+  form.value.parentId = row?.menuId || 0
   open.value = true
   title.value = "添加菜单"
 }
 
 /** 展开/折叠操作 */
 function toggleExpandAll() {
-  refreshTable.value = false
   isExpandAll.value = !isExpandAll.value
-  nextTick(() => {
-    refreshTable.value = true
-  })
+  const tableEl = proxy.$refs['menuTable']
+  if (!tableEl) return
+  
+  // 使用 Element Plus 公开 API 递归展开/折叠所有行
+  const toggleRowExpansion = (rows) => {
+    rows.forEach(row => {
+      tableEl.toggleRowExpansion(row, isExpandAll.value)
+      if (row.children && row.children.length > 0) {
+        toggleRowExpansion(row.children)
+      }
+    })
+  }
+  
+  toggleRowExpansion(menuList.value)
 }
 
 /** 修改按钮操作 */
@@ -423,32 +496,43 @@ async function handleUpdate(row) {
     form.value = response.data
     open.value = true
     title.value = "修改菜单"
+  }).catch(error => {
+    handleApiError(error, '获取菜单详情失败')
   })
 }
 
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["menuRef"].validate(valid => {
-      if (valid) {
-        // 如果routeName为空，则自动生成
-        if (!form.value.routeName) {
-          form.value.routeName = form.value.menuName.replace('-', '').replace('_', '')
-          }
-        // 如果是父级菜单id为0，判断路径是否以‘/’开头
+    if (valid) {
+      // 只为菜单类型生成路由名称
+      if (form.value.menuType === 'C' && !form.value.routeName) {
+        form.value.routeName = generateRouteName(form.value.menuName, form.value.path)
+      }
+      
+      // 只处理非按钮类型的路径
+      if (form.value.menuType !== 'F' && form.value.path) {
+        // 父级菜单的路径必须以 '/' 开头
         if (form.value.parentId == 0 && !form.value.path.startsWith('/')) {
           form.value.path = '/' + form.value.path
         }
+      }
+      
       if (form.value.menuId != undefined) {
         updateMenu(form.value).then(response => {
           proxy.$modal.msgSuccess("修改成功")
           open.value = false
           getList()
+        }).catch(error => {
+          handleApiError(error, '修改菜单失败')
         })
       } else {
         addMenu(form.value).then(response => {
           proxy.$modal.msgSuccess("新增成功")
           open.value = false
           getList()
+        }).catch(error => {
+          handleApiError(error, '新增菜单失败')
         })
       }
     }
@@ -462,7 +546,11 @@ function handleDelete(row) {
   }).then(() => {
     getList()
     proxy.$modal.msgSuccess("删除成功")
-  }).catch(() => {})
+  }).catch(error => {
+    if (error && error !== 'cancel') {
+      handleApiError(error, '删除菜单失败')
+    }
+  })
 }
 
 getList()

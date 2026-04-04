@@ -171,12 +171,19 @@
    </div>
 </template>
 
-<script setup name="Dict">
+<script setup>
+import { getCurrentInstance, ref, reactive, toRefs } from 'vue'
 import useDictStore from '@/store/modules/dict'
 import { listType, getType, delType, addType, updateType, refreshCache } from "@/api/system/dict/type"
 
+defineOptions({
+  name: 'Dict'
+})
+
 const { proxy } = getCurrentInstance()
-const { sys_normal_disable } = proxy.useDict("sys_normal_disable")
+const { sys_normal_disable = [] } = proxy.useDict("sys_normal_disable")
+
+const dictRef = ref(null)
 
 const typeList = ref([])
 const open = ref(false)
@@ -206,14 +213,32 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
+/** 统一 API 错误处理 */
+function handleApiError(error, message = '操作失败') {
+  // 开发环境才输出详细错误
+  if (import.meta.env.MODE === 'development') {
+    console.error('[Dict API Error]:', error)
+  } else {
+    // 生产环境只记录错误类型
+    console.error(`[Dict Error]: ${message}`)
+  }
+  proxy.$modal.msgError(message)
+}
+
 /** 查询字典类型列表 */
 function getList() {
   loading.value = true
-  listType(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
-    typeList.value = response.rows
-    total.value = response.total
-    loading.value = false
-  })
+  listType(proxy.addDateRange(queryParams.value, dateRange.value))
+    .then(response => {
+      typeList.value = response.rows
+      total.value = response.total
+    })
+    .catch(error => {
+      handleApiError(error, '获取字典列表失败')
+    })
+    .finally(() => {
+      loading.value = false
+    })
 }
 
 /** 取消按钮 */
@@ -257,7 +282,7 @@ function handleAdd() {
 /** 多选框选中数据 */
 function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.dictId)
-  single.value = selection.length != 1
+  single.value = selection.length !== 1
   multiple.value = !selection.length
 }
 
@@ -265,29 +290,41 @@ function handleSelectionChange(selection) {
 function handleUpdate(row) {
   reset()
   const dictId = row.dictId || ids.value
-  getType(dictId).then(response => {
-    form.value = response.data
-    open.value = true
-    title.value = "修改字典类型"
-  })
+  getType(dictId)
+    .then(response => {
+      form.value = response.data
+      open.value = true
+      title.value = "修改字典类型"
+    })
+    .catch(error => {
+      handleApiError(error, '获取字典详情失败')
+    })
 }
 
 /** 提交按钮 */
 function submitForm() {
-  proxy.$refs["dictRef"].validate(valid => {
+  dictRef.value?.validate(valid => {
     if (valid) {
-      if (form.value.dictId != undefined) {
-        updateType(form.value).then(response => {
-          proxy.$modal.msgSuccess("修改成功")
-          open.value = false
-          getList()
-        })
+      if (form.value.dictId !== undefined) {
+        updateType(form.value)
+          .then(response => {
+            proxy.$modal.msgSuccess("修改成功")
+            open.value = false
+            getList()
+          })
+          .catch(error => {
+            handleApiError(error, '修改字典失败')
+          })
       } else {
-        addType(form.value).then(response => {
-          proxy.$modal.msgSuccess("新增成功")
-          open.value = false
-          getList()
-        })
+        addType(form.value)
+          .then(response => {
+            proxy.$modal.msgSuccess("新增成功")
+            open.value = false
+            getList()
+          })
+          .catch(error => {
+            handleApiError(error, '新增字典失败')
+          })
       }
     }
   })
@@ -296,12 +333,20 @@ function submitForm() {
 /** 删除按钮操作 */
 function handleDelete(row) {
   const dictIds = row.dictId || ids.value
-  proxy.$modal.confirm('是否确认删除字典编号为"' + dictIds + '"的数据项？').then(function() {
-    return delType(dictIds)
-  }).then(() => {
-    getList()
-    proxy.$modal.msgSuccess("删除成功")
-  }).catch(() => {})
+  proxy.$modal.confirm(`是否确认删除字典编号为"${dictIds}"的数据项？`)
+    .then(function() {
+      return delType(dictIds)
+    })
+    .then(() => {
+      getList()
+      proxy.$modal.msgSuccess("删除成功")
+    })
+    .catch(error => {
+      // 区分用户取消和真实错误
+      if (error && error !== 'cancel') {
+        handleApiError(error, '删除字典失败')
+      }
+    })
 }
 
 /** 导出按钮操作 */
@@ -313,10 +358,14 @@ function handleExport() {
 
 /** 刷新缓存按钮操作 */
 function handleRefreshCache() {
-  refreshCache().then(() => {
-    proxy.$modal.msgSuccess("刷新成功")
-    useDictStore().cleanDict()
-  })
+  refreshCache()
+    .then(() => {
+      proxy.$modal.msgSuccess("刷新成功")
+      useDictStore().cleanDict()
+    })
+    .catch(error => {
+      handleApiError(error, '刷新缓存失败')
+    })
 }
 
 getList()
