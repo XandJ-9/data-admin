@@ -404,7 +404,7 @@
     "path": "/terminal",
     "routeName": "Terminal",
     "menuType": "M",
-    "icon": "computer",
+    "icon": "console",
     "visible": "0",
     "status": "0",
     "perms": "",
@@ -419,7 +419,7 @@
         "visible": "0",
         "status": "0",
         "perms": "terminal:index:view",
-        "icon": "terminal"
+        "icon": "console"
       },
       {
         "menuName": "会话历史",
@@ -434,5 +434,31 @@
         "icon": "time"
       }
     ]
+  },
+  {
+    "menuName": "数据开发",
+    "orderNum": 11,
+    "path": "/datadev",
+    "routeName": "DataDev",
+    "menuType": "M",
+    "icon": "code",
+    "visible": "0",
+    "status": "0",
+    "perms": "",
+    "children": [
+      {
+        "menuName": "开发工作台",
+        "orderNum": 1,
+        "path": "ide",
+        "component": "data/dev/index",
+        "routeName": "DataDevIde",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "datadev:ide:view",
+        "icon": "code"
+      }
+    ]
+
   }
 ]
