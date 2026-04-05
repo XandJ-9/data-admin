@@ -87,15 +87,3 @@ cd frontend && pnpm install && pnpm dev
 ```
 
 **默认账号**：`admin / admin123`
-
----
-
-## 五、关键抽象位置
-
-| 组件 | 位置 |
-|------|------|
-| `BaseModel` | `apps/system/models.py` |
-| `BaseViewSet` | `apps/system/views/core.py` |
-| `BaseModelSerializer` | `apps/system/serializers.py` |
-| `DataSourceExecutor` | `apps/dbutils/base.py` |
-| `HasRolePermission` | `apps/system/permission.py` |
