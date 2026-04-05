@@ -2,6 +2,14 @@
 
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
+## [v1.4.0] - 2026-04-05
+- [Feature] 新增数据开发模块后端（`apps.datadev`）：
+  - 实现三个核心模型：`DataDevScript`（脚本资产）、`DataDevScriptVersion`（版本快照）、`DataDevScriptExecution`（执行记录）
+  - 实现完整 RESTful API：脚本 CRUD、版本创建/回滚、执行触发、执行记录查询
+  - 路由注册：`data-api/datadev/scripts`、`data-api/datadev/executions`
+  - 数据库迁移已生成并执行
+- [Architecture] 遵循 ADR-006 决策：模型独立，执行层预留复用 `apps.executors` 适配接口
+
 ## [v1.3.8] - 2026-04-05
 - [Feature] 顶部导航点击父级菜单时，除联动侧边栏外新增自动路由跳转：优先使用路由 `redirect`，否则跳转首个子路由，避免仅展开不跳转。
 - [Bugfix] 修复浏览器控制台 `Added non-passive event listener to a scroll-blocking 'wheel' event` 性能警告：在应用初始化阶段统一为 `wheel/touchstart/touchmove` 事件补充 `passive` 默认值，提升滚动响应性。

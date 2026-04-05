@@ -1,5 +1,14 @@
 # 任务追踪
 
+### 2026-04-05: 数据开发模块后端实现（v1.4.0）
+
+- ✅ 创建 `apps.datadev` Django App，含 models/serializers/views/urls/admin
+- ✅ 实现三个核心模型：`DataDevScript`、`DataDevScriptVersion`、`DataDevScriptExecution`
+- ✅ 完成 RESTful API：脚本 CRUD、版本创建与回滚、执行触发、执行记录查询
+- ✅ 注册路由 `data-api/datadev/`，生成并执行数据库迁移
+- 🔲 前端页面：脚本管理列表、脚本编辑器（SQL/Python）、版本历史、执行记录
+- 🔲 对接执行器适配层：通过 `apps.executors` 实际执行 SQL/Python 脚本
+
 ### 2026-04-05: 顶部菜单跳转与滚动性能告警修复
 
 - 修复顶部菜单父级点击行为：在保留侧边栏联动的基础上，同步执行路由跳转，优先走 `redirect`，无 `redirect` 时跳转首个子路由
