@@ -24,7 +24,7 @@ class ScriptListSerializer(BaseModelSerializer):
         model = DataDevScript
         fields = [
             'scriptId', 'scriptName', 'scriptCode', 'scriptType',
-            'description', 'status', 'datasourceId', 'datasourceName',
+                'description', 'status', 'layer', 'datasourceId', 'datasourceName',
             'tags', 'owner', 'remark',
         ]
 
@@ -36,6 +36,7 @@ class ScriptCreateSerializer(serializers.Serializer):
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], default='sql')
     description = serializers.CharField(required=False, allow_blank=True, default='')
     datasourceId = serializers.IntegerField(required=False, allow_null=True)
+    layer = serializers.ChoiceField(choices=['ODS', 'DWD', 'DWS', 'ADS'], required=False, allow_blank=True, default='')
     tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     remark = serializers.CharField(required=False, allow_blank=True, default='')
     content = serializers.CharField(required=False, allow_blank=True, default='')
@@ -54,6 +55,7 @@ class ScriptCreateSerializer(serializers.Serializer):
             script_type=validated_data['scriptType'],
             description=validated_data.get('description', ''),
             datasource=datasource,
+                layer=validated_data.get('layer', ''),
             tags=validated_data.get('tags', []),
             remark=validated_data.get('remark', ''),
             owner=getattr(request, 'user', None) and request.user.username or '',
@@ -81,6 +83,7 @@ class ScriptUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=['draft', 'published', 'archived'], required=False)
     datasourceId = serializers.IntegerField(required=False, allow_null=True)
+    layer = serializers.ChoiceField(choices=['ODS', 'DWD', 'DWS', 'ADS'], required=False, allow_blank=True)
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     remark = serializers.CharField(required=False, allow_blank=True)
 
@@ -90,6 +93,7 @@ class ScriptQuerySerializer(serializers.Serializer):
     scriptName = serializers.CharField(required=False, allow_blank=True)
     scriptType = serializers.ChoiceField(required=False, choices=['sql', 'python'])
     status = serializers.ChoiceField(required=False, choices=['draft', 'published', 'archived'])
+    layer = serializers.ChoiceField(required=False, choices=['ODS', 'DWD', 'DWS', 'ADS'], allow_blank=True)
 
 
 # ── ScriptVersion ───────────────────────────────

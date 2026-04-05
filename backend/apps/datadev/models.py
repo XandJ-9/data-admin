@@ -46,6 +46,19 @@ class DataDevScript(BaseModel):
     owner = models.CharField(max_length=64, blank=True, default='', verbose_name='归属人')
     project_id = models.CharField(max_length=64, blank=True, default='', verbose_name='项目ID')
 
+    # 数仓分层
+    LAYER_CHOICES = [
+        ('ODS', 'ODS 贴源层'),
+        ('DWD', 'DWD 明细层'),
+        ('DWS', 'DWS 汇总层'),
+        ('ADS', 'ADS 应用层'),
+    ]
+    layer = models.CharField(
+        max_length=10, choices=LAYER_CHOICES, blank=True, default='',
+        verbose_name='数仓分层', help_text='ODS/DWD/DWS/ADS',
+        db_index=True,
+    )
+
     class Meta:
         db_table = 'datadev_script'
         verbose_name = '数据开发脚本'
