@@ -2,6 +2,10 @@
 
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
+## [v1.3.8] - 2026-04-05
+- [Feature] 顶部导航点击父级菜单时，除联动侧边栏外新增自动路由跳转：优先使用路由 `redirect`，否则跳转首个子路由，避免仅展开不跳转。
+- [Bugfix] 修复浏览器控制台 `Added non-passive event listener to a scroll-blocking 'wheel' event` 性能警告：在应用初始化阶段统一为 `wheel/touchstart/touchmove` 事件补充 `passive` 默认值，提升滚动响应性。
+
 ## [v1.3.7] - 2026-04-05
 - [Docs] 新增 ADR-006，明确数据开发模块架构决策：定位为脚本研发中心（SQL/Python），首期聚焦脚本资产管理、版本管理与执行记录查询。
 - [Refactor] 明确数据开发与 ETL 边界：脚本域模型独立，执行层复用 `apps.executors`，不重复建设执行器体系。
