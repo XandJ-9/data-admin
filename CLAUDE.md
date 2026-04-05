@@ -40,7 +40,7 @@
 | 原则 | 说明 |
 |------|------|
 | **ADR 优先** | 涉及技术选型、数据库变更或重大功能实现时，必须先检查 `/docs/adr/` 目录 |
-| **文档同步** | 代码更新时，同步更新 `/docs/requirements/active_tasks.md` 和 `docs/changelog.md` |
+| **文档同步** | 代码更新时，同步更新 `/docs/requirements/active_tasks.md` 和 `docs/changelog.md` ，注意按照新记录添加在旧记录之前|
 | **类型安全** | 后端使用 type hints；前端使用 JavaScript，**不要提示迁移至 TypeScript** |
 | **中文化** | 提交信息、用户界面文本使用中文（技术术语除外） |
 

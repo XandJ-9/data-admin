@@ -9,7 +9,7 @@ from typing import Tuple, Dict, Any
 from datetime import datetime
 
 from ..models import ETLTask
-from ..executors.datax_config_builder import DataXConfigBuilder
+from apps.executors.datax_config_builder import DataXConfigBuilder
 
 logger = logging.getLogger(__name__)
 

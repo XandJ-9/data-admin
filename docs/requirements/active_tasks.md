@@ -1,6 +1,21 @@
 # 任务追踪
 
 
+### 2026-04-05: 数据开发模块架构设计与 ADR-006
+
+- 完成"数据开发模块"架构方案设计，定位为脚本研发中心（SQL/Python），聚焦脚本资产管理、版本管理、执行触发与执行记录查询
+- 确定与 ETL 的关系：模型独立，执行层复用 `apps.executors`，避免重复建设执行器体系
+- 新增 `docs/adr/ADR-006-数据开发模块架构决策.md`，记录模块定位、复用策略、首期语言范围、权限策略与非目标边界
+- 确立后续实施基线：脚本研发 → 版本化 → 执行触发 → 执行记录追踪完整闭环，首版不做多租户细粒度权限
+
+### 2026-04-05: DataETL 执行器通用化抽象
+
+- 将执行器抽象基类与工厂从 `apps.dataetl.executors.base` 下沉为通用模块：`apps.executors`
+- 新增 `backend/apps/executors/base.py` 与 `backend/apps/executors/__init__.py`
+- 保持兼容：`apps.dataetl.executors.base` 继续导出 `BaseETLExecutor` 与 `ExecutorFactory`
+- 目标达成：ETL 现有调用路径无需改动，同时为其他业务模块复用执行器机制提供统一入口
+
+
 ### 2026-04-02: Windows 终端 PTY 读取稳定性修复（v1.3.1）
 
 - 修复 Windows 终端 PTY 读取无响应问题：pywinpty `PtyProcess.read()` 不接受 timeout 参数，改为 `read(4096)` 直接传入 buffer size
