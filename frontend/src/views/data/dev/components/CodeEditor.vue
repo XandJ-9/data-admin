@@ -7,7 +7,10 @@
           执行
         </el-button>
         <el-button size="small" :icon="DocumentCopy" @click="$emit('save')" :disabled="!hasChange">
-          保存版本
+          保存草稿版本
+        </el-button>
+        <el-button type="success" size="small" :icon="UploadFilled" @click="$emit('publish')" :disabled="!hasChange">
+          发布
         </el-button>
         <el-divider direction="vertical" />
         <el-button size="small" text :icon="FullScreen" @click="$emit('fullscreen')" title="全屏编辑" />
@@ -50,7 +53,7 @@ import 'ace-builds/src-noconflict/snippets/python'
 import 'ace-builds/src-noconflict/theme-xcode'
 import 'ace-builds/src-noconflict/theme-monokai'
 import {
-  CaretRight, DocumentCopy, FullScreen, More,
+  CaretRight, DocumentCopy, FullScreen, More, UploadFilled,
 } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'DevCodeEditor' })
@@ -63,7 +66,7 @@ const props = defineProps({
   theme: { type: String, default: 'xcode' },
 })
 
-const emit = defineEmits(['update:modelValue', 'run', 'save', 'fullscreen'])
+const emit = defineEmits(['update:modelValue', 'run', 'save', 'publish', 'fullscreen'])
 
 const aceInstance = ref(null)
 const editorWrapperRef = ref(null)

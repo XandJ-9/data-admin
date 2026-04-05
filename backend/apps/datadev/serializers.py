@@ -55,7 +55,7 @@ class ScriptCreateSerializer(serializers.Serializer):
             script_type=validated_data['scriptType'],
             description=validated_data.get('description', ''),
             datasource=datasource,
-                layer=validated_data.get('layer', ''),
+            layer=validated_data.get('layer', ''),
             tags=validated_data.get('tags', []),
             remark=validated_data.get('remark', ''),
             owner=getattr(request, 'user', None) and request.user.username or '',
@@ -70,6 +70,7 @@ class ScriptCreateSerializer(serializers.Serializer):
                 content=content,
                 content_hash=hashlib.sha256(content.encode()).hexdigest(),
                 is_current=True,
+                is_released=False,
                 create_by=script.create_by,
             )
 
@@ -106,6 +107,7 @@ class ScriptVersionSerializer(serializers.ModelSerializer):
     contentHash = serializers.CharField(source='content_hash', read_only=True)
     changeLog = serializers.CharField(source='change_log', read_only=True)
     isCurrent = serializers.BooleanField(source='is_current', read_only=True)
+    isReleased = serializers.BooleanField(source='is_released', read_only=True)
     createBy = serializers.CharField(source='create_by', read_only=True)
     createTime = serializers.DateTimeField(
         source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S'
@@ -115,7 +117,7 @@ class ScriptVersionSerializer(serializers.ModelSerializer):
         model = DataDevScriptVersion
         fields = [
             'versionId', 'scriptId', 'versionNumber', 'content',
-            'contentHash', 'changeLog', 'isCurrent', 'createBy', 'createTime',
+            'contentHash', 'changeLog', 'isCurrent', 'isReleased', 'createBy', 'createTime',
         ]
 
 
@@ -123,6 +125,7 @@ class ScriptVersionCreateSerializer(serializers.Serializer):
     """创建新版本"""
     content = serializers.CharField()
     changeLog = serializers.CharField(required=False, allow_blank=True, default='')
+    isReleased = serializers.BooleanField(required=False, default=False)
 
 
 # ── ScriptExecution ─────────────────────────────

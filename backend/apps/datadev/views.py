@@ -4,7 +4,6 @@ import uuid
 
 from django.db import transaction
 from django.db.models import Max
-from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
@@ -45,6 +44,8 @@ class ScriptViewSet(BaseViewSet):
             qs = qs.filter(script_type=vd['scriptType'])
         if vd.get('status'):
             qs = qs.filter(status=vd['status'])
+        if vd.get('layer') is not None:
+            qs = qs.filter(layer=vd['layer'])
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -102,6 +103,8 @@ class ScriptViewSet(BaseViewSet):
             update_fields['datasource'] = (
                 DataSource.objects.filter(id=ds_id).first() if ds_id else None
             )
+        if 'layer' in vd:
+            update_fields['layer'] = vd['layer']
 
         update_fields['update_by'] = (
             request.user.username if hasattr(request, 'user') else ''
@@ -130,17 +133,44 @@ class ScriptViewSet(BaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='versions/create')
     def create_version(self, request, pk=None):
-        """创建新版本"""
+        """创建新版本（默认草稿版本）"""
         script = self.get_object()
         s = ScriptVersionCreateSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         content = s.validated_data['content']
         change_log = s.validated_data.get('changeLog', '')
 
+        self._create_version_snapshot(
+            script=script,
+            content=content,
+            change_log=change_log,
+            is_released=False,
+            username=request.user.username if hasattr(request, 'user') else '',
+        )
+        return self.ok(msg='草稿版本保存成功')
+
+    @action(detail=True, methods=['post'], url_path='versions/publish')
+    def publish_version(self, request, pk=None):
+        """发布新版本（正式可用）"""
+        script = self.get_object()
+        s = ScriptVersionCreateSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        content = s.validated_data['content']
+        change_log = s.validated_data.get('changeLog', '')
+
+        self._create_version_snapshot(
+            script=script,
+            content=content,
+            change_log=change_log,
+            is_released=True,
+            username=request.user.username if hasattr(request, 'user') else '',
+        )
+        return self.ok(msg='发布成功')
+
+    def _create_version_snapshot(self, script, content, change_log, is_released, username):
+        """创建版本快照，并维护当前版本与脚本发布状态。"""
         with transaction.atomic():
-            # 取消旧的 is_current
             script.versions.filter(is_current=True).update(is_current=False)
-            # 计算新版本号
             max_ver = script.versions.aggregate(
                 max_v=Max('version_number')
             )['max_v'] or 0
@@ -151,9 +181,12 @@ class ScriptViewSet(BaseViewSet):
                 content_hash=hashlib.sha256(content.encode()).hexdigest(),
                 change_log=change_log,
                 is_current=True,
-                create_by=request.user.username if hasattr(request, 'user') else '',
+                is_released=is_released,
+                create_by=username,
             )
-        return self.ok(msg='版本创建成功')
+            script.status = 'published' if is_released else 'draft'
+            script.update_by = username
+            script.save(update_fields=['status', 'update_by', 'update_time'])
 
     @action(detail=True, methods=['post'], url_path=r'versions/(?P<version_id>\d+)/rollback')
     def rollback_version(self, request, pk=None, version_id=None):
@@ -162,11 +195,16 @@ class ScriptViewSet(BaseViewSet):
         target = script.versions.filter(id=version_id).first()
         if not target:
             return self.error(msg='版本不存在')
+        if not target.is_released:
+            return self.error(msg='只能回滚到正式版本')
 
         with transaction.atomic():
             script.versions.filter(is_current=True).update(is_current=False)
             target.is_current = True
             target.save(update_fields=['is_current'])
+            script.status = 'published'
+            script.update_by = request.user.username if hasattr(request, 'user') else ''
+            script.save(update_fields=['status', 'update_by', 'update_time'])
         return self.ok(msg='回滚成功')
 
     # ── 执行管理 ──────────────────────────────

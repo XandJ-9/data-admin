@@ -64,6 +64,15 @@ export function createVersion(scriptId, data) {
   })
 }
 
+/** 发布新版本 */
+export function publishVersion(scriptId, data) {
+  return request({
+    url: `/datadev/scripts/${scriptId}/versions/publish`,
+    method: 'post',
+    data,
+  })
+}
+
 /** 回滚到指定版本 */
 export function rollbackVersion(scriptId, versionId) {
   return request({

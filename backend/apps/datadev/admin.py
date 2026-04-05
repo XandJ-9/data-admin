@@ -11,8 +11,8 @@ class DataDevScriptAdmin(admin.ModelAdmin):
 
 @admin.register(DataDevScriptVersion)
 class DataDevScriptVersionAdmin(admin.ModelAdmin):
-    list_display = ['id', 'script', 'version_number', 'is_current', 'create_by', 'create_time']
-    list_filter = ['is_current']
+    list_display = ['id', 'script', 'version_number', 'is_current', 'is_released', 'create_by', 'create_time']
+    list_filter = ['is_current', 'is_released']
     search_fields = ['script__script_name']
 
 

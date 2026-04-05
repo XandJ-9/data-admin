@@ -24,6 +24,7 @@
               :has-change="hasChange"
               @run="handleRun"
               @save="handleSave"
+              @publish="handlePublish"
               @fullscreen="showFullscreen = true"
             />
           </pane>
@@ -56,9 +57,14 @@
                 >
                   <div class="version-head">
                     <span class="version-num">v{{ v.versionNumber }}</span>
-                    <el-tag v-if="v.isCurrent" type="success" size="small" effect="plain">当前</el-tag>
+                    <div class="version-tags">
+                      <el-tag :type="v.isReleased ? 'success' : 'info'" size="small" effect="plain">
+                        {{ v.isReleased ? '正式' : '草稿' }}
+                      </el-tag>
+                      <el-tag v-if="v.isCurrent" type="success" size="small" effect="plain">当前</el-tag>
+                    </div>
                     <el-button
-                      v-else
+                      v-if="!v.isCurrent && v.isReleased"
                       link type="primary" size="small"
                       @click="handleRollback(v)"
                     >回滚</el-button>
@@ -150,16 +156,19 @@
         :theme="'xcode'"
         @run="handleRun"
         @save="handleSave"
+        @publish="handlePublish"
         style="height: 80vh"
       />
     </el-dialog>
 
     <!-- 保存版本对话框 -->
-    <el-dialog v-model="showSaveDialog" title="保存版本" width="420px">
+    <el-dialog v-model="showSaveDialog" :title="saveMode === 'publish' ? '发布版本' : '保存草稿版本'" width="420px">
       <el-input v-model="saveChangeLog" type="textarea" :rows="3" placeholder="变更说明（可选）" />
       <template #footer>
         <el-button @click="showSaveDialog = false">取消</el-button>
-        <el-button type="primary" @click="confirmSave" :loading="saving">保存</el-button>
+        <el-button :type="saveMode === 'publish' ? 'success' : 'primary'" @click="confirmSave" :loading="saving">
+          {{ saveMode === 'publish' ? '发布' : '保存草稿' }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -173,7 +182,7 @@ import 'splitpanes/dist/splitpanes.css'
 import { listDatasource } from '@/api/data/datasource'
 import {
   listScripts, getScript, addScript,
-  listVersions, createVersion, rollbackVersion,
+  listVersions, createVersion, publishVersion, rollbackVersion,
   executeScript, listScriptExecutions,
 } from '@/api/data/datadev'
 
@@ -342,12 +351,24 @@ async function loadVersions(scriptId) {
 const showSaveDialog = ref(false)
 const saveChangeLog = ref('')
 const saving = ref(false)
+const saveMode = ref('draft')
 
 function handleSave() {
   if (!currentScript.value) {
     ElMessage.warning('请先打开一个脚本')
     return
   }
+  saveMode.value = 'draft'
+  saveChangeLog.value = ''
+  showSaveDialog.value = true
+}
+
+function handlePublish() {
+  if (!currentScript.value) {
+    ElMessage.warning('请先打开一个脚本')
+    return
+  }
+  saveMode.value = 'publish'
   saveChangeLog.value = ''
   showSaveDialog.value = true
 }
@@ -355,17 +376,25 @@ function handleSave() {
 async function confirmSave() {
   saving.value = true
   try {
-    await createVersion(currentScript.value.scriptId, {
-      content: content.value,
-      changeLog: saveChangeLog.value,
-    })
+    if (saveMode.value === 'publish') {
+      await publishVersion(currentScript.value.scriptId, {
+        content: content.value,
+        changeLog: saveChangeLog.value,
+      })
+    } else {
+      await createVersion(currentScript.value.scriptId, {
+        content: content.value,
+        changeLog: saveChangeLog.value,
+      })
+    }
     savedContent.value = content.value
-    ElMessage.success('版本保存成功')
+    ElMessage.success(saveMode.value === 'publish' ? '发布成功' : '草稿版本保存成功')
     showSaveDialog.value = false
-    loadVersions(currentScript.value.scriptId)
-    currentVersion.value += 1
+    await loadVersions(currentScript.value.scriptId)
+    await openScript({ scriptId: currentScript.value.scriptId })
+    await loadScripts()
   } catch {
-    ElMessage.error('保存失败')
+    ElMessage.error(saveMode.value === 'publish' ? '发布失败' : '保存失败')
   } finally {
     saving.value = false
   }
@@ -593,7 +622,13 @@ onBeforeUnmount(() => {
 .version-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.version-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .version-num {
   font-weight: 600;

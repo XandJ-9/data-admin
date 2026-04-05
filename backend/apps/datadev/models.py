@@ -94,6 +94,7 @@ class DataDevScriptVersion(models.Model):
     content_hash = models.CharField(max_length=64, blank=True, default='', verbose_name='内容哈希')
     change_log = models.TextField(blank=True, default='', verbose_name='变更说明')
     is_current = models.BooleanField(default=False, verbose_name='当前版本')
+    is_released = models.BooleanField(default=False, verbose_name='正式可用')
 
     create_by = models.CharField(max_length=64, blank=True, default='', verbose_name='创建者')
     create_time = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
@@ -106,6 +107,7 @@ class DataDevScriptVersion(models.Model):
         unique_together = [['script', 'version_number']]
         indexes = [
             models.Index(fields=['is_current']),
+            models.Index(fields=['is_released']),
         ]
 
     def __str__(self):
