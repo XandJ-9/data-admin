@@ -37,6 +37,7 @@ frontend/src/
 │   │   ├── meta.js                #     元数据查询
 │   │   ├── service.js             #     数据服务（查询、接口）
 │   │   ├── etl.js                 #     ETL 任务管理
+│   │   ├── datadev.js             #     数据开发（脚本/版本/执行）
 │   │   ├── integration.js         #     数据集成（预留）
 │   │   ├── studio.js              #     数据工坊（预留）
 │   │   └── taskmonitor.js         #     任务监控（预留）
@@ -71,13 +72,15 @@ frontend/src/
 │   │   │   ├── query/             #       SQL 在线查询
 │   │   │   ├── interface/         #       接口管理
 │   │   │   └── report/            #       报表（预留）
+│   │   ├── dev/                   #     数据开发 IDE
+│   │   │   ├── index.vue          #       主界面（三栏布局 + 多页签）
+│   │   │   └── components/        #       SidePanel / CodeEditor / ResultPanel / StatusBar
 │   │   ├── etl/                   #     ETL 管理
 │   │   │   ├── index.vue          #       ETL 总览
 │   │   │   ├── taskList.vue       #       任务列表
 │   │   │   ├── taskDetail.vue     #       任务编辑（SQL/字段映射/版本）
 │   │   │   ├── executionLogs.vue  #       执行日志
 │   │   │   └── components/        #       ETL 子组件
-│   │   └── integration/           #     数据集成（预留）
 │   ├── system/                    #   系统管理页面
 │   ├── monitor/                   #   监控管理页面
 │   ├── login.vue                  #   登录页
@@ -112,6 +115,13 @@ frontend/src/
 ```
 
 ## 核心设计
+
+### 数据开发 IDE（ADR-006 对齐）
+
+- 左侧资源导航树：分层目录、数据源与表浏览、脚本快速筛选
+- 中央多页签编辑器：同时打开多个脚本并行开发，支持未保存变更提示
+- 右侧与下方面板：版本历史、执行记录、数据预览与日志联动
+- 版本语义：支持保存草稿版本与发布正式版本，界面可区分草稿/正式状态
 
 ### 技术选型
 
