@@ -1,5 +1,12 @@
 # 任务追踪
 
+### 2026-04-06: 脚本执行切换为真实数据源执行
+
+- ✅ execute_script 移除 mock 数据，改用 dbutils.get_executor 连接真实数据源执行 SQL
+- ✅ 新增前置校验：数据源关联、当前版本存在性、脚本内容非空
+- ✅ 执行失败时记录 status=failed 的执行记录，日志记录异常详情
+- ✅ executor 在 finally 块中正确关闭，防止连接泄漏
+
 ### 2026-04-06: 数据开发工作台评审问题修复
 
 - ✅ P0: 后端模拟 Spark SQL 执行，返回列名/行数据/耗时，前端 `handleRun` 解析结果填充 ResultPanel

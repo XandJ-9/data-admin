@@ -1,6 +1,6 @@
 import hashlib
 import logging
-import random
+import time
 import uuid
 from datetime import timedelta
 
@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
 from apps.common.pagination import StandardPagination
+from apps.dbutils.factory import get_executor
 
 from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory
 from .serializers import (
@@ -419,45 +420,88 @@ class ScriptViewSet(BaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='execute')
     def execute_script(self, request, pk=None):
-        """触发脚本执行（模拟 Spark SQL 执行并返回结果）"""
+        """触发脚本执行并返回结果"""
         script = self.get_object()
         current_version = script.versions.filter(is_current=True).first()
 
-        start_time = timezone.now()
-        duration = round(random.uniform(0.1, 2.5), 2)
-        end_time = start_time + timedelta(seconds=duration)
+        if not script.datasource:
+            return self.error(msg='脚本未关联数据源，无法执行')
+        if not current_version:
+            return self.error(msg='脚本没有当前版本')
 
-        # 模拟执行结果
-        mock_columns = ['id', 'user_name', 'department', 'amount', 'created_at']
-        mock_rows = [
-            {'id': i, 'user_name': f'user_{i}', 'department': random.choice(['研发', '产品', '运营', '市场']),
-             'amount': round(random.uniform(100, 9999), 2), 'created_at': '2026-04-06'}
-            for i in range(1, random.randint(6, 15))
-        ]
+        sql = current_version.content
+        if not sql or not sql.strip():
+            return self.error(msg='脚本内容为空')
+
+        ds = script.datasource
+        info = {
+            'type': ds.db_type,
+            'host': ds.host,
+            'port': ds.port,
+            'username': ds.username,
+            'password': ds.password,
+            'database': ds.db_name,
+            'params': ds.params or {},
+        }
+
+        start_time = timezone.now()
+        start_perf = time.perf_counter()
+        executor = None
+        status = 'success'
+        error_msg = ''
+        columns = []
+        rows = []
+
+        try:
+            executor = get_executor(info)
+            result = executor.execute_query(sql=sql)
+            columns = result.get('columns', [])
+            raw_rows = result.get('rows', [])
+            rows = [dict(zip(columns, row)) for row in raw_rows]
+        except Exception as e:
+            status = 'failed'
+            error_msg = str(e)
+            logger.exception('脚本执行失败: script_id=%s, error=%s', script.id, e)
+        finally:
+            if executor:
+                try:
+                    executor.close()
+                except Exception:
+                    pass
+
+        duration = round(time.perf_counter() - start_perf, 2)
+        end_time = start_time + timedelta(seconds=duration)
 
         execution = DataDevScriptExecution.objects.create(
             script=script,
             version=current_version,
             execution_id=uuid.uuid4().hex,
-            status='success',
-            executor_type='sparksql',
+            status=status,
+            executor_type=ds.db_type,
             executor_params=request.data.get('params'),
             start_time=start_time,
             end_time=end_time,
             duration_seconds=duration,
             result_summary={
-                'columns': mock_columns,
-                'rows': mock_rows,
-                'rowCount': len(mock_rows),
+                'columns': columns,
+                'rows': rows,
+                'rowCount': len(rows),
+                'error': error_msg,
             },
             executed_by=request.user.username if hasattr(request, 'user') else '',
         )
 
+        if status == 'failed':
+            return self.error(msg=f'执行失败: {error_msg}', data={
+                'executionId': execution.execution_id,
+                'status': 'failed',
+            })
+
         return self.data({
             'executionId': execution.execution_id,
             'status': 'success',
-            'columns': mock_columns,
-            'rows': mock_rows,
+            'columns': columns,
+            'rows': rows,
             'duration': duration,
         }, msg='执行成功')
 
