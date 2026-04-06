@@ -109,3 +109,48 @@ export function listExecutions(query) {
     params: query,
   })
 }
+
+// ── 数据目录 ─────────────────────────────────
+
+/** 查询数据目录列表 */
+export function listDirectories(query) {
+  return request({
+    url: '/datadev/directories',
+    method: 'get',
+    params: query,
+  })
+}
+
+/** 获取数据目录树 */
+export function getDirectoryTree() {
+  return request({
+    url: '/datadev/directories/tree',
+    method: 'get',
+  })
+}
+
+/** 新增数据目录 */
+export function addDirectory(data) {
+  return request({
+    url: '/datadev/directories',
+    method: 'post',
+    data,
+  })
+}
+
+/** 修改数据目录 */
+export function updateDirectory(id, data) {
+  return request({
+    url: `/datadev/directories/${id}`,
+    method: 'put',
+    data,
+  })
+}
+
+/** 删除数据目录 */
+export function delDirectory(id) {
+  return request({
+    url: `/datadev/directories/${id}`,
+    method: 'delete',
+  })
+}

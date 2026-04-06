@@ -1,6 +1,6 @@
 <template>
   <div class="side-panel">
-    <!-- 数据目录（分层） -->
+    <!-- 数据目录 -->
     <div class="panel-section catalog-section">
       <div class="section-header">
         <span class="section-title">资源导航树</span>
@@ -24,22 +24,22 @@
         >
           <template #default="{ node, data }">
             <span class="tree-node">
-              <el-icon v-if="data.type === 'layer'" class="node-icon layer-icon"><FolderOpened /></el-icon>
+              <el-icon v-if="data.type === 'directory'" class="node-icon layer-icon"><FolderOpened /></el-icon>
               <el-icon v-else-if="data.type === 'ds'" class="node-icon ds-icon"><Coin /></el-icon>
               <el-icon v-else class="node-icon table-icon"><Grid /></el-icon>
               <span class="node-label" :title="data.comment ? `${node.label} — ${data.comment}` : node.label">{{ node.label }}</span>
               <span v-if="data.comment" class="node-comment">{{ data.comment }}</span>
               <el-button
-                v-if="data.type === 'layer'"
+                v-if="data.type === 'directory'"
                 link type="primary" :icon="Plus" class="node-add-btn"
-                :title="`在 ${data.layerKey} 层新建脚本`"
-                @click.stop="$emit('create', { type: 'layer', layerKey: data.layerKey })"
+                :title="`在 ${data.label} 新建脚本`"
+                @click.stop="$emit('create', { type: 'directory', directoryId: data.directoryId, directoryCode: data.directoryCode })"
               />
               <el-button
                 v-if="data.type === 'ds'"
                 link type="primary" :icon="Plus" class="node-add-btn"
                 title="在此数据源新建脚本"
-                @click.stop="$emit('create', { type: 'ds', layerKey: data.layerKey, dsId: data.dsId, dbType: data.dbType })"
+                @click.stop="$emit('create', { type: 'ds', directoryId: data.directoryId, dsId: data.dsId, dbType: data.dbType })"
               />
             </span>
           </template>
@@ -55,15 +55,15 @@
       </div>
       <el-input v-model="scriptFilter" placeholder="搜索脚本" size="small" clearable :prefix-icon="Search" class="filter-input" />
       <el-scrollbar class="script-scroll">
-        <template v-for="layerItem in layeredScripts" :key="layerItem.key">
-          <div v-if="layerItem.scripts.length > 0" class="layer-group">
+        <template v-for="directoryGroup in groupedScripts" :key="directoryGroup.key">
+          <div v-if="directoryGroup.scripts.length > 0" class="layer-group">
             <div class="layer-group-title">
               <el-icon class="layer-group-icon"><FolderOpened /></el-icon>
-              <span>{{ layerItem.label }}</span>
-              <span class="layer-group-count">{{ layerItem.scripts.length }}</span>
+              <span>{{ directoryGroup.label }}</span>
+              <span class="layer-group-count">{{ directoryGroup.scripts.length }}</span>
             </div>
             <div
-              v-for="s in layerItem.scripts"
+              v-for="s in directoryGroup.scripts"
               :key="s.scriptId"
               class="script-item"
               :class="{ active: s.scriptId === activeScriptId }"
@@ -117,53 +117,115 @@ defineOptions({ name: 'DevSidePanel' })
 const props = defineProps({
   scripts: { type: Array, default: () => [] },
   activeScriptId: { type: Number, default: null },
+  directories: { type: Array, default: () => [] },
+  activeDirectoryId: { type: Number, default: null },
 })
 
-const emit = defineEmits(['select', 'create', 'layer-change'])
+const emit = defineEmits(['select', 'create', 'directory-change'])
 
-// ── 分层配置 ────────────────────────────
-const LAYERS = [
-  { key: 'ODS', label: 'ODS 贴源层' },
-  { key: 'DWD', label: 'DWD 明细层' },
-  { key: 'DWS', label: 'DWS 汇总层' },
-  { key: 'ADS', label: 'ADS 应用层' },
-]
+function flattenDirectories(nodes) {
+  const rows = []
+  const walk = (items) => {
+    ;(items || []).forEach((item) => {
+      rows.push(item)
+      if (item.children?.length) {
+        walk(item.children)
+      }
+    })
+  }
+  walk(nodes)
+  return rows
+}
 
-function getDatasourceLayer(dsName) {
+const flatDirectories = computed(() => flattenDirectories(props.directories || []))
+
+function mapDirectoryNode(directory) {
+  return {
+    id: `directory-${directory.directoryId}`,
+    label: directory.directoryName,
+    type: 'directory',
+    directoryId: directory.directoryId,
+    directoryCode: directory.directoryCode,
+    hasDirectoryChildren: Boolean(directory.children?.length),
+    isLeaf: false,
+  }
+}
+
+function getDatasourceDirectoryCode(dsName) {
   const name = (dsName || '').toUpperCase()
-  for (const layer of LAYERS) {
-    if (name.startsWith(layer.key)) return layer.key
+  const sortedDirectories = [...flatDirectories.value].sort(
+    (a, b) => String(b.directoryCode || '').length - String(a.directoryCode || '').length,
+  )
+  for (const directory of sortedDirectories) {
+    const code = String(directory.directoryCode || '').toUpperCase()
+    if (!code) {
+      continue
+    }
+    if (name === code || name.startsWith(`${code}_`)) {
+      return code
+    }
   }
   return null
+}
+
+async function fetchAllDatasources() {
+  const pageSize = 100
+  let page = 1
+  let allRows = []
+
+  while (true) {
+    const res = await listDatasource({ page, pageSize })
+    const rows = res.data?.results || res.data || []
+    allRows = allRows.concat(rows)
+    if (rows.length < pageSize) {
+      break
+    }
+    page += 1
+  }
+
+  return allRows
 }
 
 // ── 数据目录树 ────────────────────────────
 const catalogTreeRef = ref(null)
 const catalogKey = ref(0)
 const catalogFilter = ref('')
-const activeLayerFilter = ref('')
+const activeDirectoryFilter = ref(null)
+
+watch(
+  () => props.activeDirectoryId,
+  (directoryId) => {
+    activeDirectoryFilter.value = directoryId || null
+    nextTick(() => {
+      catalogTreeRef.value?.setCurrentKey(
+        directoryId ? `directory-${directoryId}` : null,
+        true,
+      )
+    })
+  },
+  { immediate: true }
+)
 
 async function loadCatalogNode(node, resolve) {
   if (node.level === 0) {
-    return resolve(LAYERS.map(l => ({
-      id: `layer-${l.key}`,
-      label: l.label,
-      type: 'layer',
-      layerKey: l.key,
-      isLeaf: false,
-    })))
+    return resolve((props.directories || []).map(mapDirectoryNode))
   }
-  if (node.data.type === 'layer') {
+  if (node.data.type === 'directory') {
+    const currentDirectory = flatDirectories.value.find(
+      (directory) => directory.directoryId === node.data.directoryId,
+    )
+    if (currentDirectory?.children?.length) {
+      return resolve(currentDirectory.children.map(mapDirectoryNode))
+    }
     try {
-      const res = await listDatasource({ page: 1, pageSize: 999 })
-      const all = res.data?.results || res.data || []
-      const layerKey = node.data.layerKey
-      const matched = all.filter(ds => getDatasourceLayer(ds.dsName) === layerKey)
+      const all = await fetchAllDatasources()
+      const directoryCode = node.data.directoryCode
+      const matched = all.filter(ds => getDatasourceDirectoryCode(ds.dsName) === directoryCode)
       return resolve(matched.map(ds => ({
         id: `ds-${ds.dsId}`,
         label: ds.dsName,
         type: 'ds',
-        layerKey,
+        directoryId: node.data.directoryId,
         dsId: ds.dsId,
         dbType: ds.dbType,
         isLeaf: false,
@@ -181,7 +243,7 @@ async function loadCatalogNode(node, resolve) {
         label: t.tableName,
         comment: t.tableComment,
         type: 'table',
-        layerKey: node.data.layerKey,
+        directoryId: node.data.directoryId,
         isLeaf: true,
       })))
     } catch {
@@ -207,35 +269,34 @@ function refreshCatalog() {
 }
 
 function handleCatalogNodeClick(data) {
-  const layerKey = data?.layerKey
-  if (!layerKey) return
-  const next = activeLayerFilter.value === layerKey ? '' : layerKey
-  activeLayerFilter.value = next
-  emit('layer-change', next)
+  if (data?.type !== 'directory') return
+  const next = activeDirectoryFilter.value === data.directoryId ? null : data.directoryId
+  activeDirectoryFilter.value = next
+  emit('directory-change', next)
 }
 
 // ── 我的脚本 ────────────────────────────
 const scriptFilter = ref('')
 
 const filteredScripts = computed(() => {
-  const baseScripts = activeLayerFilter.value
-    ? props.scripts.filter(s => s.layer === activeLayerFilter.value)
+  const baseScripts = activeDirectoryFilter.value
+    ? props.scripts.filter(s => s.directoryId === activeDirectoryFilter.value)
     : props.scripts
   if (!scriptFilter.value) return baseScripts
   const q = scriptFilter.value.toLowerCase()
   return baseScripts.filter(s => s.scriptName?.toLowerCase().includes(q) || s.scriptCode?.toLowerCase().includes(q))
 })
 
-const layeredScripts = computed(() =>
-  LAYERS.map(l => ({
-    key: l.key,
-    label: l.label,
-    scripts: filteredScripts.value.filter(s => s.layer === l.key),
+const groupedScripts = computed(() =>
+  flatDirectories.value.map((directory) => ({
+    key: directory.directoryId,
+    label: directory.directoryName,
+    scripts: filteredScripts.value.filter(s => s.directoryId === directory.directoryId),
   }))
 )
 
 const unLayeredScripts = computed(() =>
-  filteredScripts.value.filter(s => !s.layer || !LAYERS.some(l => l.key === s.layer))
+  filteredScripts.value.filter(s => !s.directoryId || !flatDirectories.value.some(d => d.directoryId === s.directoryId))
 )
 
 function statusLabel(status) {

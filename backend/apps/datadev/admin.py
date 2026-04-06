@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution
+from .models import DataDevDirectory, DataDevScript, DataDevScriptVersion, DataDevScriptExecution
+
+
+@admin.register(DataDevDirectory)
+class DataDevDirectoryAdmin(admin.ModelAdmin):
+    list_display = ['directory_id', 'directory_name', 'directory_code', 'parent_id', 'order_num', 'status']
+    list_filter = ['status', 'del_flag']
+    search_fields = ['directory_name', 'directory_code']
 
 
 @admin.register(DataDevScript)

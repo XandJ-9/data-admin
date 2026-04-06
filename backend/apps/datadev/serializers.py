@@ -2,7 +2,7 @@ import hashlib
 
 from rest_framework import serializers
 from apps.system.serializers import BaseModelSerializer
-from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution
+from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory
 
 
 # ── Script ──────────────────────────────────────
@@ -19,12 +19,19 @@ class ScriptListSerializer(BaseModelSerializer):
     datasourceName = serializers.CharField(
         source='datasource.name', read_only=True, default=''
     )
+    directoryId = serializers.IntegerField(
+        source='directory_id', read_only=True, allow_null=True
+    )
+    directoryName = serializers.CharField(
+        source='directory.directory_name', read_only=True, default=''
+    )
 
     class Meta:
         model = DataDevScript
         fields = [
             'scriptId', 'scriptName', 'scriptCode', 'scriptType',
-                'description', 'status', 'layer', 'datasourceId', 'datasourceName',
+            'description', 'status', 'datasourceId', 'datasourceName',
+            'directoryId', 'directoryName',
             'tags', 'owner', 'remark',
         ]
 
@@ -35,40 +42,10 @@ class ScriptCreateSerializer(serializers.Serializer):
     scriptCode = serializers.CharField(max_length=64)
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], default='sql')
     description = serializers.CharField(required=False, allow_blank=True, default='')
-    layer = serializers.ChoiceField(choices=['ODS', 'DWD', 'DWS', 'ADS'], required=False, allow_blank=True, default='')
+    directoryId = serializers.IntegerField(required=False, allow_null=True, default=None)
     tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     remark = serializers.CharField(required=False, allow_blank=True, default='')
     content = serializers.CharField(required=False, allow_blank=True, default='')
-
-    def create(self, validated_data):
-        content = validated_data.pop('content', '')
-        request = self.context.get('request')
-
-        script = DataDevScript.objects.create(
-            script_name=validated_data['scriptName'],
-            script_code=validated_data['scriptCode'],
-            script_type=validated_data['scriptType'],
-            description=validated_data.get('description', ''),
-            layer=validated_data.get('layer', ''),
-            tags=validated_data.get('tags', []),
-            remark=validated_data.get('remark', ''),
-            owner=getattr(request, 'user', None) and request.user.username or '',
-            create_by=getattr(request, 'user', None) and request.user.username or '',
-        )
-
-        # 自动创建 v1
-        if content:
-            DataDevScriptVersion.objects.create(
-                script=script,
-                version_number=1,
-                content=content,
-                content_hash=hashlib.sha256(content.encode()).hexdigest(),
-                is_current=True,
-                is_released=False,
-                create_by=script.create_by,
-            )
-
-        return script
 
 
 class ScriptUpdateSerializer(serializers.Serializer):
@@ -77,7 +54,7 @@ class ScriptUpdateSerializer(serializers.Serializer):
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=['draft', 'published', 'archived'], required=False)
-    layer = serializers.ChoiceField(choices=['ODS', 'DWD', 'DWS', 'ADS'], required=False, allow_blank=True)
+    directoryId = serializers.IntegerField(required=False, allow_null=True)
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     remark = serializers.CharField(required=False, allow_blank=True)
 
@@ -87,7 +64,7 @@ class ScriptQuerySerializer(serializers.Serializer):
     scriptName = serializers.CharField(required=False, allow_blank=True)
     scriptType = serializers.ChoiceField(required=False, choices=['sql', 'python'])
     status = serializers.ChoiceField(required=False, choices=['draft', 'published', 'archived'])
-    layer = serializers.ChoiceField(required=False, choices=['ODS', 'DWD', 'DWS', 'ADS'], allow_blank=True)
+    directoryId = serializers.IntegerField(required=False, allow_null=True)
 
 
 # ── ScriptVersion ───────────────────────────────
@@ -164,3 +141,42 @@ class ScriptExecutionQuerySerializer(serializers.Serializer):
         choices=['pending', 'running', 'success', 'failed', 'cancelled'],
     )
     executedBy = serializers.CharField(required=False, allow_blank=True)
+
+
+# ── DataDevDirectory ──────────────────────────────────────
+
+class DataDevDirectorySerializer(BaseModelSerializer):
+    """数据目录序列化器（列表/详情）"""
+    directoryId = serializers.IntegerField(source='directory_id', read_only=True)
+    parentId = serializers.IntegerField(source='parent_id', read_only=True)
+    directoryName = serializers.CharField(source='directory_name', read_only=True)
+    directoryCode = serializers.CharField(source='directory_code', read_only=True)
+    orderNum = serializers.IntegerField(source='order_num', read_only=True)
+
+    class Meta:
+        model = DataDevDirectory
+        fields = [
+            'directoryId', 'parentId', 'ancestors',
+            'directoryName', 'directoryCode', 'orderNum',
+        ]
+        # __init_subclass__ 自动追加: status, remark, createBy, updateBy, createTime, updateTime
+
+
+class DataDevDirectoryCreateSerializer(serializers.Serializer):
+    """数据目录创建序列化器"""
+    parentId = serializers.IntegerField(default=0)
+    directoryName = serializers.CharField(max_length=100)
+    directoryCode = serializers.CharField(max_length=32)
+    orderNum = serializers.IntegerField(default=0)
+    status = serializers.ChoiceField(choices=['0', '1'], default='0')
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class DataDevDirectoryUpdateSerializer(serializers.Serializer):
+    """数据目录更新序列化器"""
+    parentId = serializers.IntegerField(required=False)
+    directoryName = serializers.CharField(max_length=100, required=False)
+    directoryCode = serializers.CharField(max_length=32, required=False)
+    orderNum = serializers.IntegerField(required=False)
+    status = serializers.ChoiceField(choices=['0', '1'], required=False)
+    remark = serializers.CharField(required=False, allow_blank=True)

@@ -8,6 +8,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.datadev.models import DataDevDirectory
 from apps.system.models import Menu, Role, RoleMenu, User, UserRole, Dept
 
 # 菜单数据 JSON 文件路径（与本脚本同目录）
@@ -33,6 +34,7 @@ class Command(BaseCommand):
         with transaction.atomic():
             self._init_dept(force)
             self._init_menus(force)
+            self._init_datadev_directories(force)
             self._init_roles(force)
             self._init_users(force)
 
@@ -72,6 +74,65 @@ class Command(BaseCommand):
             Menu.objects.create(**m, create_by='system')
 
         self.stdout.write(self.style.SUCCESS(f'菜单初始化完成，共 {len(menus)} 条'))
+
+    # ---------------------------------------------------------- 数据开发目录
+    def _init_datadev_directories(self, force):
+        default_directories = [
+            {
+                'directory_name': 'ODS 贴源层',
+                'directory_code': 'ODS',
+                'order_num': 1,
+                'remark': '默认初始化的数据贴源层目录',
+            },
+            {
+                'directory_name': 'DWD 明细层',
+                'directory_code': 'DWD',
+                'order_num': 2,
+                'remark': '默认初始化的数据明细层目录',
+            },
+            {
+                'directory_name': 'DWS 汇总层',
+                'directory_code': 'DWS',
+                'order_num': 3,
+                'remark': '默认初始化的数据汇总层目录',
+            },
+            {
+                'directory_name': 'ADS 应用层',
+                'directory_code': 'ADS',
+                'order_num': 4,
+                'remark': '默认初始化的数据应用层目录',
+            },
+        ]
+
+        default_codes = {item['directory_code'] for item in default_directories}
+        existing_codes = set(
+            DataDevDirectory.objects.filter(directory_code__in=default_codes, del_flag='0')
+            .values_list('directory_code', flat=True)
+        )
+
+        if existing_codes == default_codes and not force:
+            self.stdout.write('数据开发目录已存在，跳过')
+            return
+
+        initialized_count = 0
+        for item in default_directories:
+            defaults = {
+                'parent_id': DataDevDirectory.ROOT_PARENT_ID,
+                'status': '0',
+                'remark': item['remark'],
+                'directory_name': item['directory_name'],
+                'order_num': item['order_num'],
+                'del_flag': '0',
+                'create_by': 'system',
+                'update_by': 'system',
+            }
+            DataDevDirectory.objects.update_or_create(
+                directory_code=item['directory_code'],
+                defaults=defaults,
+            )
+            initialized_count += 1
+
+        self.stdout.write(self.style.SUCCESS(f'数据开发目录初始化完成，共 {initialized_count} 条'))
 
     def _flatten_menu_tree(self, nodes, parent_id=0):
         """

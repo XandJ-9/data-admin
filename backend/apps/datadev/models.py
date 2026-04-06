@@ -1,6 +1,78 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from apps.system.models import BaseModel
 from apps.datasource.models import DataSource
+
+
+class DataDevDirectory(BaseModel):
+    """
+    数据目录
+
+    用于维护数据开发模块中的目录树节点，首期内置 ODS/DWD/DWS/ADS，
+    后续可继续扩展新的目录项。
+
+    树形结构说明：
+    - parent_id = 0 表示根节点
+    - ancestors 按“0,父目录ID,祖先目录ID”格式维护祖级链路
+    """
+
+    ROOT_PARENT_ID = 0
+    ROOT_ANCESTORS = '0'
+
+    directory_id = models.AutoField(primary_key=True, verbose_name='目录ID')
+    parent_id = models.IntegerField(default=ROOT_PARENT_ID, verbose_name='父目录ID')
+    ancestors = models.CharField(max_length=255, default=ROOT_ANCESTORS, verbose_name='祖级列表')
+    directory_name = models.CharField(max_length=100, verbose_name='目录名称')
+    directory_code = models.CharField(max_length=32, unique=True, verbose_name='目录编码')
+    order_num = models.IntegerField(default=0, verbose_name='显示顺序')
+    status = models.CharField(
+        max_length=1,
+        choices=[('0', '正常'), ('1', '停用')],
+        default='0',
+        verbose_name='状态',
+    )
+    remark = models.CharField(max_length=500, blank=True, default='', verbose_name='备注')
+
+    class Meta:
+        db_table = 'datadev_directory'
+        verbose_name = '数据目录'
+        verbose_name_plural = '数据目录'
+        ordering = ['order_num', 'directory_id']
+        indexes = [
+            models.Index(fields=['parent_id']),
+            models.Index(fields=['directory_code']),
+            models.Index(fields=['status']),
+            models.Index(fields=['del_flag']),
+        ]
+
+    def clean(self):
+        if self.parent_id == self.directory_id and self.directory_id is not None:
+            raise ValidationError('数据目录不能将自身设置为父目录')
+
+        if self.parent_id != self.ROOT_PARENT_ID:
+            parent = DataDevDirectory.objects.filter(
+                directory_id=self.parent_id,
+                del_flag='0',
+            ).first()
+            if parent is None:
+                raise ValidationError('父目录不存在，无法保存当前目录')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        if self.parent_id == self.ROOT_PARENT_ID:
+            self.ancestors = self.ROOT_ANCESTORS
+        else:
+            parent = DataDevDirectory.objects.filter(
+                directory_id=self.parent_id,
+                del_flag='0',
+            ).first()
+            if parent is None:
+                raise ValidationError('父目录不存在，无法保存当前目录')
+            self.ancestors = f"{parent.ancestors},{parent.directory_id}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.directory_name} ({self.directory_code})"
 
 
 class DataDevScript(BaseModel):
@@ -46,17 +118,15 @@ class DataDevScript(BaseModel):
     owner = models.CharField(max_length=64, blank=True, default='', verbose_name='归属人')
     project_id = models.CharField(max_length=64, blank=True, default='', verbose_name='项目ID')
 
-    # 数仓分层
-    LAYER_CHOICES = [
-        ('ODS', 'ODS 贴源层'),
-        ('DWD', 'DWD 明细层'),
-        ('DWS', 'DWS 汇总层'),
-        ('ADS', 'ADS 应用层'),
-    ]
-    layer = models.CharField(
-        max_length=10, choices=LAYER_CHOICES, blank=True, default='',
-        verbose_name='数仓分层', help_text='ODS/DWD/DWS/ADS',
-        db_index=True,
+    # 所属数据目录（未指定时自动取 order_num 最小的目录）
+    directory = models.ForeignKey(
+        DataDevDirectory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='scripts',
+        verbose_name='所属目录',
+        help_text='脚本所属数据目录，未指定时使用默认目录（order_num 最小的目录）',
     )
 
     class Meta:

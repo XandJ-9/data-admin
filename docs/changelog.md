@@ -2,6 +2,29 @@
 
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
+## [v1.4.8] - 2026-04-06
+- [Feature] 新增数据开发数据目录前端管理页 `data/dev/catalog/index`，支持目录树查询、新增、修改、删除。
+- [Feature] 数据开发 IDE 目录化联动升级：侧边栏按目录筛选脚本，目录/数据源节点新建脚本自动携带 `directoryId`。
+- [Refactor] 脚本新建参数从 `layer` 切换为 `directoryId`，与后端 `DataDevScript.directory` 模型保持一致。
+- [Feature] 新增前端目录 API 封装：`listDirectories/getDirectoryTree/addDirectory/updateDirectory/delDirectory`。
+- [Feature] 后端目录接口增强：目录树节点返回 `scriptCount`，目录删除新增子目录/脚本占用校验。
+- [Bugfix] 后端目录更新新增父子循环防护，禁止将目录挂载到自身子目录下。
+- [Feature] 数据开发模块新增 `DataDevDirectory` 数据目录模型，用于管理开发脚本目录项。
+- [Feature] 初始化命令 `initdata` 新增数据目录种子逻辑，默认创建 ODS 贴源层、DWD 明细层、DWS 汇总层、ADS 应用层四个目录项。
+- [Refactor] 数据目录从菜单结构中解耦，改为独立业务模型承载，便于后续持续扩展目录内容。
+- [Test] 新增 `apps.datadev` 测试，验证初始化命令可正确创建默认数据目录。
+
+## [v1.4.7] - 2026-04-06
+- [Feature] 数据开发版本历史交互增强：点击版本条目可直接在编辑区查看对应版本内容。
+- [Feature] 版本查看状态可视化：新增版本条目选中态高亮，便于识别当前浏览版本。
+- [Bugfix] 增加未保存保护：编辑区存在未保存修改时，切换查看历史版本前弹窗确认，避免误覆盖。
+
+## [v1.4.6] - 2026-04-06
+- [Feature] 数据开发脚本版本管理逻辑收敛：同一脚本保存草稿时优先更新已有草稿版本，避免生成多个草稿版本记录。
+- [Feature] 保持正式版本可多次发布：发布动作仍按版本号递增创建正式版本快照，支持长期可追溯。
+- [Refactor] 版本当前态维护优化：保存草稿与发布正式版本前统一清理旧 `is_current` 标记，确保当前版本唯一。
+- [Test] 新增 `apps.datadev` 单元测试，覆盖草稿单例与多次发布正式版本核心场景。
+
 ## [v1.4.5] - 2026-04-06
 - [Feature] 数据开发执行引擎策略调整：脚本执行统一按 Spark SQL 引擎提交，不再依赖创建时选择数据源。
 - [Refactor] 新建脚本弹窗简化：移除数据源选择项，执行器明确为“Spark SQL 执行引擎（固定）”。

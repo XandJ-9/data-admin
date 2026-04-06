@@ -6,9 +6,11 @@
         <side-panel
           :scripts="scriptList"
           :active-script-id="currentScript?.scriptId"
+          :directories="directoryTree"
+          :active-directory-id="selectedDirectoryId"
           @select="openScript"
           @create="onStartCreate"
-          @layer-change="onLayerChange"
+          @directory-change="onDirectoryChange"
         />
       </pane>
 
@@ -90,7 +92,8 @@
                   v-for="v in filteredVersions"
                   :key="v.versionId"
                   class="version-item"
-                  :class="{ current: v.isCurrent }"
+                  :class="{ current: v.isCurrent, selected: selectedVersionId === v.versionId }"
+                  @click="handlePreviewVersion(v)"
                 >
                   <div class="version-head">
                     <span class="version-num">v{{ v.versionNumber }}</span>
@@ -103,7 +106,7 @@
                     <el-button
                       v-if="!v.isCurrent && v.isReleased"
                       link type="primary" size="small"
-                      @click="handleRollback(v)"
+                      @click.stop="handleRollback(v)"
                     >回滚</el-button>
                   </div>
                   <div class="version-meta">
@@ -156,12 +159,14 @@
         <el-form-item label="脚本编码" prop="scriptCode">
           <el-input v-model="createForm.scriptCode" placeholder="唯一编码，如 ods_user_sync" />
         </el-form-item>
-          <el-form-item label="数仓分层">
-            <el-select v-model="createForm.layer" placeholder="选择分层（可选）" clearable style="width: 100%">
-              <el-option label="ODS 贴源层" value="ODS" />
-              <el-option label="DWD 明细层" value="DWD" />
-              <el-option label="DWS 汇总层" value="DWS" />
-              <el-option label="ADS 应用层" value="ADS" />
+          <el-form-item label="所属目录">
+            <el-select v-model="createForm.directoryId" placeholder="请选择目录（可选）" clearable style="width: 100%">
+              <el-option
+                v-for="directory in directoryOptions"
+                :key="directory.directoryId"
+                :label="directory.directoryName"
+                :value="directory.directoryId"
+              />
             </el-select>
           </el-form-item>
           <el-form-item label="执行器">
@@ -214,6 +219,7 @@ import {
   listScripts, getScript, addScript,
   listVersions, createVersion, publishVersion, rollbackVersion,
   executeScript, listScriptExecutions,
+  getDirectoryTree,
 } from '@/api/data/datadev'
 
 import SidePanel  from './components/SidePanel.vue'
@@ -222,6 +228,8 @@ import ResultPanel from './components/ResultPanel.vue'
 import StatusBar  from './components/StatusBar.vue'
 
 defineOptions({ name: 'DataDevIde' })
+const route = useRoute()
+const router = useRouter()
 
 // ── 布局 ────────────────────────────────
 const sideSize = ref(18)
@@ -231,13 +239,80 @@ const editorVSplit = ref(60)
 
 const currentDsName = computed(() => 'Spark SQL')
 
+// ── 数据目录 ────────────────────────────
+const directoryTree = ref([])
+const directoryOptions = ref([])
+const selectedDirectoryId = ref(null)
+
+async function loadDirectories() {
+  try {
+    const res = await getDirectoryTree()
+    directoryTree.value = res.data || []
+    directoryOptions.value = flattenDirectoryTree(directoryTree.value)
+  } catch (error) {
+    directoryTree.value = []
+    directoryOptions.value = []
+    console.warn('[datadev] 加载目录树失败', error)
+  }
+}
+
+function flattenDirectoryTree(treeNodes) {
+  const result = []
+  const traverse = (nodes) => {
+    ;(nodes || []).forEach((node) => {
+      result.push(node)
+      if (node.children?.length) {
+        traverse(node.children)
+      }
+    })
+  }
+  traverse(treeNodes)
+  return result
+}
+
 // ── 脚本列表 ────────────────────────────
 const scriptList = ref([])
+const scriptListRequestId = ref(0)
+
+async function fetchAllScripts(query = {}) {
+  const pageSize = 100
+  let pageNum = 1
+  let allRows = []
+  const loadedScriptIds = new Set()
+
+  while (true) {
+    const res = await listScripts({ ...query, pageNum, pageSize })
+    const rawRows = res.rows || res.data || []
+    const rows = rawRows.filter((item) => {
+      if (item?.scriptId == null || loadedScriptIds.has(item.scriptId)) {
+        return false
+      }
+      loadedScriptIds.add(item.scriptId)
+      return true
+    })
+    allRows = allRows.concat(rows)
+    if (rawRows.length < pageSize) {
+      break
+    }
+    pageNum += 1
+  }
+
+  return allRows
+}
+
 async function loadScripts() {
+  const requestId = ++scriptListRequestId.value
   try {
-    const res = await listScripts()
-    scriptList.value = res.rows || res.data || []
+    const params = selectedDirectoryId.value ? { directoryId: selectedDirectoryId.value } : {}
+    const rows = await fetchAllScripts(params)
+    if (requestId !== scriptListRequestId.value) {
+      return
+    }
+    scriptList.value = rows
   } catch (error) {
+    if (requestId !== scriptListRequestId.value) {
+      return
+    }
     scriptList.value = []
     console.warn('[datadev] 加载脚本列表失败', error)
   }
@@ -278,10 +353,15 @@ const hasChange = computed(() => {
 })
 
 async function openScript(script) {
+  if (!script?.scriptId) return
   stopExecutionStatusPolling()
   try {
     const res = await getScript(script.scriptId)
     const data = res.data
+    if (selectedDirectoryId.value !== (data.directoryId || null)) {
+      selectedDirectoryId.value = data.directoryId || null
+      await loadScripts()
+    }
     const tabPayload = {
       scriptId: data.scriptId,
       scriptName: data.scriptName,
@@ -290,6 +370,8 @@ async function openScript(script) {
       savedContent: data.content || '',
       scriptType: data.scriptType || 'sql',
       datasourceId: data.datasourceId || null,
+      directoryId: data.directoryId || null,
+      directoryName: data.directoryName || '',
       versionNumber: data.versionNumber || 0,
     }
 
@@ -305,10 +387,19 @@ async function openScript(script) {
 
     activeTabScriptId.value = data.scriptId
     await switchEditorTab(data.scriptId)
+    await clearRouteScriptId(data.scriptId)
   } catch (e) {
     console.warn('[datadev] 打开脚本失败', e)
     ElMessage.error('打开脚本失败')
   }
+}
+
+async function clearRouteScriptId(openedScriptId) {
+  const routeScriptId = Number(route.query.scriptId)
+  if (!routeScriptId || routeScriptId !== openedScriptId) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.scriptId
+  await router.replace({ path: route.path, query: nextQuery })
 }
 
 async function switchEditorTab(scriptId) {
@@ -358,11 +449,10 @@ async function closeEditorTab(tabName) {
 const showCreateDialog = ref(false)
 const creating = ref(false)
 const createFormRef = ref(null)
-const selectedLayer = ref('')
 const createForm = reactive({
   scriptName: '',
   scriptCode: '',
-  layer: '',
+  directoryId: null,
   description: '',
 })
 const createRules = {
@@ -370,16 +460,17 @@ const createRules = {
   scriptCode: [{ required: true, message: '请输入脚本编码', trigger: 'blur' }],
 }
 
-function onLayerChange(layerKey) {
-  selectedLayer.value = layerKey || ''
+function onDirectoryChange(directoryId) {
+  selectedDirectoryId.value = directoryId || null
+  loadScripts()
 }
 
 // 点击数据目录中数据源节点的 + 按钮，or 顶部新建按钮
-function onStartCreate(dsData) {
+function onStartCreate(nodeData) {
   createForm.scriptName = ''
   createForm.scriptCode = ''
   createForm.description = ''
-  createForm.layer = dsData?.layerKey || selectedLayer.value || ''
+  createForm.directoryId = nodeData?.directoryId || selectedDirectoryId.value || null
   showCreateDialog.value = true
   nextTick(() => {
     createFormRef.value?.clearValidate()
@@ -395,7 +486,7 @@ async function submitCreate() {
     await addScript({ ...createForm, scriptType: 'sql' })
     ElMessage.success('创建成功')
     showCreateDialog.value = false
-    Object.assign(createForm, { scriptName: '', scriptCode: '', layer: '', description: '' })
+    Object.assign(createForm, { scriptName: '', scriptCode: '', directoryId: null, description: '' })
     loadScripts()
   } catch (e) {
     ElMessage.error('创建失败')
@@ -406,6 +497,7 @@ async function submitCreate() {
 
 // ── 版本管理 ────────────────────────────
 const versions = ref([])
+const selectedVersionId = ref(null)
 const versionView = ref('all')
 const filteredVersions = computed(() => {
   if (versionView.value === 'released') return versions.value.filter((v) => v.isReleased)
@@ -422,10 +514,39 @@ async function loadVersions(scriptId) {
   try {
     const res = await listVersions(scriptId)
     versions.value = res.data || []
+    const currentVersionItem = versions.value.find((item) => item.isCurrent)
+    selectedVersionId.value = currentVersionItem?.versionId || null
   } catch (error) {
     versions.value = []
+    selectedVersionId.value = null
     console.warn('[datadev] 加载版本列表失败', error)
   }
+}
+
+async function handlePreviewVersion(version) {
+  if (!currentScript.value) {
+    ElMessage.warning('请先打开一个脚本')
+    return
+  }
+  if (!version) return
+  if (selectedVersionId.value === version.versionId) return
+
+  if (hasChange.value) {
+    try {
+      await ElMessageBox.confirm('当前内容有未保存修改，查看历史版本将覆盖编辑区内容，是否继续？', '查看版本确认', {
+        type: 'warning',
+        confirmButtonText: '继续查看',
+        cancelButtonText: '取消',
+      })
+    } catch {
+      return
+    }
+  }
+
+  currentScript.value.content = version.content || ''
+  currentScript.value.savedContent = version.content || ''
+  currentScript.value.versionNumber = version.versionNumber || currentScript.value.versionNumber
+  selectedVersionId.value = version.versionId
 }
 
 const showSaveDialog = ref(false)
@@ -633,8 +754,22 @@ const showFullscreen = ref(false)
 
 // ── 初始化 ──────────────────────────────
 onMounted(() => {
+  loadDirectories()
   loadScripts()
+  const initialScriptId = Number(route.query.scriptId)
+  if (initialScriptId) {
+    openScript({ scriptId: initialScriptId })
+  }
 })
+
+watch(
+  () => route.query.scriptId,
+  (scriptId) => {
+    const nextScriptId = Number(scriptId)
+    if (!nextScriptId || nextScriptId === activeTabScriptId.value) return
+    openScript({ scriptId: nextScriptId })
+  }
+)
 
 onBeforeUnmount(() => {
   stopExecutionStatusPolling()
@@ -798,6 +933,18 @@ onBeforeUnmount(() => {
   margin-bottom: 6px;
   border: 1px solid #e5ebf3;
   background: #fbfdff;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: #b9d4f0;
+  }
+
+  &.selected {
+    border-color: #7fb2e6;
+    box-shadow: inset 0 0 0 1px rgba(127, 178, 230, 0.4);
+  }
+
   &.current {
     border-color: #9ad7b7;
     background: var(--accent-soft);
