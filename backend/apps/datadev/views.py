@@ -83,8 +83,6 @@ class ScriptViewSet(BaseViewSet):
         s.is_valid(raise_exception=True)
         vd = s.validated_data
 
-        from apps.datasource.models import DataSource
-
         update_fields = {}
         if 'scriptName' in vd:
             update_fields['script_name'] = vd['scriptName']
@@ -98,11 +96,6 @@ class ScriptViewSet(BaseViewSet):
             update_fields['tags'] = vd['tags']
         if 'remark' in vd:
             update_fields['remark'] = vd['remark']
-        if 'datasourceId' in vd:
-            ds_id = vd['datasourceId']
-            update_fields['datasource'] = (
-                DataSource.objects.filter(id=ds_id).first() if ds_id else None
-            )
         if 'layer' in vd:
             update_fields['layer'] = vd['layer']
 
@@ -220,7 +213,7 @@ class ScriptViewSet(BaseViewSet):
             version=current_version,
             execution_id=uuid.uuid4().hex,
             status='pending',
-            executor_type=script.script_type,
+            executor_type='sparksql',
             executor_params=request.data.get('params'),
             executed_by=request.user.username if hasattr(request, 'user') else '',
         )
@@ -229,7 +222,7 @@ class ScriptViewSet(BaseViewSet):
         # 首期仅创建记录，后续接入实际执行能力
         return self.data(
             {'executionId': execution.execution_id},
-            msg='已提交执行',
+            msg='已提交 Spark SQL 执行请求（待执行器处理）',
         )
 
     @action(detail=True, methods=['get'], url_path='executions')

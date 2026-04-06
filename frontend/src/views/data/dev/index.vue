@@ -14,32 +14,62 @@
 
       <!-- 中央编辑器 -->
       <pane :size="editorSize" :min-size="30">
-        <splitpanes horizontal class="editor-result-split default-theme">
-          <pane :size="editorVSplit" :min-size="25">
-            <code-editor
-              ref="editorRef"
-              v-model="content"
-              :lang="scriptLang"
-              :running="running"
-              :has-change="hasChange"
-              @run="handleRun"
-              @save="handleSave"
-              @publish="handlePublish"
-              @fullscreen="showFullscreen = true"
-            />
-          </pane>
-          <!-- 底部结果区（编辑器下方，占据中央+右侧） -->
-          <pane :size="100 - editorVSplit" :min-size="15">
-            <result-panel
-              :columns="resultColumns"
-              :rows="resultRows"
-              :duration="resultDuration"
-              :lineage-data="lineageData"
-              :execution-plan="executionPlan"
-              :logs="logs"
-            />
-          </pane>
-        </splitpanes>
+        <div class="editor-workspace">
+          <div class="editor-tabs-wrap">
+            <el-tabs
+              v-model="activeTabName"
+              type="card"
+              class="editor-tabs"
+              closable
+              @tab-remove="closeEditorTab"
+            >
+              <el-tab-pane
+                v-for="tab in openTabs"
+                :key="tab.scriptId"
+                :name="String(tab.scriptId)"
+                :closable="openTabs.length > 1"
+              >
+                <template #label>
+                  <span class="tab-label" :title="tab.scriptName">
+                    {{ tab.scriptName }}
+                    <span v-if="tab.content !== tab.savedContent" class="tab-dirty-dot" />
+                  </span>
+                </template>
+              </el-tab-pane>
+            </el-tabs>
+            <div v-if="openTabs.length === 0" class="editor-empty">
+              <h3>脚本研发中心</h3>
+              <p>从左侧资源树选择或新建脚本，支持 SQL / Python 多页签并行开发。</p>
+            </div>
+          </div>
+
+          <splitpanes v-if="currentScript" horizontal class="editor-result-split default-theme">
+            <pane :size="editorVSplit" :min-size="25">
+              <code-editor
+                ref="editorRef"
+                v-model="content"
+                :lang="scriptLang"
+                :running="running"
+                :has-change="hasChange"
+                :script-name="currentScript?.scriptName || ''"
+                @run="handleRun"
+                @save="handleSave"
+                @publish="handlePublish"
+                @fullscreen="showFullscreen = true"
+              />
+            </pane>
+            <pane :size="100 - editorVSplit" :min-size="15">
+              <result-panel
+                :columns="resultColumns"
+                :rows="resultRows"
+                :duration="resultDuration"
+                :lineage-data="lineageData"
+                :execution-plan="executionPlan"
+                :logs="logs"
+              />
+            </pane>
+          </splitpanes>
+        </div>
       </pane>
 
       <!-- 右侧面板：版本历史 + 执行记录 -->
@@ -48,9 +78,16 @@
           <el-tabs v-model="rightTab" class="right-tabs">
             <el-tab-pane label="版本历史" name="versions">
               <el-scrollbar class="right-scroll">
-                <div v-if="versions.length === 0" class="empty-tip">暂无版本</div>
+                <div class="version-filter">
+                  <el-radio-group v-model="versionView" size="small">
+                    <el-radio-button label="all">全部</el-radio-button>
+                    <el-radio-button label="released">正式</el-radio-button>
+                    <el-radio-button label="draft">草稿</el-radio-button>
+                  </el-radio-group>
+                </div>
+                <div v-if="filteredVersions.length === 0" class="empty-tip">{{ versionEmptyText }}</div>
                 <div
-                  v-for="v in versions"
+                  v-for="v in filteredVersions"
                   :key="v.versionId"
                   class="version-item"
                   :class="{ current: v.isCurrent }"
@@ -111,18 +148,13 @@
     />
 
     <!-- 新建脚本对话框 -->
-    <el-dialog v-model="showCreateDialog" title="新建 SQL 脚本" width="480px" :close-on-click-modal="false">
+    <el-dialog v-model="showCreateDialog" title="新建 Spark SQL 脚本" width="480px" :close-on-click-modal="false">
       <el-form :model="createForm" :rules="createRules" ref="createFormRef" label-width="80px">
         <el-form-item label="脚本名称" prop="scriptName">
           <el-input v-model="createForm.scriptName" placeholder="请输入脚本名称" />
         </el-form-item>
         <el-form-item label="脚本编码" prop="scriptCode">
           <el-input v-model="createForm.scriptCode" placeholder="唯一编码，如 ods_user_sync" />
-        </el-form-item>
-        <el-form-item label="数据源" prop="datasourceId">
-          <el-select v-model="createForm.datasourceId" placeholder="选择执行数据源" clearable style="width: 100%">
-            <el-option v-for="ds in dsList" :key="ds.dataSourceId" :label="ds.dataSourceName + ' (' + ds.dbType + ')'" :value="ds.dataSourceId" />
-          </el-select>
         </el-form-item>
           <el-form-item label="数仓分层">
             <el-select v-model="createForm.layer" placeholder="选择分层（可选）" clearable style="width: 100%">
@@ -133,8 +165,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="执行器">
-            <el-tag v-if="createExecutorInfo" type="success" effect="plain">{{ createExecutorInfo.label }}</el-tag>
-            <span v-else class="executor-hint">选择数据源后自动确定</span>
+            <el-tag type="success" effect="plain">Spark SQL 执行引擎（固定）</el-tag>
           </el-form-item>
           <el-form-item label="描述">
           <el-input v-model="createForm.description" type="textarea" :rows="2" />
@@ -179,7 +210,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 
-import { listDatasource } from '@/api/data/datasource'
 import {
   listScripts, getScript, addScript,
   listVersions, createVersion, publishVersion, rollbackVersion,
@@ -199,41 +229,7 @@ const editorSize = ref(57)
 const rightSize = ref(25)
 const editorVSplit = ref(60)
 
-// ── 数据源 ──────────────────────────────
-const dsList = ref([])
-async function loadDsList() {
-  try {
-    const res = await listDatasource()
-    dsList.value = res.rows || res.data || []
-  } catch (error) {
-    dsList.value = []
-    console.warn('[datadev] 加载数据源失败', error)
-  }
-}
-
-const currentDsName = computed(() => {
-  const ds = dsList.value.find((d) => d.dataSourceId === datasourceId.value)
-  return ds ? ds.dataSourceName : ''
-})
-
-// db_type → 执行器映射
-const DB_TYPE_EXECUTOR_MAP = {
-  mysql: { type: 'jdbc', label: 'JDBC (MySQL)' },
-  postgresql: { type: 'jdbc', label: 'JDBC (PostgreSQL)' },
-  postgres: { type: 'jdbc', label: 'JDBC (PostgreSQL)' },
-  oracle: { type: 'jdbc', label: 'JDBC (Oracle)' },
-  sqlserver: { type: 'jdbc', label: 'JDBC (SQL Server)' },
-  sqlite: { type: 'jdbc', label: 'JDBC (SQLite)' },
-  presto: { type: 'presto', label: 'Presto 执行器' },
-  starrocks: { type: 'starrocks', label: 'StarRocks 执行器' },
-  hive: { type: 'hive', label: 'Hive 执行器' },
-  spark: { type: 'spark', label: 'Spark SQL 执行器' },
-  sparksql: { type: 'spark', label: 'Spark SQL 执行器' },
-}
-
-function getExecutorByDbType(dbType) {
-  return DB_TYPE_EXECUTOR_MAP[(dbType || '').toLowerCase()] || { type: dbType || '', label: (dbType || '') + ' 执行器' }
-}
+const currentDsName = computed(() => 'Spark SQL')
 
 // ── 脚本列表 ────────────────────────────
 const scriptList = ref([])
@@ -248,34 +244,113 @@ async function loadScripts() {
 }
 
 // ── 当前脚本 ────────────────────────────
-const currentScript = ref(null)
-const content = ref('')
-const savedContent = ref('')
-const scriptLang = ref('sql')
-const datasourceId = ref(null)
-const currentVersion = ref(0)
+const openTabs = ref([])
+const activeTabScriptId = ref(null)
 const editorRef = ref(null)
 const cursorInfo = ref(null)
 
-const hasChange = computed(() => content.value !== savedContent.value)
+const activeTabName = computed({
+  get: () => (activeTabScriptId.value ? String(activeTabScriptId.value) : ''),
+  set: (val) => {
+    const scriptId = Number(val)
+    switchEditorTab(scriptId)
+  },
+})
+
+const currentScript = computed(() =>
+  openTabs.value.find((item) => item.scriptId === activeTabScriptId.value) || null,
+)
+
+const content = computed({
+  get: () => currentScript.value?.content || '',
+  set: (val) => {
+    if (!currentScript.value) return
+    currentScript.value.content = val
+  },
+})
+
+const scriptLang = computed(() => currentScript.value?.scriptType || 'sql')
+const currentVersion = computed(() => currentScript.value?.versionNumber || 0)
+
+const hasChange = computed(() => {
+  if (!currentScript.value) return false
+  return currentScript.value.content !== currentScript.value.savedContent
+})
 
 async function openScript(script) {
   stopExecutionStatusPolling()
   try {
     const res = await getScript(script.scriptId)
     const data = res.data
-    currentScript.value = data
-    content.value = data.content || ''
-    savedContent.value = data.content || ''
-    scriptLang.value = data.scriptType || 'sql'
-    datasourceId.value = data.datasourceId || null
-    currentVersion.value = data.versionNumber || 0
-    // 加载版本 & 执行记录
-    loadVersions(data.scriptId)
-    loadExecutions(data.scriptId)
+    const tabPayload = {
+      scriptId: data.scriptId,
+      scriptName: data.scriptName,
+      scriptCode: data.scriptCode,
+      content: data.content || '',
+      savedContent: data.content || '',
+      scriptType: data.scriptType || 'sql',
+      datasourceId: data.datasourceId || null,
+      versionNumber: data.versionNumber || 0,
+    }
+
+    const tabIndex = openTabs.value.findIndex((item) => item.scriptId === data.scriptId)
+    if (tabIndex >= 0) {
+      openTabs.value[tabIndex] = {
+        ...openTabs.value[tabIndex],
+        ...tabPayload,
+      }
+    } else {
+      openTabs.value.push(tabPayload)
+    }
+
+    activeTabScriptId.value = data.scriptId
+    await switchEditorTab(data.scriptId)
   } catch (e) {
     console.warn('[datadev] 打开脚本失败', e)
     ElMessage.error('打开脚本失败')
+  }
+}
+
+async function switchEditorTab(scriptId) {
+  if (!scriptId) return
+  stopExecutionStatusPolling()
+  activeTabScriptId.value = scriptId
+  await loadVersions(scriptId)
+  await loadExecutions(scriptId)
+}
+
+async function closeEditorTab(tabName) {
+  const scriptId = Number(tabName)
+  const tab = openTabs.value.find((item) => item.scriptId === scriptId)
+  if (!tab) return
+
+  if (tab.content !== tab.savedContent) {
+    try {
+      await ElMessageBox.confirm('当前页签有未保存内容，确认关闭？', '关闭确认', {
+        type: 'warning',
+        confirmButtonText: '确认关闭',
+        cancelButtonText: '继续编辑',
+      })
+    } catch {
+      return
+    }
+  }
+
+  const removeIndex = openTabs.value.findIndex((item) => item.scriptId === scriptId)
+  openTabs.value.splice(removeIndex, 1)
+
+  if (activeTabScriptId.value === scriptId) {
+    const next = openTabs.value[Math.min(removeIndex, openTabs.value.length - 1)] || null
+    if (next) {
+      await switchEditorTab(next.scriptId)
+    } else {
+      activeTabScriptId.value = null
+      versions.value = []
+      executions.value = []
+      logs.value = []
+      execStatus.value = 'idle'
+      stopExecutionStatusPolling()
+    }
   }
 }
 
@@ -287,7 +362,6 @@ const selectedLayer = ref('')
 const createForm = reactive({
   scriptName: '',
   scriptCode: '',
-  datasourceId: null,
   layer: '',
   description: '',
 })
@@ -295,14 +369,6 @@ const createRules = {
   scriptName: [{ required: true, message: '请输入脚本名称', trigger: 'blur' }],
   scriptCode: [{ required: true, message: '请输入脚本编码', trigger: 'blur' }],
 }
-
-// 根据当前选中数据源自动计算执行器
-const createExecutorInfo = computed(() => {
-  if (!createForm.datasourceId) return null
-  const ds = dsList.value.find((d) => d.dataSourceId === createForm.datasourceId)
-  if (!ds) return null
-  return getExecutorByDbType(ds.dbType)
-})
 
 function onLayerChange(layerKey) {
   selectedLayer.value = layerKey || ''
@@ -313,7 +379,6 @@ function onStartCreate(dsData) {
   createForm.scriptName = ''
   createForm.scriptCode = ''
   createForm.description = ''
-  createForm.datasourceId = dsData?.dsId || null
   createForm.layer = dsData?.layerKey || selectedLayer.value || ''
   showCreateDialog.value = true
   nextTick(() => {
@@ -330,7 +395,7 @@ async function submitCreate() {
     await addScript({ ...createForm, scriptType: 'sql' })
     ElMessage.success('创建成功')
     showCreateDialog.value = false
-    Object.assign(createForm, { scriptName: '', scriptCode: '', datasourceId: null, layer: '', description: '' })
+    Object.assign(createForm, { scriptName: '', scriptCode: '', layer: '', description: '' })
     loadScripts()
   } catch (e) {
     ElMessage.error('创建失败')
@@ -341,11 +406,26 @@ async function submitCreate() {
 
 // ── 版本管理 ────────────────────────────
 const versions = ref([])
+const versionView = ref('all')
+const filteredVersions = computed(() => {
+  if (versionView.value === 'released') return versions.value.filter((v) => v.isReleased)
+  if (versionView.value === 'draft') return versions.value.filter((v) => !v.isReleased)
+  return versions.value
+})
+const versionEmptyText = computed(() => {
+  if (versionView.value === 'released') return '暂无正式版本'
+  if (versionView.value === 'draft') return '暂无草稿版本'
+  return '暂无版本'
+})
+
 async function loadVersions(scriptId) {
   try {
     const res = await listVersions(scriptId)
     versions.value = res.data || []
-  } catch { versions.value = [] }
+  } catch (error) {
+    versions.value = []
+    console.warn('[datadev] 加载版本列表失败', error)
+  }
 }
 
 const showSaveDialog = ref(false)
@@ -376,23 +456,32 @@ function handlePublish() {
 async function confirmSave() {
   saving.value = true
   try {
+    const scriptId = currentScript.value?.scriptId
+    if (!scriptId) {
+      ElMessage.warning('请先打开一个脚本')
+      return
+    }
     if (saveMode.value === 'publish') {
-      await publishVersion(currentScript.value.scriptId, {
+      await publishVersion(scriptId, {
         content: content.value,
         changeLog: saveChangeLog.value,
       })
     } else {
-      await createVersion(currentScript.value.scriptId, {
+      await createVersion(scriptId, {
         content: content.value,
         changeLog: saveChangeLog.value,
       })
     }
-    savedContent.value = content.value
+    currentScript.value.savedContent = content.value
+    currentScript.value.versionNumber = currentScript.value.versionNumber + 1
     ElMessage.success(saveMode.value === 'publish' ? '发布成功' : '草稿版本保存成功')
     showSaveDialog.value = false
-    await loadVersions(currentScript.value.scriptId)
-    await openScript({ scriptId: currentScript.value.scriptId })
-    await loadScripts()
+
+    await Promise.allSettled([
+      loadVersions(scriptId),
+      openScript({ scriptId }),
+      loadScripts(),
+    ])
   } catch {
     ElMessage.error(saveMode.value === 'publish' ? '发布失败' : '保存失败')
   } finally {
@@ -434,12 +523,10 @@ async function handleRun() {
   logs.value = [{ time: new Date().toLocaleTimeString(), message: '开始执行...', level: 'info' }]
 
   try {
-    const res = await executeScript(currentScript.value.scriptId, {
-      params: { datasourceId: datasourceId.value },
-    })
+    const res = await executeScript(currentScript.value.scriptId)
     const executionId = res.data?.executionId || ''
     execStatus.value = 'pending'
-    logs.value.push({ time: new Date().toLocaleTimeString(), message: `已提交执行，ID: ${executionId || '-'}（待执行器处理）`, level: 'info' })
+    logs.value.push({ time: new Date().toLocaleTimeString(), message: `已提交 Spark SQL 执行请求，ID: ${executionId || '-'}（待执行器处理）`, level: 'info' })
 
     // 刷新执行记录
     await loadExecutions(currentScript.value.scriptId)
@@ -526,7 +613,10 @@ async function loadExecutions(scriptId) {
   try {
     const res = await listScriptExecutions(scriptId)
     executions.value = res.rows || res.data || []
-  } catch { executions.value = [] }
+  } catch (error) {
+    executions.value = []
+    console.warn('[datadev] 加载执行记录失败', error)
+  }
 }
 
 function execTagType(status) {
@@ -543,7 +633,6 @@ const showFullscreen = ref(false)
 
 // ── 初始化 ──────────────────────────────
 onMounted(() => {
-  loadDsList()
   loadScripts()
 })
 
@@ -554,25 +643,110 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .dev-ide {
+  --dev-bg: linear-gradient(140deg, #f7f3ea 0%, #eef6f5 55%, #f4f7fb 100%);
+  --panel-bg: rgba(255, 255, 255, 0.9);
+  --panel-border: #d7dee8;
+  --ink-title: #213044;
+  --ink-sub: #66768b;
+  --accent: #1f8f7a;
+  --accent-soft: #e5f6f1;
+
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 84px); // 去掉顶栏 + tagbar 高度
-  background: #f0f2f5;
+  height: calc(100vh - 84px);
+  background: var(--dev-bg);
+  padding: 10px;
+  gap: 8px;
+  font-family: 'Manrope', 'SF Pro Display', 'PingFang SC', sans-serif;
 }
 
 .ide-splitpanes {
   flex: 1;
   min-height: 0;
+
+  :deep(.splitpanes__pane) {
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--panel-bg);
+    box-shadow: 0 12px 24px rgba(22, 39, 58, 0.06);
+  }
+
+  :deep(.splitpanes__splitter) {
+    background: transparent;
+    margin: 0 2px;
+  }
 }
 
 .editor-result-split {
   height: 100%;
 }
 
+.editor-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-tabs-wrap {
+  padding: 10px 12px 0;
+  border-bottom: 1px solid #dbe3ec;
+  background: linear-gradient(180deg, #fbfcfd 0%, #f4f8fb 100%);
+}
+
+.editor-tabs {
+  :deep(.el-tabs__header) {
+    margin-bottom: 0;
+  }
+  :deep(.el-tabs__item) {
+    border-radius: 8px 8px 0 0;
+    font-weight: 600;
+  }
+  :deep(.el-tabs__item.is-active) {
+    color: var(--accent);
+  }
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f08b35;
+  box-shadow: 0 0 0 3px rgba(240, 139, 53, 0.2);
+}
+
+.editor-empty {
+  margin: 18px 4px 14px;
+  padding: 24px;
+  border: 1px dashed #c6d5e7;
+  border-radius: 10px;
+  background: #fcfdfd;
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--ink-title);
+  }
+  p {
+    margin: 8px 0 0;
+    color: var(--ink-sub);
+    font-size: 13px;
+  }
+}
+
 /* 右侧面板 */
 .right-panel {
   height: 100%;
-  background: #fff;
+  background: transparent;
   display: flex;
   flex-direction: column;
 }
@@ -599,9 +773,15 @@ onBeforeUnmount(() => {
   padding: 8px;
 }
 
+.version-filter {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
 .empty-tip {
   text-align: center;
-  color: #909399;
+  color: var(--ink-sub);
   font-size: 13px;
   padding: 32px 0;
 }
@@ -614,10 +794,14 @@ onBeforeUnmount(() => {
 /* 版本条目 */
 .version-item {
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: 10px;
   margin-bottom: 6px;
-  border: 1px solid #ebeef5;
-  &.current { border-color: #67c23a; background: #f0f9eb; }
+  border: 1px solid #e5ebf3;
+  background: #fbfdff;
+  &.current {
+    border-color: #9ad7b7;
+    background: var(--accent-soft);
+  }
 }
 .version-head {
   display: flex;
@@ -651,9 +835,10 @@ onBeforeUnmount(() => {
 /* 执行记录条目 */
 .exec-item {
   padding: 10px 12px;
-  border-radius: 6px;
+  border-radius: 10px;
   margin-bottom: 6px;
-  border: 1px solid #ebeef5;
+  border: 1px solid #e5ebf3;
+  background: #fbfdff;
 }
 .exec-head {
   display: flex;
@@ -676,5 +861,31 @@ onBeforeUnmount(() => {
   color: #f56c6c;
   margin-top: 4px;
   word-break: break-all;
+}
+
+@media (max-width: 1024px) {
+  .dev-ide {
+    padding: 6px;
+  }
+  .tab-label {
+    max-width: 140px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dev-ide {
+    height: calc(100vh - 72px);
+  }
+  .editor-tabs-wrap {
+    padding: 6px 8px 0;
+  }
+  .editor-empty {
+    padding: 16px;
+    h3 { font-size: 16px; }
+    p { font-size: 12px; }
+  }
+  .right-scroll {
+    padding: 6px;
+  }
 }
 </style>

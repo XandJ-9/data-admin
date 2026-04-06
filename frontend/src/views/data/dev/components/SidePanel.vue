@@ -3,12 +3,12 @@
     <!-- 数据目录（分层） -->
     <div class="panel-section catalog-section">
       <div class="section-header">
-        <span class="section-title">数据目录</span>
+        <span class="section-title">资源导航树</span>
         <div class="header-actions">
           <el-button link type="primary" @click="refreshCatalog" :icon="Refresh" title="刷新目录" />
         </div>
       </div>
-      <el-input v-model="catalogFilter" placeholder="搜索" size="small" clearable :prefix-icon="Search" class="filter-input" />
+      <el-input v-model="catalogFilter" placeholder="快速定位脚本名称" size="small" clearable :prefix-icon="Search" class="filter-input" />
       <el-scrollbar class="catalog-scroll">
         <el-tree
           ref="catalogTreeRef"
@@ -50,7 +50,7 @@
     <!-- 我的脚本 -->
     <div class="panel-section script-section">
       <div class="section-header">
-        <span class="section-title">我的脚本</span>
+        <span class="section-title">脚本资源</span>
         <el-button link type="primary" @click="$emit('create', null)" :icon="Plus" title="新建脚本" />
       </div>
       <el-input v-model="scriptFilter" placeholder="搜索脚本" size="small" clearable :prefix-icon="Search" class="filter-input" />
@@ -250,10 +250,14 @@ function statusTagType(status) {
 
 <style lang="scss" scoped>
 .side-panel {
+  --panel-title: #1f2f45;
+  --panel-sub: #5f7188;
+  --panel-accent: #1f8f7a;
+
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fff;
+  background: linear-gradient(180deg, #fcfdfd 0%, #f6f9fc 100%);
 }
 .panel-section {
   display: flex;
@@ -262,7 +266,7 @@ function statusTagType(status) {
 }
 .catalog-section {
   flex: 0 0 50%;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid #dce4ee;
 }
 .script-section {
   flex: 1;
@@ -275,8 +279,9 @@ function statusTagType(status) {
   padding: 8px 12px 4px;
   .section-title {
     font-size: 13px;
-    font-weight: 600;
-    color: #303133;
+    font-weight: 700;
+    color: var(--panel-title);
+    letter-spacing: 0.2px;
   }
 }
 .header-actions {
@@ -308,7 +313,7 @@ function statusTagType(status) {
   }
   .node-comment {
     font-size: 11px;
-    color: #909399;
+    color: var(--panel-sub);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -328,8 +333,8 @@ function statusTagType(status) {
 }
 .node-icon  { flex-shrink: 0; }
 .layer-icon { color: #e6a23c; }
-.ds-icon    { color: #409eff; }
-.table-icon { color: #67c23a; }
+.ds-icon    { color: #2f8bc4; }
+.table-icon { color: var(--panel-accent); }
 
 .script-scroll {
   flex: 1;
@@ -352,9 +357,10 @@ function statusTagType(status) {
   padding: 4px 8px;
   font-size: 12px;
   font-weight: 600;
-  color: #606266;
-  background: #f5f7fa;
-  border-radius: 4px;
+  color: #46607e;
+  background: #edf3f9;
+  border: 1px solid #dde7f1;
+  border-radius: 8px;
   margin-bottom: 2px;
 }
 .layer-group-icon { color: #e6a23c; font-size: 14px; }
@@ -372,16 +378,19 @@ function statusTagType(status) {
   align-items: center;
   gap: 8px;
   padding: 6px 10px 6px 20px;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s;
-  &:hover { background: #f5f7fa; }
-  &.active { background: #ecf5ff; }
+  transition: all 0.15s;
+  &:hover { background: #eef6f4; }
+  &.active {
+    background: #e5f6f1;
+    box-shadow: inset 0 0 0 1px #b9e6d9;
+  }
 }
 .script-icon {
   flex-shrink: 0;
   font-size: 14px;
-  color: #409eff;
+  color: var(--panel-accent);
 }
 .script-info {
   flex: 1;
@@ -398,6 +407,15 @@ function statusTagType(status) {
 }
 .script-meta {
   font-size: 11px;
-  color: #909399;
+  color: var(--panel-sub);
+}
+
+@media (max-width: 768px) {
+  .section-header {
+    padding: 6px 10px 4px;
+  }
+  .filter-input {
+    margin: 0 6px 5px;
+  }
 }
 </style>

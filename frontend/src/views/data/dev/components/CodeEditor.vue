@@ -2,9 +2,15 @@
   <div class="code-editor">
     <!-- 工具栏 -->
     <div class="editor-toolbar">
+      <div class="toolbar-left">
+        <div class="doc-chip" :title="scriptName || '未命名脚本'">
+          <span class="doc-chip-name">{{ scriptName || '未命名脚本' }}</span>
+          <span class="doc-chip-lang">{{ aceLang.toUpperCase() }}</span>
+        </div>
+      </div>
       <div class="toolbar-right">
         <el-button type="primary" size="small" :icon="CaretRight" :loading="running" @click="$emit('run')">
-          执行
+          运行当前文档
         </el-button>
         <el-button size="small" :icon="DocumentCopy" @click="$emit('save')" :disabled="!hasChange">
           保存草稿版本
@@ -61,6 +67,7 @@ defineOptions({ name: 'DevCodeEditor' })
 const props = defineProps({
   modelValue: { type: String, default: '' },
   lang: { type: String, default: 'sql' },
+  scriptName: { type: String, default: '' },
   running: { type: Boolean, default: false },
   hasChange: { type: Boolean, default: false },
   theme: { type: String, default: 'xcode' },
@@ -134,30 +141,85 @@ defineExpose({ getEditor: () => aceInstance.value })
 
 <style lang="scss" scoped>
 .code-editor {
+  --editor-accent: #1f8f7a;
+
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fff;
+  background: transparent;
 }
 
 .editor-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
-  border-bottom: 1px solid #e4e7ed;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #dbe3ec;
+  background: #fdfefe;
   flex-shrink: 0;
+}
+
+.toolbar-left {
+  min-width: 0;
+}
+
+.doc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+  border: 1px solid #d6e5e0;
+  background: #edf8f5;
+  color: #21564a;
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+.doc-chip-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.doc-chip-lang {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', monospace;
+  font-size: 11px;
+  color: var(--editor-accent);
+  background: #ddf2eb;
+  padding: 1px 6px;
+  border-radius: 999px;
 }
 
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .editor-body {
   flex: 1;
   min-height: 0;
   position: relative;
+}
+
+@media (max-width: 768px) {
+  .editor-toolbar {
+    padding: 6px 8px;
+    flex-wrap: wrap;
+  }
+  .toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .doc-chip {
+    max-width: 100%;
+  }
+  .doc-chip-name {
+    max-width: 160px;
+  }
 }
 </style>

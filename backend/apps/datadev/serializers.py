@@ -35,18 +35,13 @@ class ScriptCreateSerializer(serializers.Serializer):
     scriptCode = serializers.CharField(max_length=64)
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], default='sql')
     description = serializers.CharField(required=False, allow_blank=True, default='')
-    datasourceId = serializers.IntegerField(required=False, allow_null=True)
     layer = serializers.ChoiceField(choices=['ODS', 'DWD', 'DWS', 'ADS'], required=False, allow_blank=True, default='')
     tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     remark = serializers.CharField(required=False, allow_blank=True, default='')
     content = serializers.CharField(required=False, allow_blank=True, default='')
 
     def create(self, validated_data):
-        from apps.datasource.models import DataSource
-
-        ds_id = validated_data.pop('datasourceId', None)
         content = validated_data.pop('content', '')
-        datasource = DataSource.objects.filter(id=ds_id).first() if ds_id else None
         request = self.context.get('request')
 
         script = DataDevScript.objects.create(
@@ -54,7 +49,6 @@ class ScriptCreateSerializer(serializers.Serializer):
             script_code=validated_data['scriptCode'],
             script_type=validated_data['scriptType'],
             description=validated_data.get('description', ''),
-            datasource=datasource,
             layer=validated_data.get('layer', ''),
             tags=validated_data.get('tags', []),
             remark=validated_data.get('remark', ''),
@@ -83,7 +77,6 @@ class ScriptUpdateSerializer(serializers.Serializer):
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=['draft', 'published', 'archived'], required=False)
-    datasourceId = serializers.IntegerField(required=False, allow_null=True)
     layer = serializers.ChoiceField(choices=['ODS', 'DWD', 'DWS', 'ADS'], required=False, allow_blank=True)
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     remark = serializers.CharField(required=False, allow_blank=True)
