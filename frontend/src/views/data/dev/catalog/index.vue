@@ -37,6 +37,15 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
+        <el-button
+          type="primary"
+          plain
+          icon="Plus"
+          v-hasPermi="['datadev:catalog:add']"
+          @click="handleAdd"
+        >新增目录</el-button>
+      </el-col>
+      <el-col :span="1.5">
         <el-button type="info" plain icon="Sort" @click="collapseAllDirectories">全部收起</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList" />
@@ -57,6 +66,10 @@
                   <span class="directory-card-title">{{ directory.directoryName }}</span>
                   <el-tag size="small" effect="plain">{{ directory.directoryCode }}</el-tag>
                   <dict-tag :options="sys_normal_disable" :value="directory.status" />
+                </div>
+                <div class="directory-card-summary">
+                <span>当前目录：{{ directory.directoryName }}</span>
+                <el-tag size="small" effect="plain">共 {{ getDirectoryScripts(directory.directoryId).length }} 个脚本</el-tag>
                 </div>
                 <div class="directory-card-meta">
                   <span>排序 {{ directory.orderNum }}</span>
@@ -87,10 +100,6 @@
           </template>
 
           <div class="directory-card-body">
-            <div class="directory-card-summary">
-              <span>当前目录：{{ directory.directoryName }}</span>
-              <el-tag size="small" effect="plain">共 {{ getDirectoryScripts(directory.directoryId).length }} 个脚本</el-tag>
-            </div>
             <div v-loading="isDirectoryLoading(directory.directoryId)" class="directory-script-panel">
               <el-scrollbar height="240px">
                 <el-table :data="getDirectoryScripts(directory.directoryId)" size="small" border>
@@ -189,6 +198,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listDirectories,
+  addDirectory,
   updateDirectory,
   delDirectory,
   getDirectoryTree,
@@ -459,6 +469,13 @@ async function handleUpdate(row) {
   open.value = true
 }
 
+async function handleAdd() {
+  resetForm()
+  await loadTreeOptions()
+  title.value = '新增数据目录'
+  open.value = true
+}
+
 async function handleDelete(row) {
   try {
     await ElMessageBox.confirm(`是否确认删除目录“${row.directoryName}”？`, '删除提示', {
@@ -502,8 +519,13 @@ async function submitForm() {
       remark: form.remark,
     }
 
-    await updateDirectory(form.directoryId, payload)
-    ElMessage.success('修改成功')
+    if (form.directoryId) {
+      await updateDirectory(form.directoryId, payload)
+      ElMessage.success('修改成功')
+    } else {
+      await addDirectory(payload)
+      ElMessage.success('新增成功')
+    }
     open.value = false
     await getList()
   } catch {

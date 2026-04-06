@@ -11,6 +11,7 @@
           @select="openScript"
           @create="onStartCreate"
           @directory-change="onDirectoryChange"
+          @refresh="onRefreshSidePanel"
         />
       </pane>
 
@@ -463,6 +464,11 @@ const createRules = {
 function onDirectoryChange(directoryId) {
   selectedDirectoryId.value = directoryId || null
   loadScripts()
+}
+
+async function onRefreshSidePanel() {
+  await loadDirectories()
+  await loadScripts()
 }
 
 // 点击数据目录中数据源节点的 + 按钮，or 顶部新建按钮
