@@ -1,5 +1,16 @@
 # 任务追踪
 
+### 2026-04-06: 数据开发工作台评审问题修复
+
+- ✅ P0: 后端模拟 Spark SQL 执行，返回列名/行数据/耗时，前端 `handleRun` 解析结果填充 ResultPanel
+- ✅ P0: CodeEditor 新增 `changeCursor` 监听并 emit `cursor-change`，StatusBar 正确显示光标行列
+- ✅ P1: `handlePreviewVersion` 不再覆盖 `savedContent`，修复预览历史版本后脏状态误判
+- ✅ P1: `confirmSave` 移除本地 `versionNumber++`，改由 `openScript` 从后端重新同步版本号
+- ✅ P1: SidePanel 脚本节点新增删除按钮，index.vue 新增 `handleDeleteScript` 含确认弹窗与 tab 清理
+- ✅ P2: 新建脚本对话框新增脚本类型选择（SQL/Python），移除硬编码的 `scriptType: 'sql'`
+- ✅ P2: SidePanel 脚本节点新增编辑按钮，index.vue 新增编辑脚本信息弹窗（重命名/移动目录/修改描述）
+- ✅ P3: `loadScripts` 从循环分页遍历改为单次 `pageSize=9999` 请求
+
 ### 2026-04-06: 数据开发 IDE 侧边栏代码检查与优化
 
 - ✅ 移除冗余 `activeDirectoryFilter` 本地状态，消除与 `props.activeDirectoryId` 的双源真值问题

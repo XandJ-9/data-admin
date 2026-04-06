@@ -4,14 +4,18 @@
       <!-- 左侧面板 -->
       <pane :size="sideSize" :min-size="12" :max-size="30">
         <side-panel
-          :scripts="scriptList"
+          :directory-scripts="directoryScripts"
           :active-script-id="currentScript?.scriptId"
           :directories="directoryTree"
           :active-directory-id="selectedDirectoryId"
+          :unassigned-script-count="unassignedScriptCount"
           @select="openScript"
           @create="onStartCreate"
+          @delete="handleDeleteScript"
+          @edit="handleEditScript"
           @directory-change="onDirectoryChange"
           @refresh="onRefreshSidePanel"
+          @load-scripts="loadDirectoryScripts"
         />
       </pane>
 
@@ -59,6 +63,7 @@
                 @save="handleSave"
                 @publish="handlePublish"
                 @fullscreen="showFullscreen = true"
+                @cursor-change="pos => cursorInfo = pos"
               />
             </pane>
             <pane :size="100 - editorVSplit" :min-size="15">
@@ -152,13 +157,19 @@
     />
 
     <!-- 新建脚本对话框 -->
-    <el-dialog v-model="showCreateDialog" title="新建 Spark SQL 脚本" width="480px" :close-on-click-modal="false">
+    <el-dialog v-model="showCreateDialog" title="新建脚本" width="480px" :close-on-click-modal="false">
       <el-form :model="createForm" :rules="createRules" ref="createFormRef" label-width="80px">
         <el-form-item label="脚本名称" prop="scriptName">
           <el-input v-model="createForm.scriptName" placeholder="请输入脚本名称" />
         </el-form-item>
         <el-form-item label="脚本编码" prop="scriptCode">
           <el-input v-model="createForm.scriptCode" placeholder="唯一编码，如 ods_user_sync" />
+        </el-form-item>
+        <el-form-item label="脚本类型" prop="scriptType">
+          <el-radio-group v-model="createForm.scriptType">
+            <el-radio value="sql">SQL</el-radio>
+            <el-radio value="python">Python</el-radio>
+          </el-radio-group>
         </el-form-item>
           <el-form-item label="所属目录">
             <el-select v-model="createForm.directoryId" placeholder="请选择目录（可选）" clearable style="width: 100%">
@@ -169,9 +180,6 @@
                 :value="directory.directoryId"
               />
             </el-select>
-          </el-form-item>
-          <el-form-item label="执行器">
-            <el-tag type="success" effect="plain">Spark SQL 执行引擎（固定）</el-tag>
           </el-form-item>
           <el-form-item label="描述">
           <el-input v-model="createForm.description" type="textarea" :rows="2" />
@@ -194,6 +202,7 @@
         @run="handleRun"
         @save="handleSave"
         @publish="handlePublish"
+        @cursor-change="pos => cursorInfo = pos"
         style="height: 80vh"
       />
     </el-dialog>
@@ -208,6 +217,32 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑脚本信息对话框 -->
+    <el-dialog v-model="showEditDialog" title="编辑脚本信息" width="480px" :close-on-click-modal="false">
+      <el-form :model="editForm" :rules="editRules" ref="editFormRef" label-width="80px">
+        <el-form-item label="脚本名称" prop="scriptName">
+          <el-input v-model="editForm.scriptName" placeholder="请输入脚本名称" />
+        </el-form-item>
+        <el-form-item label="所属目录">
+          <el-select v-model="editForm.directoryId" placeholder="请选择目录（可选）" clearable style="width: 100%">
+            <el-option
+              v-for="directory in directoryOptions"
+              :key="directory.directoryId"
+              :label="directory.directoryName"
+              :value="directory.directoryId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="editForm.description" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitEdit" :loading="editing">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -217,7 +252,7 @@ import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 
 import {
-  listScripts, getScript, addScript,
+  listScripts, getScript, addScript, delScript, updateScript,
   listVersions, createVersion, publishVersion, rollbackVersion,
   executeScript, listScriptExecutions,
   getDirectoryTree,
@@ -244,15 +279,18 @@ const currentDsName = computed(() => 'Spark SQL')
 const directoryTree = ref([])
 const directoryOptions = ref([])
 const selectedDirectoryId = ref(null)
+const unassignedScriptCount = ref(0)
 
 async function loadDirectories() {
   try {
     const res = await getDirectoryTree()
     directoryTree.value = res.data || []
     directoryOptions.value = flattenDirectoryTree(directoryTree.value)
+    unassignedScriptCount.value = res.unassignedScriptCount || 0
   } catch (error) {
     directoryTree.value = []
     directoryOptions.value = []
+    unassignedScriptCount.value = 0
     console.warn('[datadev] 加载目录树失败', error)
   }
 }
@@ -271,52 +309,30 @@ function flattenDirectoryTree(treeNodes) {
   return result
 }
 
-// ── 脚本列表 ────────────────────────────
-const scriptList = ref([])
-const scriptListRequestId = ref(0)
+// ── 目录脚本（按需加载） ────────────────────
+const directoryScripts = reactive({})
 
-async function fetchAllScripts(query = {}) {
-  const pageSize = 100
-  let pageNum = 1
-  let allRows = []
-  const loadedScriptIds = new Set()
-
-  while (true) {
-    const res = await listScripts({ ...query, pageNum, pageSize })
-    const rawRows = res.rows || res.data || []
-    const rows = rawRows.filter((item) => {
-      if (item?.scriptId == null || loadedScriptIds.has(item.scriptId)) {
-        return false
-      }
-      loadedScriptIds.add(item.scriptId)
-      return true
-    })
-    allRows = allRows.concat(rows)
-    if (rawRows.length < pageSize) {
-      break
-    }
-    pageNum += 1
+async function loadDirectoryScripts(directoryId) {
+  const key = directoryId ?? 'unassigned'
+  directoryScripts[key] = null  // 标记为加载中
+  try {
+    const params = { pageNum: 1, pageSize: 9999, directoryId: directoryId ?? 0 }
+    const res = await listScripts(params)
+    directoryScripts[key] = (res.rows || res.data || []).filter(
+      (item, idx, arr) => item?.scriptId != null && arr.findIndex(r => r.scriptId === item.scriptId) === idx
+    )
+  } catch (error) {
+    directoryScripts[key] = []
+    console.warn('[datadev] 加载目录脚本失败', error)
   }
-
-  return allRows
 }
 
-async function loadScripts() {
-  const requestId = ++scriptListRequestId.value
-  try {
-    const params = selectedDirectoryId.value ? { directoryId: selectedDirectoryId.value } : {}
-    const rows = await fetchAllScripts(params)
-    if (requestId !== scriptListRequestId.value) {
-      return
-    }
-    scriptList.value = rows
-  } catch (error) {
-    if (requestId !== scriptListRequestId.value) {
-      return
-    }
-    scriptList.value = []
-    console.warn('[datadev] 加载脚本列表失败', error)
-  }
+async function refreshAfterScriptChange() {
+  await loadDirectories()
+  const cachedKeys = Object.keys(directoryScripts).filter(key => directoryScripts[key] !== undefined)
+  await Promise.allSettled(
+    cachedKeys.map(key => loadDirectoryScripts(key === 'unassigned' ? null : Number(key)))
+  )
 }
 
 // ── 当前脚本 ────────────────────────────
@@ -359,9 +375,11 @@ async function openScript(script) {
   try {
     const res = await getScript(script.scriptId)
     const data = res.data
-    if (selectedDirectoryId.value !== (data.directoryId || null)) {
-      selectedDirectoryId.value = data.directoryId || null
-      await loadScripts()
+    selectedDirectoryId.value = data.directoryId || null
+    // 确保当前目录的脚本已加载（用于侧栏显示）
+    const dirKey = data.directoryId ?? 'unassigned'
+    if (!directoryScripts[dirKey]) {
+      await loadDirectoryScripts(data.directoryId)
     }
     const tabPayload = {
       scriptId: data.scriptId,
@@ -453,6 +471,7 @@ const createFormRef = ref(null)
 const createForm = reactive({
   scriptName: '',
   scriptCode: '',
+  scriptType: 'sql',
   directoryId: null,
   description: '',
 })
@@ -462,19 +481,19 @@ const createRules = {
 }
 
 function onDirectoryChange(directoryId) {
-  selectedDirectoryId.value = directoryId || null
-  loadScripts()
+  selectedDirectoryId.value = directoryId ?? null
 }
 
 async function onRefreshSidePanel() {
+  Object.keys(directoryScripts).forEach(key => delete directoryScripts[key])
   await loadDirectories()
-  await loadScripts()
 }
 
 // 点击数据目录中数据源节点的 + 按钮，or 顶部新建按钮
 function onStartCreate(nodeData) {
   createForm.scriptName = ''
   createForm.scriptCode = ''
+  createForm.scriptType = 'sql'
   createForm.description = ''
   createForm.directoryId = nodeData?.directoryId || selectedDirectoryId.value || null
   showCreateDialog.value = true
@@ -489,15 +508,91 @@ async function submitCreate() {
   } catch { return }
   creating.value = true
   try {
-    await addScript({ ...createForm, scriptType: 'sql' })
+    await addScript({ ...createForm })
     ElMessage.success('创建成功')
     showCreateDialog.value = false
-    Object.assign(createForm, { scriptName: '', scriptCode: '', directoryId: null, description: '' })
-    loadScripts()
+    Object.assign(createForm, { scriptName: '', scriptCode: '', scriptType: 'sql', directoryId: null, description: '' })
+    await refreshAfterScriptChange()
   } catch (e) {
     ElMessage.error('创建失败')
   } finally {
     creating.value = false
+  }
+}
+
+// ── 删除脚本 ────────────────────────────
+async function handleDeleteScript(script) {
+  if (!script?.scriptId) return
+  try {
+    await ElMessageBox.confirm(`确认删除脚本「${script.scriptName}」？此操作不可恢复。`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+    })
+  } catch { return }
+  try {
+    await delScript(script.scriptId)
+    ElMessage.success('删除成功')
+    // 如果当前已打开该脚本，关闭对应 tab
+    const tabIndex = openTabs.value.findIndex((t) => t.scriptId === script.scriptId)
+    if (tabIndex >= 0) {
+      openTabs.value.splice(tabIndex, 1)
+      if (activeTabScriptId.value === script.scriptId) {
+        const next = openTabs.value[Math.min(tabIndex, openTabs.value.length - 1)] || null
+        if (next) {
+          await switchEditorTab(next.scriptId)
+        } else {
+          activeTabScriptId.value = null
+          versions.value = []
+          executions.value = []
+        }
+      }
+    }
+    await refreshAfterScriptChange()
+  } catch {
+    ElMessage.error('删除失败')
+  }
+}
+
+// ── 编辑脚本信息 ─────────────────────────
+const showEditDialog = ref(false)
+const editing = ref(false)
+const editFormRef = ref(null)
+const editForm = reactive({ scriptId: null, scriptName: '', directoryId: null, description: '' })
+const editRules = {
+  scriptName: [{ required: true, message: '请输入脚本名称', trigger: 'blur' }],
+}
+
+function handleEditScript(script) {
+  if (!script) return
+  editForm.scriptId = script.scriptId
+  editForm.scriptName = script.scriptName
+  editForm.directoryId = script.directoryId || null
+  editForm.description = script.description || ''
+  showEditDialog.value = true
+  nextTick(() => editFormRef.value?.clearValidate())
+}
+
+async function submitEdit() {
+  try { await editFormRef.value.validate() } catch { return }
+  editing.value = true
+  try {
+    await updateScript(editForm.scriptId, {
+      scriptName: editForm.scriptName,
+      directoryId: editForm.directoryId,
+      description: editForm.description,
+    })
+    ElMessage.success('保存成功')
+    showEditDialog.value = false
+    await refreshAfterScriptChange()
+    // 同步当前打开的 tab 名称
+    if (activeTabScriptId.value === editForm.scriptId) {
+      await openScript({ scriptId: editForm.scriptId })
+    }
+  } catch {
+    ElMessage.error('保存失败')
+  } finally {
+    editing.value = false
   }
 }
 
@@ -550,7 +645,7 @@ async function handlePreviewVersion(version) {
   }
 
   currentScript.value.content = version.content || ''
-  currentScript.value.savedContent = version.content || ''
+  // 不覆盖 savedContent，保留从后端加载的原始内容用于脏状态判断
   currentScript.value.versionNumber = version.versionNumber || currentScript.value.versionNumber
   selectedVersionId.value = version.versionId
 }
@@ -600,15 +695,12 @@ async function confirmSave() {
       })
     }
     currentScript.value.savedContent = content.value
-    currentScript.value.versionNumber = currentScript.value.versionNumber + 1
     ElMessage.success(saveMode.value === 'publish' ? '发布成功' : '草稿版本保存成功')
     showSaveDialog.value = false
 
-    await Promise.allSettled([
-      loadVersions(scriptId),
-      openScript({ scriptId }),
-      loadScripts(),
-    ])
+    // 从后端重新拉取脚本详情以同步正确的 versionNumber
+    await openScript({ scriptId })
+    await loadVersions(scriptId)
   } catch {
     ElMessage.error(saveMode.value === 'publish' ? '发布失败' : '保存失败')
   } finally {
@@ -647,19 +739,31 @@ async function handleRun() {
   stopExecutionStatusPolling()
   running.value = true
   execStatus.value = 'running'
+  resultColumns.value = []
+  resultRows.value = []
+  resultDuration.value = null
   logs.value = [{ time: new Date().toLocaleTimeString(), message: '开始执行...', level: 'info' }]
 
   try {
     const res = await executeScript(currentScript.value.scriptId)
-    const executionId = res.data?.executionId || ''
-    execStatus.value = 'pending'
-    logs.value.push({ time: new Date().toLocaleTimeString(), message: `已提交 Spark SQL 执行请求，ID: ${executionId || '-'}（待执行器处理）`, level: 'info' })
+    const data = res.data || {}
+    execStatus.value = data.status || 'success'
+
+    // 填充执行结果
+    if (data.columns?.length) {
+      resultColumns.value = data.columns
+      resultRows.value = data.rows || []
+      resultDuration.value = data.duration ?? null
+    }
+
+    logs.value.push({
+      time: new Date().toLocaleTimeString(),
+      message: `执行完成，返回 ${data.rows?.length || 0} 行数据，耗时 ${data.duration || '-'}s`,
+      level: 'info',
+    })
 
     // 刷新执行记录
     await loadExecutions(currentScript.value.scriptId)
-    if (executionId) {
-      startExecutionStatusPolling(currentScript.value.scriptId, executionId)
-    }
   } catch (e) {
     const errorMessage = e instanceof Error ? e.message : String(e)
     execStatus.value = 'failed'
@@ -761,7 +865,6 @@ const showFullscreen = ref(false)
 // ── 初始化 ──────────────────────────────
 onMounted(() => {
   loadDirectories()
-  loadScripts()
   const initialScriptId = Number(route.query.scriptId)
   if (initialScriptId) {
     openScript({ scriptId: initialScriptId })

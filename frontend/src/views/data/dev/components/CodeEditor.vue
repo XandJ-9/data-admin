@@ -73,7 +73,7 @@ const props = defineProps({
   theme: { type: String, default: 'xcode' },
 })
 
-const emit = defineEmits(['update:modelValue', 'run', 'save', 'publish', 'fullscreen'])
+const emit = defineEmits(['update:modelValue', 'run', 'save', 'publish', 'fullscreen', 'cursor-change'])
 
 const aceInstance = ref(null)
 const editorWrapperRef = ref(null)
@@ -99,6 +99,11 @@ function onInput(val) {
 
 function onEditorInit(editor) {
   aceInstance.value = editor
+  // 光标位置变化上报
+  editor.selection.on('changeCursor', () => {
+    const pos = editor.getCursorPosition()
+    emit('cursor-change', { row: pos.row + 1, col: pos.column + 1 })
+  })
   // Ctrl/Cmd + Enter 执行
   editor.commands.addCommand({
     name: 'runScript',

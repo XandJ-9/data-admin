@@ -198,3 +198,7 @@ DATAX_ERROR_LIMIT = {
     'record': 0,            # 错误记录数阈值
     'percentage': 0.02,     # 错误率阈值（2%）
 }
+
+
+SPARK_HOME=os.environ.get('SPARK_HOME', '/opt/spark')
+SPARK_MASTER=os.environ.get('SPARK_MASTER', 'spark://localhost:7077')

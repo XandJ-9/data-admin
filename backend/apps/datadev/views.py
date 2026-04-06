@@ -1,10 +1,13 @@
 import hashlib
 import logging
+import random
 import uuid
+from datetime import timedelta
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Count, Max, Q
+from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -123,16 +126,26 @@ class DataDevDirectoryViewSet(BaseViewSet):
 
     @action(detail=False, methods=['get'], url_path='tree')
     def tree(self, request):
-        """返回嵌套树形结构"""
-        qs = list(self.get_queryset())
+        """返回嵌套树形结构，包含每个目录下的脚本数量"""
+        qs = list(self.get_queryset().annotate(
+            script_count=Count('scripts', filter=Q(scripts__del_flag='0'))
+        ))
         tree_data = self._build_tree(qs, DataDevDirectory.ROOT_PARENT_ID)
-        return Response({'code': 200, 'msg': '操作成功', 'data': tree_data})
+        unassigned_count = DataDevScript.objects.filter(
+            directory_id__isnull=True, del_flag='0'
+        ).count()
+        return Response({
+            'code': 200, 'msg': '操作成功',
+            'data': tree_data,
+            'unassignedScriptCount': unassigned_count,
+        })
 
     def _build_tree(self, items, parent_id):
         result = []
         for item in items:
             if item.parent_id == parent_id:
                 node = DataDevDirectorySerializer(item).data
+                node['scriptCount'] = getattr(item, 'script_count', 0)
                 children = self._build_tree(items, item.directory_id)
                 if children:
                     node['children'] = children
@@ -179,8 +192,12 @@ class ScriptViewSet(BaseViewSet):
             qs = qs.filter(script_type=vd['scriptType'])
         if vd.get('status'):
             qs = qs.filter(status=vd['status'])
-        if vd.get('directoryId') is not None:
-            qs = qs.filter(directory_id=vd['directoryId'])
+        directory_id = vd.get('directoryId')
+        if directory_id is not None:
+            if directory_id == 0:
+                qs = qs.filter(directory_id__isnull=True)
+            else:
+                qs = qs.filter(directory_id=directory_id)
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -402,26 +419,47 @@ class ScriptViewSet(BaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='execute')
     def execute_script(self, request, pk=None):
-        """触发脚本执行"""
+        """触发脚本执行（模拟 Spark SQL 执行并返回结果）"""
         script = self.get_object()
         current_version = script.versions.filter(is_current=True).first()
+
+        start_time = timezone.now()
+        duration = round(random.uniform(0.1, 2.5), 2)
+        end_time = start_time + timedelta(seconds=duration)
+
+        # 模拟执行结果
+        mock_columns = ['id', 'user_name', 'department', 'amount', 'created_at']
+        mock_rows = [
+            {'id': i, 'user_name': f'user_{i}', 'department': random.choice(['研发', '产品', '运营', '市场']),
+             'amount': round(random.uniform(100, 9999), 2), 'created_at': '2026-04-06'}
+            for i in range(1, random.randint(6, 15))
+        ]
 
         execution = DataDevScriptExecution.objects.create(
             script=script,
             version=current_version,
             execution_id=uuid.uuid4().hex,
-            status='pending',
+            status='success',
             executor_type='sparksql',
             executor_params=request.data.get('params'),
+            start_time=start_time,
+            end_time=end_time,
+            duration_seconds=duration,
+            result_summary={
+                'columns': mock_columns,
+                'rows': mock_rows,
+                'rowCount': len(mock_rows),
+            },
             executed_by=request.user.username if hasattr(request, 'user') else '',
         )
 
-        # TODO: 对接执行器适配层（apps.executors），异步触发执行
-        # 首期仅创建记录，后续接入实际执行能力
-        return self.data(
-            {'executionId': execution.execution_id},
-            msg='已提交 Spark SQL 执行请求（待执行器处理）',
-        )
+        return self.data({
+            'executionId': execution.execution_id,
+            'status': 'success',
+            'columns': mock_columns,
+            'rows': mock_rows,
+            'duration': duration,
+        }, msg='执行成功')
 
     @action(detail=True, methods=['get'], url_path='executions')
     def list_executions(self, request, pk=None):

@@ -12,7 +12,6 @@
       <el-scrollbar class="catalog-scroll">
         <el-tree
           ref="catalogTreeRef"
-          :key="catalogKey"
           :data="catalogTreeData"
           :props="catalogTreeProps"
           node-key="id"
@@ -22,10 +21,12 @@
           :render-after-expand="false"
           :expand-on-click-node="false"
           @node-click="handleCatalogNodeClick"
+          @node-expand="handleNodeExpand"
         >
           <template #default="{ node, data }">
-            <span class="tree-node" @click="handleCatalogNodeClick(data)">
+            <span class="tree-node">
               <el-icon v-if="data.type === 'directory' || data.type === 'default-directory'" class="node-icon layer-icon"><FolderOpened /></el-icon>
+              <el-icon v-else-if="data.type === 'loading'" class="node-icon is-loading"><Loading /></el-icon>
               <el-icon v-else class="node-icon table-icon"><DataLine /></el-icon>
               <span class="node-label" :title="data.comment ? `${node.label} — ${data.comment}` : node.label">
                 {{ node.label }}
@@ -33,10 +34,22 @@
               </span>
               <!-- <span v-if="data.comment" class="node-comment">{{ data.comment }}</span> -->
               <el-button
-                v-if="data.type === 'directory' || data.type === 'default-directory'"
+                v-if="data.type === 'directory'"
                 link type="primary" :icon="Plus" class="node-add-btn"
                 :title="`在 ${data.label} 新建脚本`"
                 @click.stop="$emit('create', { type: 'directory', directoryId: data.directoryId, directoryCode: data.directoryCode })"
+              />
+              <el-button
+                v-if="data.type === 'script'"
+                link type="primary" :icon="Edit" class="node-add-btn"
+                title="编辑脚本信息"
+                @click.stop="$emit('edit', data.script)"
+              />
+              <el-button
+                v-if="data.type === 'script'"
+                link type="danger" :icon="Delete" class="node-add-btn"
+                title="删除脚本"
+                @click.stop="$emit('delete', data.script)"
               />
             </span>
           </template>
@@ -48,38 +61,19 @@
 </template>
 
 <script setup>
-import { Search, Refresh, Plus, DataLine, FolderOpened } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Delete, Edit, DataLine, FolderOpened, Loading } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'DevSidePanel' })
 
 const props = defineProps({
-  scripts: { type: Array, default: () => [] },
+  directoryScripts: { type: Object, default: () => ({}) },
   activeScriptId: { type: Number, default: null },
   directories: { type: Array, default: () => [] },
   activeDirectoryId: { type: Number, default: null },
+  unassignedScriptCount: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['select', 'create', 'directory-change', 'refresh'])
-
-function flattenDirectories(nodes) {
-  const rows = []
-  const walk = (items) => {
-    ;(items || []).forEach((item) => {
-      rows.push(item)
-      if (item.children?.length) {
-        walk(item.children)
-      }
-    })
-  }
-  walk(nodes)
-  return rows
-}
-
-const flatDirectories = computed(() => flattenDirectories(props.directories || []))
-
-const unassignedScripts = computed(() =>
-  props.scripts.filter(s => !s.directoryId || !flatDirectories.value.some(d => d.directoryId === s.directoryId))
-)
+const emit = defineEmits(['select', 'create', 'delete', 'edit', 'directory-change', 'refresh', 'load-scripts'])
 
 function mapScriptNode(script, parentDirectoryId) {
   return {
@@ -95,49 +89,56 @@ function mapScriptNode(script, parentDirectoryId) {
 
 function buildCatalogDirectoryNode(directory) {
   const childDirectoryNodes = (directory.children || []).map(buildCatalogDirectoryNode)
-  const directoryScripts = props.scripts
-    .filter(script => script.directoryId === directory.directoryId)
-    .map(script => mapScriptNode(script, directory.directoryId))
 
-  // 保证 children 至少为 []，isLeaf 始终为 false
-  const allChildren = [...childDirectoryNodes, ...directoryScripts]
+  const scriptsData = props.directoryScripts[directory.directoryId]
+  let scriptNodes = []
+  if (scriptsData === null) {
+    scriptNodes = [{ id: `loading-${directory.directoryId}`, label: '加载中...', type: 'loading', isLeaf: true }]
+  } else if (Array.isArray(scriptsData)) {
+    scriptNodes = scriptsData.map(script => mapScriptNode(script, directory.directoryId))
+  }
+
+  const allChildren = [...childDirectoryNodes, ...scriptNodes]
   return {
     id: `directory-${directory.directoryId}`,
     label: directory.directoryName,
     type: 'directory',
     comment: directory.remark || '',
-    childCount: allChildren.length,
+    childCount: directory.scriptCount ?? 0,
     directoryId: directory.directoryId,
     directoryCode: directory.directoryCode,
     isLeaf: false,
-    children: allChildren.length ? allChildren : [],
+    children: allChildren,
   }
 }
 
 const catalogTreeData = computed(() => {
   const directoryNodes = (props.directories || []).map(buildCatalogDirectoryNode)
-  const defaultChildren = unassignedScripts.value.map(script => mapScriptNode(script, null))
+
+  const unassignedData = props.directoryScripts['unassigned']
+  let defaultChildren = []
+  if (unassignedData === null) {
+    defaultChildren = [{ id: 'loading-unassigned', label: '加载中...', type: 'loading', isLeaf: true }]
+  } else if (Array.isArray(unassignedData)) {
+    defaultChildren = unassignedData.map(script => mapScriptNode(script, null))
+  }
+
   const defaultDirectoryNode = {
     id: 'directory-default',
     label: '未分配目录',
     type: 'default-directory',
-    childCount: defaultChildren.length,
+    childCount: props.unassignedScriptCount,
     directoryId: null,
     isLeaf: false,
-    children: defaultChildren.length ? defaultChildren : [],
+    children: defaultChildren,
   }
   return [...directoryNodes, defaultDirectoryNode]
 })
 
-const defaultExpandedKeys = computed(() =>
-  catalogTreeData.value
-    .filter(n => n.type === 'directory' || n.type === 'default-directory')
-    .map(n => n.id)
-)
+const defaultExpandedKeys = computed(() => [])
 
 // ── 数据目录树 ────────────────────────────
 const catalogTreeRef = ref(null)
-const catalogKey = ref(0)
 const catalogFilter = ref('')
 
 watch(
@@ -176,12 +177,10 @@ watch(catalogFilter, val => {
 })
 
 function refreshCatalog() {
-  catalogKey.value++
   emit('refresh')
 }
 
 function handleCatalogNodeClick(data) {
-  // 只选中节点，不自动展开所有父节点
   if (data?.id) {
     catalogTreeRef.value?.setCurrentKey(data.id)
   }
@@ -189,13 +188,26 @@ function handleCatalogNodeClick(data) {
     emit('select', data.script)
     return
   }
-  if (data?.type === 'directory') {
-    const next = props.activeDirectoryId === data.directoryId ? null : data.directoryId
-    emit('directory-change', next)
+  if (data?.type === 'loading') {
     return
   }
-  if (data?.type === 'default-directory') {
-    emit('directory-change', null)
+  if (data?.type === 'directory' || data?.type === 'default-directory') {
+    const dirId = data.type === 'directory' ? data.directoryId : null
+    emit('directory-change', dirId)
+    const key = dirId ?? 'unassigned'
+    if (props.directoryScripts[key] === undefined) {
+      emit('load-scripts', dirId)
+    }
+  }
+}
+
+function handleNodeExpand(data) {
+  if (data?.type === 'directory' || data?.type === 'default-directory') {
+    const dirId = data.type === 'directory' ? data.directoryId : null
+    const key = dirId ?? 'unassigned'
+    if (props.directoryScripts[key] === undefined) {
+      emit('load-scripts', dirId)
+    }
   }
 }
 </script>
@@ -271,15 +283,7 @@ function handleCatalogNodeClick(data) {
     margin-left: 2px;
     flex-shrink: 0;
   }
-  .node-comment {
-    font-size: 11px;
-    color: var(--panel-sub);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 80px;
-    flex-shrink: 0;
-  }
+
   .node-add-btn {
     flex-shrink: 0;
     opacity: 0;
@@ -294,6 +298,14 @@ function handleCatalogNodeClick(data) {
 .node-icon  { flex-shrink: 0; }
 .layer-icon { color: #e6a23c; }
 .table-icon { color: var(--panel-accent); }
+.is-loading {
+  color: var(--panel-sub);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 @media (max-width: 768px) {
   .section-header {
