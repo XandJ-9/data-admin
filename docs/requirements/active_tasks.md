@@ -1,5 +1,16 @@
 # 任务追踪
 
+### 2026-04-08: dbutils 查询安全与分页边界修复
+
+- ✅ `DataSourceExecutor.execute_query` 复用 `_check_sql` 规范化结果，避免注释/空白导致语句类型误判
+- ✅ SQL 执行阶段保留原始 SQL（含注释）传入驱动，修复标准化后报错行号偏移问题
+- ✅ SQL 校验方法更名为 `_check_and_normalized_sql`，语义与职责更清晰，并完成调用与测试同步
+- ✅ `_strip_trailing_semicolon` 调整为“最后一个非注释行”分号判定，避免尾部注释行影响分页拼接
+- ✅ `_check_sql` 增强：支持块注释与行内注释剥离、仅允许单条 SQL、允许末尾分号
+- ✅ `_check_sql` 增强：拦截 `WITH` 语句中的写操作/DDL 关键词，收敛只读查询边界
+- ✅ 分页逻辑改为 `page_size + 1` 探测下一页，修复总数整除时 `has_more` 误判
+- ✅ 新增 `apps.dbutils` 单元测试，覆盖 SHOW 不分页、WITH 写操作拦截、分页边界与分号/多语句校验
+
 ### 2026-04-06: 脚本执行切换为真实数据源执行
 
 - ✅ execute_script 移除 mock 数据，改用 dbutils.get_executor 连接真实数据源执行 SQL

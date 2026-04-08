@@ -126,4 +126,4 @@ class MysqlExecutor(DataSourceExecutor):
             cur.close()
 
     def build_pagination_sql(self, sql, page_size, offset):
-        return f"{sql} LIMIT {int(offset)},{int(page_size)}"
+        return f"{sql} limit {int(offset)},{int(page_size)}"
