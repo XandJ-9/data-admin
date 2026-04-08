@@ -35,13 +35,12 @@
       </el-table-column>
       <el-table-column prop="sqlText" label="SQL" min-width="200">
         <template #default="scope">
-          <div v-if="scope.row.sqlText">
-            <div v-if="scope.row.sqlText.length <= 100" class="prewrap">
-              {{ scope.row.sqlText }}
-            </div>
-            <div v-else>
-              <div class="prewrap">{{ scope.row.sqlText.substring(0, 100) }}...</div>
-              <el-button link type="primary" @click="showSqlDetail(scope.row.sqlText)">查看详情</el-button>
+          <div v-if="scope.row.sqlText" class="sql-cell">
+            <code class="sql-preview">{{ scope.row.sqlText }}</code>
+            <div class="sql-actions">
+              <el-button link type="primary" @click="showSqlDetail(scope.row.sqlText)">
+                <el-icon><View /></el-icon>查看
+              </el-button>
             </div>
           </div>
           <span v-else>-</span>
@@ -66,9 +65,14 @@
       @update:limit="val => (query.pageSize = val)"
       @pagination="getList"
     />
-    
+
     <el-dialog v-model="sqlDetailVisible" title="SQL详情" width="800px">
-      <div class="sql-detail">{{ currentSql }}</div>
+      <div class="sql-detail-header">
+        <el-button type="primary" link v-copyText="currentSql" v-copyText:callback="onCopySuccess">
+          <el-icon><DocumentCopy /></el-icon>复制SQL
+        </el-button>
+      </div>
+      <pre class="sql-detail">{{ currentSql }}</pre>
       <template #footer>
         <el-button @click="sqlDetailVisible = false">关闭</el-button>
       </template>
@@ -78,6 +82,8 @@
 
 <script setup>
 import { listQueryLog } from '@/api/data/service'
+import { ElMessage } from 'element-plus'
+
 const list = ref([])
 const total = ref(0)
 const query = reactive({ pageNum: 1, pageSize: 10, userName: '', status: '' })
@@ -88,6 +94,10 @@ const currentSql = ref('')
 function showSqlDetail(sql) {
   currentSql.value = sql
   sqlDetailVisible.value = true
+}
+
+function onCopySuccess() {
+  ElMessage.success('已复制到剪贴板')
 }
 
 function getList() {
@@ -117,19 +127,43 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.prewrap {
-  /* white-space: pre-wrap; */
-  word-break: break-word;
+.sql-cell {
   max-width: 600px;
-  overflow-x: hidden;
+}
+.sql-preview {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #303133;
+  background: transparent;
+  padding: 0;
+}
+.sql-actions {
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+}
+.sql-detail-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
 }
 .sql-detail {
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 500px;
   overflow-y: auto;
-  padding: 10px;
-  background-color: #f5f7fa;
+  padding: 16px;
+  margin: 0;
+  background-color: #fafafa;
+  border: 1px solid #ebeef5;
   border-radius: 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #303133;
 }
 </style>
