@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'apps.datasource',  # 数据源管理模块
     'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
     'apps.dataetl',     # ETL任务管理模块
+    'apps.datadev',     # 数据开发模块
     'apps.terminal',    # Web Terminal
 ]
 
@@ -197,3 +198,7 @@ DATAX_ERROR_LIMIT = {
     'record': 0,            # 错误记录数阈值
     'percentage': 0.02,     # 错误率阈值（2%）
 }
+
+
+SPARK_HOME=os.environ.get('SPARK_HOME', '/opt/spark')
+SPARK_MASTER=os.environ.get('SPARK_MASTER', 'spark://localhost:7077')

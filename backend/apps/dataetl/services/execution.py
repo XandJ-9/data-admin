@@ -11,7 +11,7 @@ from typing import Dict, Any
 from django.utils import timezone
 
 from ..models import ETLTask, ETLExecutionLog, ETLExecutionProgress
-from ..executors import ExecutorFactory
+from apps.executors import ExecutorFactory
 from .quality import QualityService
 
 logger = logging.getLogger(__name__)

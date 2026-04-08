@@ -404,7 +404,7 @@
     "path": "/terminal",
     "routeName": "Terminal",
     "menuType": "M",
-    "icon": "computer",
+    "icon": "terminal",
     "visible": "0",
     "status": "0",
     "perms": "",
@@ -434,5 +434,49 @@
         "icon": "time"
       }
     ]
+  },
+  {
+    "menuName": "数据开发",
+    "orderNum": 11,
+    "path": "/datadev",
+    "routeName": "DataDev",
+    "menuType": "M",
+    "icon": "code",
+    "visible": "0",
+    "status": "0",
+    "perms": "",
+    "children": [
+      {
+        "menuName": "开发工作台",
+        "orderNum": 1,
+        "path": "ide",
+        "component": "data/dev/index",
+        "routeName": "DataDevIde",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "datadev:ide:view",
+        "icon": "code"
+      },
+      {
+        "menuName": "数据目录",
+        "orderNum": 2,
+        "path": "catalog",
+        "routeName": "DataDevCatalog",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "datadev:catalog:query",
+        "icon": "tree",
+        "component": "data/dev/catalog/index",
+        "children": [
+          { "menuName": "目录查询", "orderNum": 1, "menuType": "F", "perms": "datadev:catalog:query" },
+          { "menuName": "目录新增", "orderNum": 2, "menuType": "F", "perms": "datadev:catalog:add" },
+          { "menuName": "目录修改", "orderNum": 3, "menuType": "F", "perms": "datadev:catalog:edit" },
+          { "menuName": "目录删除", "orderNum": 4, "menuType": "F", "perms": "datadev:catalog:remove" }
+        ]
+      }
+    ]
+
   }
 ]

@@ -113,7 +113,7 @@ const activeMenu = computed(() => {
 })
 
 function setVisibleNumber() {
-  const width = document.body.getBoundingClientRect().width / 3
+  const width = document.body.getBoundingClientRect().width / 2
   visibleNumber.value = parseInt(width / 85)
 }
 
@@ -135,8 +135,14 @@ function handleSelect(key, keyPath) {
     appStore.toggleSideBarHide(true)
   } else {
     // 显示左侧联动菜单
-    activeRoutes(key)
+    const routes = activeRoutes(key)
     appStore.toggleSideBarHide(false)
+    // 跳转到子路由的第一个可访问路径
+    if (route && route.redirect) {
+      router.push(route.redirect)
+    } else if (routes && routes.length > 0) {
+      router.push({ path: routes[0].path })
+    }
   }
 }
 

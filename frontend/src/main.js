@@ -1,5 +1,21 @@
 import { createApp } from 'vue'
 
+// 修复 Element Plus 等第三方库触发的 non-passive wheel/touch 事件警告
+// 在所有组件库初始化之前执行，确保补丁生效
+;(function patchPassiveEvents() {
+  const orig = EventTarget.prototype.addEventListener
+  EventTarget.prototype.addEventListener = function (type, fn, options) {
+    if (['wheel', 'touchstart', 'touchmove'].includes(type)) {
+      if (typeof options === 'object' && options !== null) {
+        options = { ...options, passive: options.passive ?? true }
+      } else {
+        options = { passive: true, capture: options === true }
+      }
+    }
+    return orig.call(this, type, fn, options)
+  }
+})()
+
 import Cookies from 'js-cookie'
 
 import ElementPlus from 'element-plus'

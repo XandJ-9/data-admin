@@ -328,11 +328,17 @@ class MenuSerializer(BaseModelSerializer):
     visible = serializers.CharField(default='0')
     perms = serializers.CharField(required=False, allow_blank=True, default='')
     icon = serializers.CharField(required=False, allow_blank=True, default='')
+    redirect = serializers.CharField(required=False, allow_blank=True, default='')
+    activeMenu = serializers.CharField(source='active_menu', required=False, allow_blank=True, default='')
+    isAffix = serializers.BooleanField(source='is_affix', default=False)
+    isBreadcrumb = serializers.BooleanField(source='is_breadcrumb', default=True)
+    alwaysShow = serializers.BooleanField(source='always_show', default=True)
 
     class Meta:
         model = Menu
         fields = ['menuId', 'parentId', 'menuName', 'orderNum', 'path', 'component', 'routeName', 'query', 'isFrame',
-                  'isCache', 'menuType', 'visible', 'perms', 'icon']
+                  'isCache', 'menuType', 'visible', 'perms', 'icon', 'redirect', 'activeMenu', 'isAffix',
+                  'isBreadcrumb', 'alwaysShow']
 
 class MenuUpdateSerializer(MenuSerializer):
     menuId = serializers.IntegerField(source='menu_id', required=True)

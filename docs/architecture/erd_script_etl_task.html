@@ -1,0 +1,137 @@
+
+<style>
+#e1{overflow-x:auto}
+#e1 svg{max-width:100%}
+#e1 svg.erDiagram .divider path{stroke-opacity:.4}
+#e1 svg.erDiagram .row-rect-odd path,
+#e1 svg.erDiagram .row-rect-odd rect,
+#e1 svg.erDiagram .row-rect-even path,
+#e1 svg.erDiagram .row-rect-even rect{stroke:none!important}
+</style>
+<div id="e1"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({startOnLoad:false,theme:'base',fontFamily:'"Anthropic Sans",sans-serif',
+  themeVariables:{darkMode:dark,fontSize:'13px',fontFamily:'"Anthropic Sans",sans-serif',
+    lineColor:dark?'#9c9a92':'#73726c',textColor:dark?'#c2c0b6':'#3d3d3a',
+    primaryColor:dark?'#2a2870':'#EEEDFE',primaryBorderColor:dark?'#534AB7':'#534AB7',
+    primaryTextColor:dark?'#CECBF6':'#3C3489',
+    secondaryColor:dark?'#063d2e':'#E1F5EE',tertiaryColor:dark?'#1a1a18':'#F1EFE8'}});
+const src=`erDiagram
+  project {
+    bigint id PK
+    string name
+    string description
+    bigint owner_id FK
+    string status
+    timestamp created_at
+  }
+  script {
+    bigint id PK
+    bigint project_id FK
+    bigint folder_id FK
+    bigint owner_id FK
+    string name
+    string script_type
+    string engine_type
+    bigint datasource_id FK
+    string status
+    timestamp created_at
+    timestamp updated_at
+  }
+  script_version {
+    bigint id PK
+    bigint script_id FK
+    int version_no
+    text content
+    string commit_msg
+    string git_commit_sha
+    string deploy_status
+    bigint created_by FK
+    timestamp created_at
+  }
+  etl_task {
+    bigint id PK
+    bigint project_id FK
+    bigint folder_id FK
+    string name
+    string sync_mode
+    string task_type
+    bigint src_datasource_id FK
+    bigint tgt_datasource_id FK
+    text field_mapping_json
+    text filter_condition
+    string partition_field
+    string dedup_key
+    string status
+    bigint created_by FK
+    timestamp created_at
+    timestamp updated_at
+  }
+  etl_task_version {
+    bigint id PK
+    bigint etl_task_id FK
+    int version_no
+    text config_snapshot
+    string deploy_status
+    bigint created_by FK
+    timestamp created_at
+  }
+  datasource {
+    bigint id PK
+    string name
+    string ds_type
+    string host
+    int port
+    string db_name
+    string schema_name
+    string auth_type
+    string secret_ref
+    string status
+    bigint created_by FK
+  }
+  folder {
+    bigint id PK
+    string name
+    bigint parent_id FK
+    string path
+    string belong_type
+    bigint project_id FK
+  }
+  user {
+    bigint id PK
+    string username
+    string email
+    string role
+  }
+  project ||--o{ script : contains
+  project ||--o{ etl_task : contains
+  project ||--o{ folder : organizes
+  script ||--o{ script_version : versions
+  etl_task ||--o{ etl_task_version : versions
+  script }o--|| datasource : runs_on
+  etl_task }o--|| datasource : src
+  etl_task }o--|| datasource : tgt
+  script }o--|| folder : in
+  etl_task }o--|| folder : in
+  script }o--|| user : owned_by
+  etl_task }o--|| user : created_by
+  script_version }o--|| user : committed_by
+`;
+const {svg}=await mermaid.render('e1svg',src);
+document.getElementById('e1').innerHTML=svg;
+document.querySelectorAll('#e1 svg.erDiagram .node').forEach(n=>{
+  const p=n.querySelector('path[d]');if(!p)return;
+  const d=p.getAttribute('d'),nums=d.match(/-?[\d.]+/g)?.map(Number);
+  if(!nums||nums.length<8)return;
+  const xs=[nums[0],nums[2],nums[4],nums[6]],ys=[nums[1],nums[3],nums[5],nums[7]];
+  const x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;
+  const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+  r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('rx','8');
+  for(const a of['fill','stroke','stroke-width','class','style'])if(p.hasAttribute(a))r.setAttribute(a,p.getAttribute(a));
+  p.replaceWith(r);
+});
+document.querySelectorAll('#e1 svg.erDiagram .row-rect-odd path,#e1 svg.erDiagram .row-rect-even path').forEach(p=>p.setAttribute('stroke','none'));
+</script>
