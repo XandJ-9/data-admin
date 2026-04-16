@@ -2,6 +2,15 @@
 
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
+# [v1.4.16] - 2026-04-16
+- [Cleanup] 删除本地历史分支 `feature/etl` 与 `fix/menus`，收敛当前开发分支集。
+- [Security] 修复 `apps.dbutils.presto` 中 `SHOW CREATE TABLE` 的 schema/table 直接拼接问题，统一改为安全标识符引用。
+- [Security] 修复 `apps.dbutils.sqlite` 中 `PRAGMA table_info` 的表名直接拼接问题，避免 SQLite 元数据查询被注入。
+- [Security] 收敛 `apps.monitor.middleware` 操作日志响应体落库范围：响应内容改为脱敏后的摘要，避免 token、密码等敏感信息写入日志。
+- [Security] 修复数据源连接测试接口异常明文透传问题，前端统一返回安全提示，详细错误保留在服务端日志中。
+- [Security] 收敛 `apps.dbutils.presto` 执行器异常消息，避免其他调用路径直接暴露底层连接细节。
+- [Test] 新增 `apps.monitor.tests`、`apps.datasource.tests`，并补充 `apps.dbutils.tests` 覆盖安全修复边界。
+
 # [v1.4.15] - 2026-04-08
 - [Bugfix] 修复 dbutils SQL 类型误判：执行前复用 `_check_sql` 规范化结果，避免注释/空白前缀导致 SHOW/DESCRIBE/EXPLAIN 被错误分页。
 - [Bugfix] 修复 SQL 错误定位偏移：SQL 校验使用标准化文本，但执行阶段保留原始 SQL（含注释），便于按原始行号定位报错。

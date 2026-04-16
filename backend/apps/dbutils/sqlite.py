@@ -1,8 +1,15 @@
 import sqlite3
+import re
 from .base import DataSourceExecutor
 
 
 class SqliteExecutor(DataSourceExecutor):
+    def _quote_identifier(self, name):
+        identifier = str(name or '').strip()
+        if not identifier:
+            raise ValueError('SQLite 标识符不能为空')
+        return '"' + identifier.replace('"', '""') + '"'
+
     def connect(self):
         if self.conn:
             return
@@ -47,7 +54,7 @@ class SqliteExecutor(DataSourceExecutor):
         self.connect()
         cur = self.conn.cursor()
         try:
-            cur.execute(f"PRAGMA table_info({table})")
+            cur.execute(f"PRAGMA table_info({self._quote_identifier(table)})")
             cols = []
             rows = cur.fetchall()
             for idx, (cid, name, ctype, notnull, dflt_value, pk) in enumerate(rows, start=1):

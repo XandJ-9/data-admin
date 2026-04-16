@@ -1,21 +1,29 @@
 from django.test import TestCase
 
 from .base import DataSourceExecutor
+from .presto import PrestoExecutor
+from .sqlite import SqliteExecutor
 
 
 class _FakeCursor:
-    def __init__(self, rows=None, description=None):
+    def __init__(self, rows=None, description=None, execute_error=None):
         self.rows = rows or []
         self.description = description or []
         self.executed_sql = None
         self.executed_params = None
+        self.execute_error = execute_error
 
     def execute(self, sql, params=None):
+        if self.execute_error is not None:
+            raise self.execute_error
         self.executed_sql = sql
         self.executed_params = params
 
     def fetchall(self):
         return self.rows
+
+    def fetchone(self):
+        return self.rows[0] if self.rows else None
 
     def close(self):
         return None
@@ -31,6 +39,16 @@ class _FakeConn:
 
     def commit(self):
         self.committed = True
+
+
+class _CursorFactoryConn:
+    def __init__(self, cursors):
+        self._cursors = list(cursors)
+
+    def cursor(self):
+        if not self._cursors:
+            raise AssertionError('No cursor prepared for test')
+        return self._cursors.pop(0)
 
 
 class _TestExecutor(DataSourceExecutor):
@@ -148,3 +166,49 @@ class DataSourceExecutorTests(TestCase):
         stripped = executor._strip_trailing_semicolon(sql)
 
         self.assertEqual(stripped, sql)
+
+
+class PrestoExecutorTests(TestCase):
+    def test_build_show_create_table_sql_should_quote_identifiers(self):
+        executor = PrestoExecutor({})
+
+        sql = executor._build_show_create_table_sql('ods', 'user_orders')
+
+        self.assertEqual(sql, 'SHOW CREATE TABLE "ods"."user_orders"')
+
+    def test_quote_identifier_should_escape_double_quotes(self):
+        executor = PrestoExecutor({})
+
+        quoted = executor._quote_identifier('ods"prod')
+
+        self.assertEqual(quoted, '"ods""prod"')
+
+    def test_get_table_comment_should_use_quoted_show_create_sql(self):
+        first_cursor = _FakeCursor(execute_error=RuntimeError('metadata unavailable'))
+        second_cursor = _FakeCursor(rows=[("CREATE TABLE x COMMENT 'safe comment'",)])
+        executor = PrestoExecutor({})
+        executor.conn = _CursorFactoryConn([first_cursor, second_cursor])
+
+        comment = executor._get_table_comment('ods;drop', 'table--name')
+
+        self.assertEqual(comment, 'safe comment')
+        self.assertEqual(
+            second_cursor.executed_sql,
+            'SHOW CREATE TABLE "ods;drop"."table--name"',
+        )
+
+
+class SqliteExecutorTests(TestCase):
+    def test_quote_identifier_should_wrap_table_name(self):
+        executor = SqliteExecutor({})
+
+        quoted = executor._quote_identifier('user_orders')
+
+        self.assertEqual(quoted, '"user_orders"')
+
+    def test_quote_identifier_should_escape_double_quotes(self):
+        executor = SqliteExecutor({})
+
+        quoted = executor._quote_identifier('user"orders')
+
+        self.assertEqual(quoted, '"user""orders"')

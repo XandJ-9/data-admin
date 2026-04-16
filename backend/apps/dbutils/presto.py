@@ -4,6 +4,18 @@ import time
 
 
 class PrestoExecutor(DataSourceExecutor):
+    def _quote_identifier(self, name):
+        identifier = str(name or '').strip()
+        if not identifier:
+            raise ValueError('Presto 标识符不能为空')
+        return '"' + identifier.replace('"', '""') + '"'
+
+    def _build_show_create_table_sql(self, schema, table):
+        return (
+            f"SHOW CREATE TABLE {self._quote_identifier(schema)}."
+            f"{self._quote_identifier(table)}"
+        )
+
     def connect(self):
         if self.conn:
             return
@@ -95,7 +107,7 @@ class PrestoExecutor(DataSourceExecutor):
         except Exception as e:
             # 出错时关闭连接，便于后续重试，并抛出明确错误信息
             self.close()
-            raise RuntimeError(f"Presto/Trino 连接失败: {e}")
+            raise RuntimeError('Presto/Trino 连接失败，请检查连接配置')
         finally:
             if cur:
                 try:
@@ -149,7 +161,7 @@ class PrestoExecutor(DataSourceExecutor):
         except Exception as e:
             # 出错时关闭连接，便于后续重试，并抛出明确错误信息
             self.close()
-            raise RuntimeError(f"查询数据表失败: {e}")
+            raise RuntimeError('查询数据表失败，请检查数据源配置')
         finally:
             cur.close()
 
@@ -263,7 +275,7 @@ class PrestoExecutor(DataSourceExecutor):
         cur = self.conn.cursor()
         try:
             try:
-                cur.execute(f"SHOW CREATE TABLE {schema}.{table}")
+                cur.execute(self._build_show_create_table_sql(schema, table))
                 ddl_rows = cur.fetchall()
                 ddl = '\n'.join([row[0] if isinstance(row, (list, tuple)) else str(row) for row in ddl_rows])
                 m = re.search(r"COMMENT\s*=\s*'([^']*)'", ddl)
@@ -279,7 +291,7 @@ class PrestoExecutor(DataSourceExecutor):
         cur = self.conn.cursor()
         try:
             try:
-                cur.execute(f"SHOW CREATE TABLE {schema}.{table}")
+                cur.execute(self._build_show_create_table_sql(schema, table))
                 ddl_rows = cur.fetchall()
                 ddl = '\n'.join([row[0] if isinstance(row, (list, tuple)) else str(row) for row in ddl_rows])
                 ctime = ''

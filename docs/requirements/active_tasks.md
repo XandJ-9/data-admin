@@ -1,5 +1,15 @@
 # 任务追踪
 
+### 2026-04-16: 高风险安全面收敛与分支清理
+
+- ✅ 删除本地分支 `feature/etl` 与 `fix/menus`，收敛当前工作面
+- ✅ 修复 `apps.dbutils.presto` 中 `SHOW CREATE TABLE` 标识符直接拼接风险，统一改为安全引用标识符
+- ✅ 修复 `apps.dbutils.sqlite` 中 `PRAGMA table_info` 表名直接拼接风险，避免 SQLite 元数据查询被注入
+- ✅ 修复 `apps.monitor.middleware` 操作日志记录完整响应体风险，改为脱敏后摘要落库，避免 token/密码等敏感值入日志
+- ✅ 修复 `apps.datasource.views` 连接测试接口底层异常透传问题，前端仅返回安全错误提示，详细异常仅保留在服务端日志
+- ✅ 收敛 `apps.dbutils.presto` 异常消息内容，避免执行器层直接抛出底层连接细节
+- ✅ 新增 `apps.monitor` 与 `apps.datasource` 测试，并补充 `apps.dbutils` 安全测试，覆盖本次修复边界
+
 ### 2026-04-08: dbutils 查询安全与分页边界修复
 
 - ✅ `DataSourceExecutor.execute_query` 复用 `_check_sql` 规范化结果，避免注释/空白导致语句类型误判

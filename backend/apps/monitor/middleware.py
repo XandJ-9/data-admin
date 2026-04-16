@@ -7,13 +7,104 @@ from django.utils import timezone
 from .models import OperLog
 
 
-SENSITIVE_KEYS = {"password", "pwd", "pass", "secret", "token", "accessToken"}
+SENSITIVE_KEYS = {
+    'password',
+    'pwd',
+    'pass',
+    'secret',
+    'token',
+    'accesstoken',
+    'refreshtoken',
+    'authorization',
+    'apikey',
+    'appsecret',
+}
+
+
+def _normalize_sensitive_key(key):
+    return ''.join(ch for ch in str(key or '').lower() if ch.isalnum())
+
+
+def _is_sensitive_key(key):
+    return _normalize_sensitive_key(key) in SENSITIVE_KEYS
 
 
 def _mask_value(key, value):
-    if key and key.lower() in SENSITIVE_KEYS:
+    if _is_sensitive_key(key):
         return "****"
     return value
+
+
+def _deep_mask(value, key=None):
+    if _is_sensitive_key(key):
+        return '****'
+    if isinstance(value, dict):
+        return {item_key: _deep_mask(item_value, item_key) for item_key, item_value in value.items()}
+    if isinstance(value, list):
+        return [_deep_mask(item) for item in value]
+    if isinstance(value, tuple):
+        return [_deep_mask(item) for item in value]
+    return value
+
+
+def _summarize_payload(payload):
+    masked_payload = _deep_mask(payload)
+    if isinstance(masked_payload, dict):
+        summary = {}
+        for field in ('code', 'msg', 'success', 'status'):
+            if field in masked_payload:
+                summary[field] = masked_payload[field]
+        if 'data' in masked_payload:
+            data = masked_payload['data']
+            summary['dataType'] = type(data).__name__
+            if isinstance(data, dict):
+                summary['dataKeys'] = list(data.keys())[:20]
+            elif isinstance(data, list):
+                summary['dataCount'] = len(data)
+            elif data is not None:
+                summary['dataPreview'] = str(data)[:200]
+        elif not summary:
+            summary['keys'] = list(masked_payload.keys())[:20]
+        return summary
+    if isinstance(masked_payload, list):
+        return {'dataType': 'list', 'dataCount': len(masked_payload)}
+    if masked_payload is None:
+        return {'dataType': 'none'}
+    return {'dataType': type(masked_payload).__name__, 'dataPreview': str(masked_payload)[:200]}
+
+
+def _build_response_snapshot(response, error_msg):
+    status_code = getattr(response, 'status_code', 500)
+    status_val = 0
+    snapshot = {'statusCode': status_code}
+
+    if hasattr(response, 'data'):
+        data = response.data
+        code_in_data = None
+        try:
+            code_in_data = int(data.get('code')) if isinstance(data, dict) else None
+        except Exception:
+            code_in_data = None
+        status_val = 0 if status_code == 200 and code_in_data == 200 and not error_msg else 1
+        snapshot['response'] = _summarize_payload(data)
+        return status_val, json.dumps(snapshot, ensure_ascii=False)[:2000]
+
+    if hasattr(response, 'content'):
+        content = ''
+        try:
+            content = response.content.decode('utf-8', errors='ignore')
+        except Exception:
+            content = ''
+        status_val = 0 if status_code == 200 and not error_msg else 1
+        try:
+            snapshot['response'] = _summarize_payload(json.loads(content))
+        except Exception:
+            snapshot['response'] = {'body': '<omitted non-json body>'}
+        return status_val, json.dumps(snapshot, ensure_ascii=False)[:2000]
+
+    status_val = 1 if error_msg else 0
+    snapshot['response'] = {'body': '<unavailable>'}
+    return status_val, json.dumps(snapshot, ensure_ascii=False)[:2000]
 
 
 def _build_params_snapshot(request):
@@ -32,9 +123,7 @@ def _build_params_snapshot(request):
                 try:
                     data = json.loads(body)
                     if isinstance(data, dict):
-                        for k in list(data.keys()):
-                            data[k] = _mask_value(k, data[k])
-                        return json.dumps(data, ensure_ascii=False)
+                        return json.dumps(_deep_mask(data), ensure_ascii=False)
                     return body[:4000]
                 except Exception:
                     return body[:4000]
@@ -131,34 +220,7 @@ class OperLogMiddleware:
                 # 请求参数快照
                 oper_param = _build_params_snapshot(request)
 
-                # 响应结果（尽量提取成功/失败与部分内容）
-                status_code = getattr(response, 'status_code', 500)
-                status_val = 0
-                json_result = ''
-                try:
-                    if hasattr(response, 'data'):
-                        # DRF Response
-                        data = response.data
-                        # 简化判断成功
-                        code_in_data = None
-                        try:
-                            code_in_data = int(data.get('code'))
-                        except Exception:
-                            pass
-                        status_val = 0 if status_code == 200 and code_in_data == 200 and not error_msg else 1
-                        json_result = json.dumps(data, ensure_ascii=False)[:4000]
-                    elif hasattr(response, 'content'):
-                        content = ''
-                        try:
-                            content = response.content.decode('utf-8', errors='ignore')
-                        except Exception:
-                            pass
-                        status_val = 0 if status_code == 200 and not error_msg else 1
-                        json_result = content[:2000]
-                    else:
-                        status_val = 1 if error_msg else 0
-                except Exception:
-                    status_val = 1 if error_msg else 0
+                status_val, json_result = _build_response_snapshot(response, error_msg)
 
                 # 保存操作日志
                 OperLog.objects.create(
