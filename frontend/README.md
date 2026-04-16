@@ -36,7 +36,6 @@ frontend/src/
 │   │   ├── asset.js               #     数据资产（元数据、血缘）
 │   │   ├── meta.js                #     元数据查询
 │   │   ├── service.js             #     数据服务（查询、接口）
-│   │   ├── etl.js                 #     ETL 任务管理
 │   │   ├── datadev.js             #     数据开发（脚本/版本/执行）
 │   │   ├── integration.js         #     数据集成（预留）
 │   │   ├── studio.js              #     数据工坊（预留）
@@ -75,12 +74,6 @@ frontend/src/
 │   │   ├── dev/                   #     数据开发 IDE
 │   │   │   ├── index.vue          #       主界面（三栏布局 + 多页签）
 │   │   │   └── components/        #       SidePanel / CodeEditor / ResultPanel / StatusBar
-│   │   ├── etl/                   #     ETL 管理
-│   │   │   ├── index.vue          #       ETL 总览
-│   │   │   ├── taskList.vue       #       任务列表
-│   │   │   ├── taskDetail.vue     #       任务编辑（SQL/字段映射/版本）
-│   │   │   ├── executionLogs.vue  #       执行日志
-│   │   │   └── components/        #       ETL 子组件
 │   ├── system/                    #   系统管理页面
 │   ├── monitor/                   #   监控管理页面
 │   ├── login.vue                  #   登录页

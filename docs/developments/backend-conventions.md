@@ -31,7 +31,7 @@ module/
 └── migrations/
 ```
 
-### 复杂模块（分层目录，如 dataetl）
+### 复杂模块（分层目录，如 datadev）
 ```
 module/
 ├── models.py

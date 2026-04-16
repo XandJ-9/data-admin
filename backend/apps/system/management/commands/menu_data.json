@@ -262,77 +262,8 @@
     ]
   },
   {
-    "menuName": "数据ETL",
-    "orderNum": 4,
-    "path": "/data-etl",
-    "component": "",
-    "routeName": "DataETL",
-    "menuType": "M",
-    "visible": "0",
-    "status": "0",
-    "perms": "",
-    "icon": "data-integration",
-    "children": [
-      {
-        "menuName": "ETL首页",
-        "orderNum": 1,
-        "path": "home",
-        "component": "data/etl/index",
-        "routeName": "ETLHome",
-        "menuType": "C",
-        "visible": "0",
-        "status": "0",
-        "perms": "dataetl:task:query",
-        "icon": "dashboard"
-      },
-      {
-        "menuName": "ETL任务",
-        "orderNum": 2,
-        "path": "tasks",
-        "component": "data/etl/taskList",
-        "routeName": "ETLTaskList",
-        "menuType": "C",
-        "visible": "0",
-        "status": "0",
-        "perms": "dataetl:task:query",
-        "icon": "list",
-        "children": [
-          { "menuName": "任务查询", "orderNum": 1, "menuType": "F", "perms": "dataetl:task:query" },
-          { "menuName": "任务新增", "orderNum": 2, "menuType": "F", "perms": "dataetl:task:add" },
-          { "menuName": "任务修改", "orderNum": 3, "menuType": "F", "perms": "dataetl:task:edit" },
-          { "menuName": "任务删除", "orderNum": 4, "menuType": "F", "perms": "dataetl:task:remove" },
-          { "menuName": "任务执行", "orderNum": 5, "menuType": "F", "perms": "dataetl:task:execute" }
-        ]
-      },
-      {
-        "menuName": "执行日志",
-        "orderNum": 3,
-        "path": "execution-logs",
-        "component": "data/etl/executionLogs",
-        "routeName": "ETLExecutionLogs",
-        "menuType": "C",
-        "visible": "0",
-        "status": "0",
-        "perms": "dataetl:executionlog:query",
-        "icon": "log"
-      },
-      {
-        "menuName": "ETL任务详情",
-        "orderNum": 4,
-        "path": "task/:id",
-        "component": "data/etl/taskDetail",
-        "routeName": "ETLTaskDetail",
-        "menuType": "C",
-        "visible": "1",
-        "status": "0",
-        "perms": "dataetl:task:query",
-        "icon": ""
-      }
-    ]
-  },
-  {
     "menuName": "数据服务",
-    "orderNum": 5,
+    "orderNum": 4,
     "path": "/data-service",
     "component": "",
     "routeName": "DataService",

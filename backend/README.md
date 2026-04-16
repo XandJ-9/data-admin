@@ -2,7 +2,7 @@
 
 ## 概述
 
-后端基于 Django 5.2 + DRF 3.16 构建，提供系统管理、数据源管理、数据资产管理、数据服务、ETL 任务管理与监控运维能力。接口采用统一响应格式与软删除策略，支持 JWT 认证（SimpleJWT）与 drf-spectacular API 文档。
+后端基于 Django 5.2 + DRF 3.16 构建，提供系统管理、数据源管理、数据资产管理、数据服务、数据开发与监控运维能力。接口采用统一响应格式与软删除策略，支持 JWT 认证（SimpleJWT）与 drf-spectacular API 文档。
 
 ## 运行与开发
 
@@ -51,10 +51,10 @@ backend/
 │   │   ├── models.py              #   QueryLog, InterfaceInfo, InterfaceField
 │   │   ├── views.py               #   SQL 查询, CSV 导出, 接口执行
 │   │   └── custom.py              #   自定义业务逻辑
-│   ├── dataetl/                   # ETL 任务管理
-│   │   ├── models.py              #   ETLTask, ETLFieldMapping, ETLExecutionLog, ETLWatermark, ETLTaskTemplate, ETLQualityRule/Result
-│   │   ├── executors/             #   执行器实现（DataX / SparkSQL / Mock）
-│   │   └── services/              #   业务服务（任务/执行/版本/配置/监控/质量）
+│   ├── datadev/                   # 数据开发
+│   │   ├── models.py              #   DataDevScript, DataDevVersion, DataDevExecution
+│   │   ├── views.py               #   脚本、版本与执行接口
+│   │   └── services/              #   开发执行与版本管理
 │   ├── dbutils/                   # 数据库执行器抽象层
 │   │   ├── base.py                #   DataSourceExecutor 接口定义
 │   │   ├── factory.py             #   执行器工厂（按 db_type 路由）
@@ -185,26 +185,6 @@ backend/
 | POST | `/dataservice/interface-info/{id}/execute` | 执行接口 |
 | POST | `/dataservice/interface-info/export-meta` | 导出接口定义 (Excel) |
 | POST | `/dataservice/interface-info/import-meta` | 导入接口定义 (Excel) |
-
-### ETL 任务管理 (`/data-api/dataetl/`)
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/dataetl/task/` | 任务列表 |
-| POST | `/dataetl/task/` | 创建任务 |
-| GET | `/dataetl/task/simple` | 简单列表（下拉框） |
-| GET | `/dataetl/task/statistics` | 任务统计 |
-| GET | `/dataetl/task/{id}/` | 任务详情 |
-| PUT | `/dataetl/task/{id}/` | 更新任务 |
-| POST | `/dataetl/task/{id}/execute` | 执行任务 |
-| POST | `/dataetl/task/{id}/create-version` | 创建版本快照 |
-| GET | `/dataetl/task/{id}/versions` | 版本列表 |
-| POST | `/dataetl/task/{id}/rollback` | 版本回滚 |
-| POST | `/dataetl/task/{id}/validate-config` | 验证配置 |
-| GET | `/dataetl/task/{id}/datx-config` | 生成 DataX 配置 |
-| POST | `/dataetl/task/{id}/execute-dry-run` | 模拟执行 |
-| GET | `/dataetl/field-mapping/` | 字段映射列表 |
-| GET | `/dataetl/execution-log/` | 执行日志列表 |
 
 ### 系统管理 (`/data-api/`)
 

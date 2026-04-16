@@ -2,6 +2,13 @@
 
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
+# [v1.4.17] - 2026-04-16
+- [Cleanup] 移除 `apps.dataetl` 后端模块及其路由注册，收敛 Django 运行时能力边界。
+- [Cleanup] 删除前端 ETL 首页、任务页、执行日志页与对应 API 封装，避免遗留空菜单和失效请求。
+- [Refactor] 首页仪表盘移除 ETL 统计与图表，仅保留数据源与资产概览。
+- [Refactor] `apps.executors` 中 DataX 水位线逻辑改为无持久化模式，解除对 `ETLWatermark` 的跨模块依赖。
+- [Docs] 同步更新初始化菜单、README、快速参考和 ADR 状态，标记 dataetl 已下线。
+
 # [v1.4.16] - 2026-04-16
 - [Cleanup] 删除本地历史分支 `feature/etl` 与 `fix/menus`，收敛当前开发分支集。
 - [Security] 修复 `apps.dbutils.presto` 中 `SHOW CREATE TABLE` 的 schema/table 直接拼接问题，统一改为安全标识符引用。
@@ -10,6 +17,8 @@
 - [Security] 修复数据源连接测试接口异常明文透传问题，前端统一返回安全提示，详细错误保留在服务端日志中。
 - [Security] 收敛 `apps.dbutils.presto` 执行器异常消息，避免其他调用路径直接暴露底层连接细节。
 - [Test] 新增 `apps.monitor.tests`、`apps.datasource.tests`，并补充 `apps.dbutils.tests` 覆盖安全修复边界。
+- [Bugfix] 修复服务监控采集失败吞错问题：后端返回 `warnings` 并写入日志，CPU/内存采集失败时不再伪装为正常数值。
+- [UX] 服务监控页新增采集告警提示，不可用指标统一显示为 `--`。
 
 # [v1.4.15] - 2026-04-08
 - [Bugfix] 修复 dbutils SQL 类型误判：执行前复用 `_check_sql` 规范化结果，避免注释/空白前缀导致 SHOW/DESCRIBE/EXPLAIN 被错误分页。

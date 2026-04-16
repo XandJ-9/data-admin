@@ -102,7 +102,7 @@ uv run manage.py migrate
 
 ### 复杂模块结构
 
-当模块功能较多时，可拆分为子目录（参考 `dataetl` 模块）：
+当模块功能较多时，可拆分为子目录（参考 `datadev` 模块）：
 
 ```
 apps/mymodule/

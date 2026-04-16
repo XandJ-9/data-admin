@@ -363,19 +363,10 @@ class DataXConfigBuilder:
         Returns:
             Watermark value or None if first execution
         """
-        # This will be implemented when we create the watermark model
-        # For now, return None
-        from apps.dataetl.models import ETLWatermark
-        try:
-            watermark = ETLWatermark.objects.filter(
-                task=self.task
-            ).order_by('-update_time').first()
-
-            if watermark:
-                return watermark.watermark_value
-        except Exception as e:
-            logger.warning(f"Failed to get watermark: {e}")
-
+        logger.debug(
+            "Watermark lookup skipped for task %s because dataetl persistence has been removed",
+            self.task.task_code,
+        )
         return None
 
     def validate_config(self) -> tuple:

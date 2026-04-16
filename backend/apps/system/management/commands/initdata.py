@@ -209,9 +209,9 @@ class Command(BaseCommand):
             RoleMenu(role=admin_role, menu=m, create_by='system') for m in all_menus
         ])
 
-        # 为普通角色分配部分菜单（数据资产、数据服务、数据ETL 的目录/页面 + 查询按钮）
+        # 为普通角色分配部分菜单（数据资产、数据服务的目录/页面 + 查询按钮）
         # 找到业务模块的顶级目录 ID
-        biz_paths = {'/data-asset', '/data-etl', '/data-service'}
+        biz_paths = {'/data-asset', '/data-service'}
         biz_root_ids = set(
             Menu.objects.filter(path__in=biz_paths, parent_id=0, del_flag='0')
             .values_list('menu_id', flat=True)

@@ -13,7 +13,6 @@ class Migration(migrations.Migration):
     dependencies = [
         ('dataasset', '0001_initial'),
         ('datasource', '0001_initial'),
-        ('dataetl', '0002_alter_etltask_source_datasource_and_more'),
         ('dataservice', '0007_alter_querylog_data_source'),
     ]
 

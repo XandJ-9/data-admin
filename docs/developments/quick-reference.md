@@ -126,7 +126,6 @@ curl http://your.domain.com/
 | `datasource` | 外部数据源连接管理 | DataSource |
 | `dataasset` | 元数据采集、表血缘关系 | MetaTable, MetaColumn, MetaCollectionTask, TableLineage |
 | `dataservice` | SQL 查询、数据接口服务 | QueryLog, InterfaceInfo, InterfaceField |
-| `dataetl` | ETL 任务定义、执行、版本管理 | ETLTask, ETLExecutionLog, ETLTaskVersion |
 | `monitor` | 服务器监控、操作日志 | OperLog |
 | `terminal` | Web 终端（PTY + WebSocket） | TerminalSession, TerminalCommand |
 | `dbutils` | 数据库执行器抽象层 | — |
@@ -137,7 +136,6 @@ curl http://your.domain.com/
 |------|----------|----------|
 | 数据源 | `views/data/datasource/` | `api/data/datasource.js` |
 | 元数据 | `views/data/asset/` | `api/data/asset.js`, `api/data/meta.js` |
-| ETL | `views/data/etl/` | `api/data/etl.js` |
 | 数据服务 | `views/data/service/` | `api/data/service.js` |
 | 系统管理 | `views/system/` | `api/system/` |
 | 监控 | `views/monitor/` | `api/monitor/` |
@@ -186,7 +184,6 @@ curl http://your.domain.com/
 | `/data-api/monitor/` | monitor（操作日志、服务器监控） |
 | `/data-api/datasource/` | datasource（数据源管理） |
 | `/data-api/dataasset/` | dataasset（元数据、血缘） |
-| `/data-api/dataetl/` | dataetl（ETL 任务） |
 | `/data-api/dataservice/` | dataservice（查询、接口） |
 | `/data-api/terminal/` | terminal（终端会话） |
 | `/api/docs/` | Swagger 文档 |

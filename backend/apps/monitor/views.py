@@ -9,6 +9,7 @@ from apps.system.permission import HasRolePermission
 from apps.system.common import camel_to_snake
 from .models import OperLog
 from .serializers import OperLogSerializer
+import logging
 
 import os
 import sys
@@ -20,6 +21,45 @@ from datetime import datetime, timedelta
 
 
 PROCESS_START_TIME = time.time()
+logger = logging.getLogger(__name__)
+
+MONITOR_WARNING_MESSAGES = {
+    'cpu': 'CPU 指标采集失败，当前展示为占位值，请检查运行环境依赖与权限。',
+    'mem': '内存指标采集失败，当前展示为占位值，请检查运行环境依赖与权限。',
+    'sys': '服务器网络信息采集失败，已回退为默认地址。',
+    'sysFiles': '磁盘指标采集失败，请检查运行环境权限。',
+}
+
+
+def _empty_cpu_info():
+    return {
+        'cpuNum': os.cpu_count() or 0,
+        'used': 0.0,
+        'sys': 0.0,
+        'free': 0.0,
+        'available': False,
+    }
+
+
+def _empty_mem_info():
+    return {
+        'total': 0.0,
+        'used': 0.0,
+        'free': 0.0,
+        'usage': 0.0,
+        'available': False,
+    }
+
+
+def _collect_monitor_value(scope, collector, fallback):
+    try:
+        return collector(), None
+    except Exception as exc:
+        logger.warning('监控指标采集失败: %s', scope, exc_info=exc)
+        return fallback, {
+            'scope': scope,
+            'message': MONITOR_WARNING_MESSAGES.get(scope, '监控指标采集失败，请检查服务日志。'),
+        }
 
 
 def _format_bytes_gb(b):
@@ -30,17 +70,23 @@ def _format_bytes_gb(b):
 
 
 def _get_local_ip():
+    first_error = None
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
         try:
-            return socket.gethostbyname(socket.gethostname())
-        except Exception:
-            return '127.0.0.1'
+            s.connect(('8.8.8.8', 80))
+            return s.getsockname()[0]
+        finally:
+            s.close()
+    except OSError as exc:
+        first_error = exc
+
+    try:
+        return socket.gethostbyname(socket.gethostname())
+    except OSError as exc:
+        if first_error is not None:
+            raise RuntimeError('无法获取本机 IP 地址') from first_error
+        raise RuntimeError('无法获取本机 IP 地址') from exc
 
 
 def _get_mem_info():
@@ -69,7 +115,14 @@ def _get_mem_info():
         used = _format_bytes_gb(used_b)
         free = _format_bytes_gb(avail_b)
         usage = round((used / total) * 100, 2) if total else 0.0
-    except Exception:
+        return {
+            'total': total,
+            'used': used,
+            'free': free,
+            'usage': usage,
+            'available': True,
+        }
+    except (AttributeError, ImportError, OSError):
         try:
             import psutil  # type: ignore
             vm = psutil.virtual_memory()
@@ -77,34 +130,34 @@ def _get_mem_info():
             used = _format_bytes_gb(vm.used)
             free = _format_bytes_gb(vm.available)
             usage = round((vm.used / vm.total) * 100, 2) if vm.total else 0.0
-        except Exception:
-            pass
+        except (ImportError, AttributeError, OSError) as second_error:
+            raise RuntimeError('无法采集内存指标') from second_error
     return {
         'total': total,
         'used': used,
         'free': free,
         'usage': usage,
+        'available': True,
     }
 
 
 def _get_cpu_info():
     cpu_num = os.cpu_count() or 0
     used = sys_p = 0.0
-    free = 100.0
+    free = 0.0
     try:
         import psutil  # type: ignore
         used = float(psutil.cpu_percent(interval=0.2))
         sys_p = 0.0
         free = max(0.0, 100.0 - used - sys_p)
-    except Exception:
-        used = 0.0
-        sys_p = 0.0
-        free = 100.0
+    except (ImportError, AttributeError, OSError) as exc:
+        raise RuntimeError('无法采集 CPU 指标') from exc
     return {
         'cpuNum': cpu_num,
         'used': round(used, 2),
         'sys': round(sys_p, 2),
         'free': round(free, 2),
+        'available': True,
     }
 
 
@@ -147,8 +200,8 @@ def _get_sys_files():
             'used': f"{_format_bytes_gb(used)}G",
             'usage': usage,
         })
-    except Exception:
-        pass
+    except OSError as exc:
+        raise RuntimeError('无法采集磁盘指标') from exc
     return items
 
 
@@ -156,18 +209,29 @@ class ServerView(BaseViewMixin, ViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
 
     def get(self, request):
+        warnings = []
+        cpu, cpu_warning = _collect_monitor_value('cpu', _get_cpu_info, _empty_cpu_info())
+        mem, mem_warning = _collect_monitor_value('mem', _get_mem_info, _empty_mem_info())
+        computer_ip, ip_warning = _collect_monitor_value('sys', _get_local_ip, '127.0.0.1')
+        sys_files, sys_files_warning = _collect_monitor_value('sysFiles', _get_sys_files, [])
+
+        for warning in (cpu_warning, mem_warning, ip_warning, sys_files_warning):
+            if warning is not None:
+                warnings.append(warning)
+
         data = {
-            'cpu': _get_cpu_info(),
-            'mem': _get_mem_info(),
+            'cpu': cpu,
+            'mem': mem,
             'sys': {
                 'computerName': platform.node(),
                 'osName': f"{platform.system()} {platform.release()}",
-                'computerIp': _get_local_ip(),
+                'computerIp': computer_ip,
                 'osArch': platform.machine(),
                 'userDir': os.getcwd(),
             },
             'jvm': _get_jvm_info(),
-            'sysFiles': _get_sys_files(),
+            'sysFiles': sys_files,
+            'warnings': warnings,
         }
         return self.data(data)
 

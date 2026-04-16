@@ -1,7 +1,10 @@
 # ADR-002: ETL 执行器插件化架构
 
-**Status**: Accepted  
+**Status**: Superseded  
 **Date**: 2026-03-31
+**Superseded Date**: 2026-04-16
+
+> 说明：`apps.dataetl` 模块已在 2026-04-16 从主干移除，本 ADR 仅作为历史归档保留。
 
 ## Context
 

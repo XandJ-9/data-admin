@@ -1,5 +1,18 @@
 <template>
   <div class="app-container">
+    <el-alert
+      v-if="warningMessages.length"
+      title="部分监控指标采集失败"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="server-warning"
+    >
+      <div v-for="warning in warningMessages" :key="warning.scope" class="server-warning__item">
+        {{ warning.message }}
+      </div>
+    </el-alert>
+
     <el-row :gutter="10">
       <el-col :span="12" class="card-box">
         <el-card>
@@ -19,15 +32,15 @@
                 </tr>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">用户使用率</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.cpu">{{ server.cpu.used }}%</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.cpu">{{ formatMetric(server.cpu, 'used', '%') }}</div></td>
                 </tr>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">系统使用率</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.cpu">{{ server.cpu.sys }}%</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.cpu">{{ formatMetric(server.cpu, 'sys', '%') }}</div></td>
                 </tr>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">当前空闲率</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.cpu">{{ server.cpu.free }}%</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.cpu">{{ formatMetric(server.cpu, 'free', '%') }}</div></td>
                 </tr>
               </tbody>
             </table>
@@ -50,22 +63,22 @@
               <tbody>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">总内存</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem">{{ server.mem.total }}G</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem">{{ formatMetric(server.mem, 'total', 'G') }}</div></td>
                   <td class="el-table__cell is-leaf"><div class="cell" v-if="server.jvm">{{ server.jvm.total }}M</div></td>
                 </tr>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">已用内存</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem">{{ server.mem.used}}G</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem">{{ formatMetric(server.mem, 'used', 'G') }}</div></td>
                   <td class="el-table__cell is-leaf"><div class="cell" v-if="server.jvm">{{ server.jvm.used}}M</div></td>
                 </tr>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">剩余内存</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem">{{ server.mem.free }}G</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem">{{ formatMetric(server.mem, 'free', 'G') }}</div></td>
                   <td class="el-table__cell is-leaf"><div class="cell" v-if="server.jvm">{{ server.jvm.free }}M</div></td>
                 </tr>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">使用率</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem" :class="{'text-danger': server.mem.usage > 80}">{{ server.mem.usage }}%</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.mem" :class="{'text-danger': server.mem.available !== false && server.mem.usage > 80}">{{ formatMetric(server.mem, 'usage', '%') }}</div></td>
                   <td class="el-table__cell is-leaf"><div class="cell" v-if="server.jvm" :class="{'text-danger': server.jvm.usage > 80}">{{ server.jvm.usage }}%</div></td>
                 </tr>
               </tbody>
@@ -175,6 +188,18 @@ import { getServer } from '@/api/monitor/server'
 const server = ref([])
 const { proxy } = getCurrentInstance()
 
+const warningMessages = computed(() => {
+  const warnings = server.value?.warnings
+  return Array.isArray(warnings) ? warnings : []
+})
+
+function formatMetric(section, key, suffix = '') {
+  if (!section || section.available === false) {
+    return '--'
+  }
+  return `${section[key]}${suffix}`
+}
+
 function getList() {
   proxy.$modal.loading("正在加载服务监控数据，请稍候！")
   getServer().then(response => {
@@ -185,3 +210,13 @@ function getList() {
 
 getList()
 </script>
+
+<style scoped>
+.server-warning {
+  margin-bottom: 16px;
+}
+
+.server-warning__item + .server-warning__item {
+  margin-top: 6px;
+}
+</style>

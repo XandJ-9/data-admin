@@ -408,43 +408,15 @@ class DataXExecutor(BaseETLExecutor):
         Args:
             execution_id: Execution ID
         """
-        from apps.dataetl.models import ETLWatermark
+        incremental_config = self.config.get('incremental', {})
+        if not incremental_config.get('enabled'):
+            logger.debug("Incremental extraction not enabled, skipping watermark update")
+            return
 
-        try:
-            # Check if incremental extraction is enabled
-            incremental_config = self.config.get('incremental', {})
-            if not incremental_config.get('enabled'):
-                logger.debug("Incremental extraction not enabled, skipping watermark update")
-                return
-
-            increment_field = incremental_config.get('field')
-            if not increment_field:
-                logger.warning("Incremental field not specified")
-                return
-
-            # Get current watermark value from execution result
-            # For now, use current timestamp
-            watermark_value = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-            # Update or create watermark record
-            watermark, created = ETLWatermark.objects.update_or_create(
-                task=self.task,
-                increment_field=increment_field,
-                defaults={
-                    'increment_type': incremental_config.get('strategy', 'timestamp'),
-                    'watermark_value': watermark_value,
-                    'execution_id': execution_id,
-                    'update_by': 'system'
-                }
-            )
-
-            if created:
-                logger.info(f"Created watermark: {watermark}")
-            else:
-                logger.info(f"Updated watermark: {watermark}")
-
-        except Exception as e:
-            logger.error(f"Failed to update watermark: {e}")
+        logger.info(
+            "Incremental execution completed for task %s, watermark persistence is disabled after dataetl removal",
+            self.task.task_code,
+        )
 
     def _cleanup(self):
         """Clean up temporary files."""

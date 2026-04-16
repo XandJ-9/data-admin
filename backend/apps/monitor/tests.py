@@ -1,10 +1,14 @@
 import json
 
+from django.contrib.auth import get_user_model
 from django.http import HttpResponse
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory, force_authenticate
+from unittest.mock import patch
 
 from .middleware import _build_response_snapshot, _deep_mask
+from .views import ServerView, _collect_monitor_value, _empty_cpu_info
 
 
 class MonitorMiddlewareTests(SimpleTestCase):
@@ -56,3 +60,39 @@ class MonitorMiddlewareTests(SimpleTestCase):
 
         self.assertNotIn('secret', json_result)
         self.assertIn('<omitted non-json body>', json_result)
+
+
+class MonitorViewTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='monitor_tester', password='password123')
+
+    def test_collect_monitor_value_should_return_warning_and_fallback(self):
+        fallback = _empty_cpu_info()
+
+        value, warning = _collect_monitor_value(
+            'cpu',
+            lambda: (_ for _ in ()).throw(RuntimeError('probe failed')),
+            fallback,
+        )
+
+        self.assertEqual(value, fallback)
+        self.assertEqual(warning['scope'], 'cpu')
+        self.assertIn('CPU 指标采集失败', warning['message'])
+
+    @patch('apps.monitor.views._get_sys_files', return_value=[])
+    @patch('apps.monitor.views._get_local_ip', return_value='127.0.0.1')
+    @patch('apps.monitor.views._get_mem_info', return_value={'total': 1.0, 'used': 0.5, 'free': 0.5, 'usage': 50.0, 'available': True})
+    @patch('apps.monitor.views._get_cpu_info', side_effect=RuntimeError('cpu probe failed'))
+    def test_server_view_should_include_warnings_when_probe_fails(self, _cpu_mock, _mem_mock, _ip_mock, _sys_files_mock):
+        view = ServerView.as_view({'get': 'get'})
+        request = self.factory.get('/data-api/monitor/server')
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        self.assertFalse(response.data['data']['cpu']['available'])
+        self.assertEqual(len(response.data['data']['warnings']), 1)
+        self.assertEqual(response.data['data']['warnings'][0]['scope'], 'cpu')

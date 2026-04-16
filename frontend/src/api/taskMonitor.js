@@ -38,14 +38,6 @@ export function cancelExecution(id) {
   })
 }
 
-// 获取ETL特定执行详情
-export function getETLExecutionDetails(id) {
-  return request({
-    url: `/task-monitor/executions/${id}/etl_details/`,
-    method: 'get'
-  })
-}
-
 // 获取执行日志列表
 export function listExecutionLogs(params) {
   return request({

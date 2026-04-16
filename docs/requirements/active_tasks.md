@@ -1,5 +1,12 @@
 # 任务追踪
 
+### 2026-04-16: 移除 dataetl 模块
+
+- ✅ 移除 `apps.dataetl` 的 Django 注册、后端路由和初始化菜单
+- ✅ 删除前端 ETL 页面目录与 `api/data/etl.js`，清理首页仪表盘中的 ETL 卡片、图表和执行记录
+- ✅ 解除 `apps.executors` 对 `ETLWatermark` 的直接依赖，避免模块删除后启动失败
+- ✅ 更新 README、快速参考与 ADR 状态，明确 dataetl 已从主干下线
+
 ### 2026-04-16: 高风险安全面收敛与分支清理
 
 - ✅ 删除本地分支 `feature/etl` 与 `fix/menus`，收敛当前工作面
@@ -9,6 +16,13 @@
 - ✅ 修复 `apps.datasource.views` 连接测试接口底层异常透传问题，前端仅返回安全错误提示，详细异常仅保留在服务端日志
 - ✅ 收敛 `apps.dbutils.presto` 异常消息内容，避免执行器层直接抛出底层连接细节
 - ✅ 新增 `apps.monitor` 与 `apps.datasource` 测试，并补充 `apps.dbutils` 安全测试，覆盖本次修复边界
+
+### 2026-04-16: 监控采集失败可观测性修复
+
+- ✅ 修复 `apps.monitor.views` 中监控指标采集失败被静默吞掉的问题，改为返回 `warnings` 并记录服务端日志
+- ✅ CPU/内存指标在采集失败时返回显式占位结构（`available=false`），避免继续伪装为正常数值
+- ✅ 服务监控前端页面新增告警提示，并将不可用指标展示为 `--`
+- ✅ 新增 `apps.monitor` 测试覆盖采集失败回退与 `warnings` 响应结构
 
 ### 2026-04-08: dbutils 查询安全与分页边界修复
 

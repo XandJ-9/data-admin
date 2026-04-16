@@ -22,7 +22,7 @@ pnpm add -D <dev_package> # 添加开发依赖
 ```
 src/
 ├── api/              # API 接口封装（按模块分目录）
-│   ├── data/         #   数据管理模块（datasource, asset, etl, service, studio, integration）
+│   ├── data/         #   数据管理模块（datasource, asset, service, datadev, studio, integration）
 │   ├── system/       #   系统管理模块（user, role, dept, menu, config, dict）
 │   ├── monitor/      #   监控模块（server, job, operlog, logininfor, online, cache）
 │   ├── login.js      #   登录认证
