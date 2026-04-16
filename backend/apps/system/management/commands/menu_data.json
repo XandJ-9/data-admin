@@ -274,6 +274,18 @@
     "icon": "server",
     "children": [
       {
+        "menuName": "服务概览",
+        "orderNum": 0,
+        "path": "index",
+        "component": "data/service/index",
+        "routeName": "DataServiceHome",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "",
+        "icon": "home"
+      },
+      {
         "menuName": "SQL查询",
         "orderNum": 1,
         "path": "query",
