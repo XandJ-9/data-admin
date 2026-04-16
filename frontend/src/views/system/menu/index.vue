@@ -413,9 +413,18 @@ const data = reactive({
             callback(new Error("路由地址不能为空"))
             return
           }
-          // 验证路径格式
-          if (!/^[\/a-zA-Z0-9_\-]*$/.test(value)) {
-            callback(new Error("路由地址只能包含字母、数字、斜杠、下划线和连字符"))
+          // 外链地址必须以 http(s):// 开头
+          if (form.value.isFrame === '0') {
+            if (!/^https?:\/\/.+/.test(value)) {
+              callback(new Error("外链地址必须以 http:// 或 https:// 开头"))
+            } else {
+              callback()
+            }
+            return
+          }
+          // 内部路由：允许字母、数字、斜杠、下划线、连字符、冒号（路由参数）及括号（参数正则约束）
+          if (!/^[a-zA-Z0-9\/_\-:().\\\+*?]*$/.test(value)) {
+            callback(new Error("路由地址格式不正确"))
             return
           }
           callback()
