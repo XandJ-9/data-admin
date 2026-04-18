@@ -124,7 +124,7 @@ curl http://your.domain.com/
 |------|------|----------|
 | `system` | 用户、角色、菜单、部门、岗位、字典、配置 | User, Role, Menu, Dept, DictType, Config |
 | `datasource` | 外部数据源连接管理 | DataSource |
-| `dataasset` | 元数据采集、表血缘关系 | MetaTable, MetaColumn, MetaCollectionTask, TableLineage |
+| `dataasset` | 元数据采集、资产命名空间/主表/字段、表血缘关系 | AssetNamespace, DataAsset, DataAssetColumn, MetaTable, MetaColumn, MetaCollectionTask, TableLineage |
 | `dataservice` | SQL 查询、数据接口服务 | QueryLog, InterfaceInfo, InterfaceField |
 | `monitor` | 服务器监控、操作日志 | OperLog |
 | `terminal` | Web 终端（PTY + WebSocket） | TerminalSession, TerminalCommand |

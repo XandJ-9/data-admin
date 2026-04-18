@@ -132,6 +132,43 @@ export function delMetaTable(idOrIds) {
   })
 }
 
+// ==================== 规范数据资产查询 ====================
+
+// 查询命名空间列表
+export function listAssetNamespaces(query) {
+  return request({
+    url: '/dataasset/asset-namespace',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询数据资产列表
+export function listAssets(query) {
+  return request({
+    url: '/dataasset/asset',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询数据资产详情
+export function getAsset(id) {
+  return request({
+    url: '/dataasset/asset/' + id,
+    method: 'get'
+  })
+}
+
+// 查询数据资产字段列表
+export function listAssetColumns(query) {
+  return request({
+    url: '/dataasset/asset-column',
+    method: 'get',
+    params: query
+  })
+}
+
 // ==================== 元数据字段管理 ====================
 
 // 查询元数据字段列表

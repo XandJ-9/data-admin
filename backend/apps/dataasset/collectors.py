@@ -5,12 +5,16 @@ import threading
 import uuid
 import logging
 
-from django.db import transaction, connections
+from django.db import IntegrityError
+from django.db import transaction
+from django.db import connections
 from django.utils import timezone
 
-from apps.dataasset.models import MetaCollectionTask, MetaTable, MetaColumn
+from apps.dataasset.models import MetaCollectionTask, resolve_collection_scope
 from apps.datasource.models import DataSource
-from apps.dbutils import list_tables, get_table_schema, get_table_info
+from apps.dbutils import list_tables
+from apps.dataasset.services import collect_table_metadata
+from apps.dataasset.utils import sanitize_collection_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +54,12 @@ class MetadataCollectionExecutor:
             args=(ds_id, database_name, user),
             daemon=True
         )
-        self.thread.start()
+        try:
+            self.thread.start()
+        except Exception:
+            with _tasks_registry_lock:
+                _tasks_registry.pop(self.task_id, None)
+            raise
         return True
 
     def stop(self):
@@ -58,7 +67,17 @@ class MetadataCollectionExecutor:
         self._stop_event.set()
         if self.task:
             self.task.status = 'cancelled'
-            self.task.save(update_fields=['status'])
+            self.task.completed_at = timezone.now()
+            self.task.save(update_fields=['status', 'completed_at'])
+
+    def _refresh_cancel_state(self):
+        if not self.task:
+            return False
+        self.task.refresh_from_db(fields=['status'])
+        if self.task.status == 'cancelled':
+            self._stop_event.set()
+            return True
+        return self._stop_event.is_set()
 
     def _run_collection(self, ds_id, database_name, user):
         """采集主逻辑（在子线程中运行）"""
@@ -69,10 +88,18 @@ class MetadataCollectionExecutor:
         connections.close_all()
 
         try:
-            self.task.status = 'running'
-            self.task.thread_id = str(thread_id)
-            self.task.started_at = timezone.now()
-            self.task.save(update_fields=['status', 'thread_id', 'started_at'])
+            started_at = timezone.now()
+            updated = MetaCollectionTask.objects.filter(pk=self.task.pk, status='pending').update(
+                status='running',
+                thread_id=str(thread_id),
+                started_at=started_at,
+            )
+            self.task.refresh_from_db()
+            if not updated:
+                if self.task.status == 'cancelled' and not self.task.completed_at:
+                    self.task.completed_at = started_at
+                    self.task.save(update_fields=['completed_at'])
+                return
 
             ds = DataSource.objects.get(pk=ds_id)
             info = self._build_info(ds)
@@ -84,8 +111,7 @@ class MetadataCollectionExecutor:
             self.task.save(update_fields=['total_tables'])
 
             for idx, table in enumerate(tables):
-                if self._stop_event.is_set():
-                    self.task.status = 'cancelled'
+                if self._refresh_cancel_state():
                     break
 
                 self.task.current_table = table
@@ -98,20 +124,28 @@ class MetadataCollectionExecutor:
                 except Exception as e:
                     logger.error(f"采集表 {table} 失败: {e}")
                     self.task.failed_tables += 1
+                    self.task.error_message = '部分表采集失败，请查看服务端日志'
 
-                self.task.save(update_fields=['collected_tables', 'failed_tables'])
+                if self._refresh_cancel_state():
+                    break
+                self.task.save(update_fields=['collected_tables', 'failed_tables', 'error_message'])
 
-            if self.task.status != 'cancelled':
-                self.task.status = 'completed'
-
-            self.task.progress = 100
-            self.task.completed_at = timezone.now()
-            self.task.save(update_fields=['status', 'progress', 'completed_at'])
+            self.task.refresh_from_db(fields=['status'])
+            if self.task.status == 'cancelled':
+                self.task.completed_at = timezone.now()
+                self.task.save(update_fields=['completed_at'])
+            else:
+                self.task.status = 'completed' if self.task.failed_tables == 0 else 'failed'
+                self.task.progress = 100
+                self.task.completed_at = timezone.now()
+                if self.task.failed_tables:
+                    self.task.error_message = '部分表采集失败，请查看服务端日志'
+                self.task.save(update_fields=['status', 'progress', 'completed_at', 'error_message'])
 
         except Exception as e:
             logger.exception(f"任务 {self.task_id} 采集失败: {e}")
             self.task.status = 'failed'
-            self.task.error_message = str(e)
+            self.task.error_message = sanitize_collection_error_message(e)
             self.task.completed_at = timezone.now()
             self.task.save(update_fields=['status', 'error_message', 'completed_at'])
 
@@ -122,51 +156,7 @@ class MetadataCollectionExecutor:
 
     def _collect_table_safe(self, info, ds_id, table, user):
         """安全采集单张表（独立事务）"""
-        with transaction.atomic():
-            tinfo = get_table_info(info, table) or {}
-            comment = tinfo.get('comment') or ''
-            database_name = tinfo.get('databaseName') or ''
-
-            obj, created = MetaTable.objects.update_or_create(
-                data_source_id=ds_id,
-                table_name=table,
-                database=database_name,
-                defaults={'comment': comment, 'del_flag': '0'}
-            )
-
-            if user and hasattr(user, 'username'):
-                if created:
-                    obj.create_by = user.username
-                    obj.save(update_fields=['create_by'])
-                else:
-                    obj.update_by = user.username
-                    obj.save(update_fields=['update_by', 'update_time'])
-
-            MetaColumn.objects.filter(data_source_id=ds_id, table=obj).delete()
-
-            cols = get_table_schema(info, table)
-            for c in cols:
-                col, _ = MetaColumn.objects.update_or_create(
-                    data_source_id=ds_id,
-                    table=obj,
-                    name=c.get('name'),
-                    defaults={
-                        'order': c.get('order') or 0,
-                        'type': c.get('type') or '',
-                        'notnull': bool(c.get('notnull')),
-                        'default': str(c.get('default') or ''),
-                        'primary': bool(c.get('primary')),
-                        'comment': c.get('comment') or '',
-                        'del_flag': '0'
-                    }
-                )
-                if user and hasattr(user, 'username'):
-                    if col.create_by == '':
-                        col.create_by = user.username
-                        col.save(update_fields=['create_by'])
-                    else:
-                        col.update_by = user.username
-                        col.save(update_fields=['update_by', 'update_time'])
+        collect_table_metadata(info, ds_id, table, user=user)
 
     def _build_info(self, ds):
         return {
@@ -181,24 +171,70 @@ class MetadataCollectionExecutor:
 
 
 # 任务管理函数
+def create_collection_task(ds_id, database_name='', user=None):
+    """创建采集任务并占用数据源执行槽位"""
+    task_id = str(uuid.uuid4())
+    with transaction.atomic():
+        data_source = DataSource.objects.select_for_update().only('id', 'db_type').get(pk=ds_id)
+        if MetaCollectionTask.objects.select_for_update().filter(data_source_id=ds_id, status__in=['pending', 'running']).exists():
+            logger.warning(f"数据源 {ds_id} 已有数据库层面未结束的采集任务")
+            return None
+        scope_level, scope_catalog_name, scope_schema_name = resolve_collection_scope(
+            data_source.db_type,
+            database_name,
+        )
+        try:
+            return MetaCollectionTask.objects.create(
+                task_id=task_id,
+                data_source_id=ds_id,
+                database_name=database_name,
+                scope_level=scope_level,
+                scope_catalog_name=scope_catalog_name,
+                scope_schema_name=scope_schema_name,
+                scope_asset_name='',
+                run_mode='full',
+                status='pending',
+                create_by=user.username if user and hasattr(user, 'username') else '',
+                update_by=user.username if user and hasattr(user, 'username') else ''
+            )
+        except IntegrityError:
+            logger.warning(f"数据源 {ds_id} 已有数据库唯一约束保护的活动任务")
+            return None
+
+
 def start_collection_task(ds_id, database_name='', user=None):
     """创建并启动采集任务"""
-    task_id = str(uuid.uuid4())
+    def _start_executor(created_task):
+        try:
+            executor = MetadataCollectionExecutor(created_task.task_id)
+            if executor.start(ds_id, database_name, user):
+                return
+            error_message = '启动采集线程失败'
+        except Exception as exc:
+            logger.exception(f"任务 {created_task.task_id} 启动失败: {exc}")
+            with _tasks_registry_lock:
+                _tasks_registry.pop(created_task.task_id, None)
+            error_message = str(exc)
+        MetaCollectionTask.objects.filter(pk=created_task.pk, status='pending').update(
+            status='failed',
+            error_message=sanitize_collection_error_message(error_message),
+            completed_at=timezone.now(),
+            update_by=user.username if user and hasattr(user, 'username') else '',
+        )
 
-    task = MetaCollectionTask.objects.create(
-        task_id=task_id,
-        data_source_id=ds_id,
-        database_name=database_name,
-        status='pending',
-        create_by=user.username if user and hasattr(user, 'username') else '',
-        update_by=user.username if user and hasattr(user, 'username') else ''
-    )
+    task = None
+    with transaction.atomic():
+        task = create_collection_task(ds_id, database_name, user)
+        if not task:
+            return None
+        transaction.on_commit(lambda: _start_executor(task))
 
-    executor = MetadataCollectionExecutor(task_id)
-    if executor.start(ds_id, database_name, user):
-        return task
-    task.delete()
-    return None
+    task.refresh_from_db(fields=['status'])
+    if not task:
+        return None
+    if task.status == 'failed':
+        return None
+    return task
 
 
 def cancel_collection_task(task_id):
@@ -208,7 +244,15 @@ def cancel_collection_task(task_id):
         if executor:
             executor.stop()
             return True
-    return False
+    updated = MetaCollectionTask.objects.filter(
+        task_id=task_id,
+        status__in=['pending', 'running'],
+    ).update(
+        status='cancelled',
+        completed_at=timezone.now(),
+        error_message='任务已取消',
+    )
+    return bool(updated)
 
 
 def get_task_status(task_id):

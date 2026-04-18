@@ -3,6 +3,189 @@ from apps.system.models import BaseModel
 from apps.datasource.models import DataSource
 
 
+def normalize_asset_part(value):
+    return str(value or '').strip()
+
+
+def build_namespace_key(data_source_id, environment, catalog_name, schema_name):
+    return ':'.join([
+        str(data_source_id or ''),
+        normalize_asset_part(environment).lower(),
+        normalize_asset_part(catalog_name).lower(),
+        normalize_asset_part(schema_name).lower(),
+    ])
+
+
+def build_asset_qualified_name(data_source_id, environment, catalog_name, schema_name, asset_type, object_name):
+    return ':'.join([
+        str(data_source_id or ''),
+        normalize_asset_part(environment).lower(),
+        normalize_asset_part(catalog_name),
+        normalize_asset_part(schema_name),
+        normalize_asset_part(asset_type).lower(),
+        normalize_asset_part(object_name),
+    ])
+
+
+def split_catalog_schema(db_type, database_name):
+    database_name = normalize_asset_part(database_name)
+    if normalize_asset_part(db_type).lower() in {'presto', 'trino'} and '.' in database_name:
+        catalog_name, schema_name = database_name.split('.', 1)
+        return normalize_asset_part(catalog_name), normalize_asset_part(schema_name)
+    return database_name, ''
+
+
+def resolve_collection_scope(db_type, database_name=''):
+    catalog_name, schema_name = split_catalog_schema(db_type, database_name)
+    scope_level = 'datasource'
+    if schema_name:
+        scope_level = 'schema'
+    elif catalog_name:
+        scope_level = 'catalog'
+    return scope_level, catalog_name, schema_name
+
+
+class AssetNamespace(BaseModel):
+    """资产命名空间（环境 / catalog / schema）"""
+
+    data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='asset_namespaces')
+    environment = models.CharField(max_length=32, default='default', verbose_name='环境')
+    catalog_name = models.CharField(max_length=255, blank=True, default='', verbose_name='catalog')
+    schema_name = models.CharField(max_length=255, blank=True, default='', verbose_name='schema')
+    namespace_key = models.CharField(max_length=768, db_index=True, verbose_name='命名空间键')
+    display_name = models.CharField(max_length=512, blank=True, default='', verbose_name='显示名称')
+
+    class Meta:
+        db_table = 'dataasset_asset_namespace'
+        verbose_name = '资产命名空间'
+        verbose_name_plural = '资产命名空间'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['data_source', 'environment', 'catalog_name', 'schema_name', 'del_flag'],
+                name='dataasset_namespace_unique_scope'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['del_flag']),
+            models.Index(fields=['data_source', 'environment']),
+            models.Index(fields=['data_source', 'catalog_name', 'schema_name']),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.environment = normalize_asset_part(self.environment) or 'default'
+        self.catalog_name = normalize_asset_part(self.catalog_name)
+        self.schema_name = normalize_asset_part(self.schema_name)
+        self.namespace_key = build_namespace_key(
+            self.data_source_id, self.environment, self.catalog_name, self.schema_name
+        )
+        self.display_name = self.display_name or '.'.join(
+            [part for part in [self.catalog_name, self.schema_name] if part]
+        ) or self.environment
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.data_source.name}:{self.display_name}"
+
+
+class DataAsset(BaseModel):
+    """规范资产主表"""
+
+    class AssetType(models.TextChoices):
+        TABLE = 'table', '数据表'
+        VIEW = 'view', '视图'
+        MATERIALIZED_VIEW = 'materialized_view', '物化视图'
+        EXTERNAL_TABLE = 'external_table', '外部表'
+
+    namespace = models.ForeignKey(AssetNamespace, on_delete=models.CASCADE, related_name='assets')
+    asset_type = models.CharField(
+        max_length=32, choices=AssetType.choices, default=AssetType.TABLE, verbose_name='资产类型'
+    )
+    object_name = models.CharField(max_length=255, verbose_name='对象名称')
+    qualified_name = models.CharField(max_length=1024, db_index=True, verbose_name='限定名称')
+    display_name = models.CharField(max_length=255, blank=True, default='', verbose_name='显示名称')
+    comment = models.CharField(max_length=1024, blank=True, default='', verbose_name='描述')
+    is_active = models.BooleanField(default=True, verbose_name='是否有效')
+    last_collected_at = models.DateTimeField(null=True, blank=True, verbose_name='最近采集时间')
+    legacy_meta_table_id = models.BigIntegerField(null=True, blank=True, db_index=True, verbose_name='旧元数据表ID')
+    extra = models.TextField(blank=True, default='', verbose_name='扩展信息')
+
+    class Meta:
+        db_table = 'dataasset_data_asset'
+        verbose_name = '数据资产'
+        verbose_name_plural = '数据资产'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['namespace', 'asset_type', 'object_name', 'del_flag'],
+                name='dataasset_asset_unique_object'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['del_flag']),
+            models.Index(fields=['namespace', 'object_name']),
+            models.Index(fields=['asset_type']),
+        ]
+
+    @property
+    def data_source_id(self):
+        return self.namespace.data_source_id
+
+    def save(self, *args, **kwargs):
+        self.object_name = normalize_asset_part(self.object_name)
+        self.display_name = self.display_name or self.object_name
+        self.qualified_name = build_asset_qualified_name(
+            self.namespace.data_source_id,
+            self.namespace.environment,
+            self.namespace.catalog_name,
+            self.namespace.schema_name,
+            self.asset_type,
+            self.object_name,
+        )
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.qualified_name
+
+
+class DataAssetColumn(BaseModel):
+    """规范资产字段"""
+
+    asset = models.ForeignKey(DataAsset, on_delete=models.CASCADE, related_name='asset_columns')
+    ordinal_position = models.IntegerField(default=0, verbose_name='字段顺序')
+    column_name = models.CharField(max_length=255, verbose_name='字段名')
+    data_type = models.CharField(max_length=255, blank=True, default='', verbose_name='字段类型')
+    is_nullable = models.BooleanField(default=True, verbose_name='是否可空')
+    default_value = models.CharField(max_length=512, blank=True, default='', verbose_name='默认值')
+    is_primary_key = models.BooleanField(default=False, verbose_name='是否主键')
+    comment = models.CharField(max_length=1024, blank=True, default='', verbose_name='字段描述')
+    legacy_meta_column_id = models.BigIntegerField(
+        null=True, blank=True, db_index=True, verbose_name='旧元数据字段ID'
+    )
+    extra = models.TextField(blank=True, default='', verbose_name='扩展信息')
+
+    class Meta:
+        db_table = 'dataasset_data_asset_column'
+        verbose_name = '数据资产字段'
+        verbose_name_plural = '数据资产字段'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['asset', 'column_name', 'del_flag'],
+                name='dataasset_asset_column_unique_name'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['del_flag']),
+            models.Index(fields=['asset', 'ordinal_position']),
+            models.Index(fields=['asset', 'column_name']),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.column_name = normalize_asset_part(self.column_name)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.asset.object_name}.{self.column_name}"
+
+
 class MetaTable(BaseModel):
     """元数据表"""
     data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='meta_tables')
@@ -80,6 +263,11 @@ class MetaCollectionTask(BaseModel):
 
     # 配置
     database_name = models.CharField(max_length=256, blank=True, verbose_name='数据库名')
+    scope_level = models.CharField(max_length=32, blank=True, default='datasource', verbose_name='采集范围层级')
+    scope_catalog_name = models.CharField(max_length=256, blank=True, default='', verbose_name='范围catalog')
+    scope_schema_name = models.CharField(max_length=256, blank=True, default='', verbose_name='范围schema')
+    scope_asset_name = models.CharField(max_length=256, blank=True, default='', verbose_name='范围资产名')
+    run_mode = models.CharField(max_length=32, blank=True, default='full', verbose_name='运行模式')
 
     # 结果
     error_message = models.TextField(blank=True, verbose_name='错误信息')
@@ -96,6 +284,13 @@ class MetaCollectionTask(BaseModel):
         indexes = [
             models.Index(fields=['status']),
             models.Index(fields=['data_source', 'create_time']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['data_source'],
+                condition=models.Q(status__in=['pending', 'running']),
+                name='dataasset_single_active_collection_task',
+            ),
         ]
         ordering = ['-create_time']
 

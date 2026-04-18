@@ -2,6 +2,37 @@
 
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
+# [v1.4.20] - 2026-04-18
+- [Feature] 数据资产模块新增规范读接口：`GET /data-api/dataasset/asset-namespace`、`GET /data-api/dataasset/asset`、`GET /data-api/dataasset/asset-column`。
+- [Refactor] `meta-table` / `meta-column` 的 GET 查询已切换为从 `AssetNamespace`、`DataAsset`、`DataAssetColumn` 读取，采集写端与血缘写端保持现状不变。
+- [Compat] 兼容旧元数据页面响应结构：继续返回 `tableName / databaseName / dataSourceName` 等历史字段，并优先透出 `legacy_meta_*` 标识保证现有页面可继续工作。
+- [Test] 新增数据资产读端回归测试，覆盖规范接口详情查询与旧元数据查询兼容行为。
+- [Frontend] 前端 `api/data/asset.js` 补充规范资产查询封装，支持后续页面渐进切换到规范接口。
+- [Bugfix] 修复 `0004_backfill_standard_asset_models` 在旧库升级时把未落库命名空间对象送入 `bulk_update` 导致迁移失败的问题，数据资产规范模型迁移现已可在真实库完成升级。
+- [QA] 完成数据资产模块浏览器级联调，确认资产概览、元数据列表/筛选/详情与血缘表选择器在本地真实环境下可正常工作。
+
+# [v1.4.19] - 2026-04-17
+- [Refactor] 数据资产模块启动标准模型重构 Phase 1：新增 `AssetNamespace`、`DataAsset`、`DataAssetColumn` 三类规范资产模型。
+- [Refactor] 扩展 `MetaCollectionTask`，补齐采集范围与运行模式字段，为后续分层采集奠定模型基础。
+- [Refactor] 现有元数据采集链路已同步双写到规范资产模型，保留 `MetaTable` / `MetaColumn` 兼容现有接口。
+- [Bugfix] 补齐 Presto/Trino 的 `catalog.schema` 命名空间解析，并同步修正采集任务 `scope_catalog_name / scope_schema_name / scope_level` 的回填与运行时写入。
+- [Bugfix] 规范字段同步改为按列名原位更新并过滤软删除历史列，避免重采时 `DataAssetColumn` 主键抖动。
+- [Bugfix] 同步采集改为单表事务提交，避免外层长事务放大锁持有范围；异步采集启动前增加数据库级活动任务检查。
+- [Bugfix] 字段采集结果为空时显式中止同步，避免采集器异常降级为空列表时误删历史字段。
+- [Bugfix] 同步/异步采集统一接入活动任务占槽，补齐任务取消轮询、启动异常失败回写与数据库级单活动任务约束。
+- [Refactor] 数据资产标准模型回填迁移拆分为独立 `0004` 数据迁移，并新增 `0005` 活动任务约束迁移，降低发布失败时的恢复成本。
+- [Bugfix] `0004` 数据回填迁移改为可重跑写入，`0005` 在增加活动任务唯一约束前先清理历史重复活动任务。
+- [ADR] 新增 ADR-007，明确本阶段只做源数据模型标准化，血缘标准化延后。
+- [Docs] 修正数据资产模块文档状态：按当前代码主干确认 `dataasset` 模块仍保留，而非已完全移除。
+- [Docs] 新增 `docs/requirements/data-asset-module.md`，补齐数据资产模块的当前范围、入口、接口与实现边界说明。
+- [Docs] 更新 `docs/requirements/README.md`，将数据资产模块从“已归档”恢复为当前模块文档。
+- [Docs] 同步修正主 README 的数据资产能力矩阵、初始化命令、API 文档地址，并清理 requirements 索引中的失效链接。
+- [Docs] 继续修正主 README 的生产构建说明与监控模块状态描述，使部署步骤和能力矩阵与仓库实现一致。
+- [Docs] 补充前端开发默认绑定 `80` 端口的限制说明，避免本地启动时因端口权限报错。
+- [Docs] 收敛主 README 中未生效的生产环境变量模板，并将前端生产访问入口统一到 `/data-admin/` 子路径。
+- [Docs] 修正主 README 中的 Python 最低版本、`uv run` 部署命令与本地开发访问路径，使说明可按当前主干直接执行。
+- [Review] 启动数据资产模块设计评审，重点识别架构边界、元数据建模与采集任务架构问题；血缘标准化已明确延后。
+
 # [v1.4.18] - 2026-04-17
 - [Feature] 为“数据服务”模块补齐首页导航，新增子菜单 `服务概览`（`/data-service/index`）并指向组件 `data/service/index`。
 - [Ops] 同步补齐当前环境数据库菜单与角色授权，保证管理端刷新后可直接访问“数据服务 > 服务概览”。
