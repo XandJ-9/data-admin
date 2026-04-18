@@ -214,6 +214,14 @@ class DataDevScriptExecution(models.Model):
         related_name='executions',
         verbose_name='执行版本',
     )
+    task_instance = models.ForeignKey(
+        'datatask.TaskInstance',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='script_executions',
+        verbose_name='关联任务实例',
+    )
     execution_id = models.CharField(max_length=64, unique=True, verbose_name='执行ID')
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='执行状态'

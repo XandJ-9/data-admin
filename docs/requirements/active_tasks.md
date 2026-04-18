@@ -1,5 +1,14 @@
 # 任务追踪
 
+### 2026-04-18: 平台统一任务内核（Phase 1）
+
+- ✅ 新增 `apps.datatask` 模块，落地统一任务定义 `Task`、依赖关系 `TaskDependency`、运行实例 `TaskInstance`
+- ✅ 新增统一任务查询接口：`/data-api/datatask/task`、`/data-api/datatask/task-dependency`、`/data-api/datatask/task-instance`
+- ✅ 新增 ADR-008，明确统一任务内核作为 `data-platform-function.md` 目标态主链路的后端中轴
+- ✅ `datadev` 脚本执行已接入统一任务中心：执行时自动生成/刷新 `SQL_COMPUTE` 任务并落 `TaskInstance`
+- ✅ `DataDevScriptExecution` 已补充 `task_instance` 关联，保留脚本域执行日志视角的同时与统一任务实例打通
+- ✅ 新增 `apps.datatask` 与 `datadev -> datatask` 集成回归测试，并完成后端校验与测试通过
+
 ### 2026-04-18: 数据资产标准模型重构（Phase 2）
 
 - ✅ 新增规范读接口：`asset-namespace`、`asset`、`asset-column`

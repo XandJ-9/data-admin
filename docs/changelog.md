@@ -3,6 +3,12 @@
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
 # [v1.4.20] - 2026-04-18
+- [Feature] 新增统一任务中心模块 `apps.datatask`，落地 `Task`、`TaskDependency`、`TaskInstance` 三类核心模型，作为平台目标态的统一任务内核。
+- [Feature] 新增统一任务查询接口：`GET /data-api/datatask/task`、`GET /data-api/datatask/task-dependency`、`GET /data-api/datatask/task-instance`。
+- [Feature] `datadev` 脚本执行链已接入统一任务中心：执行时自动生成/刷新 `SQL_COMPUTE` 任务并创建 `TaskInstance`。
+- [Compat] `DataDevScriptExecution` 新增 `task_instance` 关联字段，保留原有脚本执行记录模型，同时与统一任务实例建立映射。
+- [ADR] 新增 ADR-008，明确统一任务内核与实例模型作为后续数据集成、数据开发、编排运维的统一中轴。
+- [Test] 新增 `apps.datatask` 测试与 `datadev -> datatask` 集成测试，覆盖任务复用、实例完结和脚本执行接入链路。
 - [Feature] 数据资产模块新增规范读接口：`GET /data-api/dataasset/asset-namespace`、`GET /data-api/dataasset/asset`、`GET /data-api/dataasset/asset-column`。
 - [Refactor] `meta-table` / `meta-column` 的 GET 查询已切换为从 `AssetNamespace`、`DataAsset`、`DataAssetColumn` 读取，采集写端与血缘写端保持现状不变。
 - [Compat] 兼容旧元数据页面响应结构：继续返回 `tableName / databaseName / dataSourceName` 等历史字段，并优先透出 `legacy_meta_*` 标识保证现有页面可继续工作。

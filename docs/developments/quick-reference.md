@@ -125,6 +125,7 @@ curl http://your.domain.com/
 | `system` | 用户、角色、菜单、部门、岗位、字典、配置 | User, Role, Menu, Dept, DictType, Config |
 | `datasource` | 外部数据源连接管理 | DataSource |
 | `dataasset` | 元数据采集、资产命名空间/主表/字段、表血缘关系 | AssetNamespace, DataAsset, DataAssetColumn, MetaTable, MetaColumn, MetaCollectionTask, TableLineage |
+| `datatask` | 统一任务中心，承载任务定义、依赖和运行实例 | Task, TaskDependency, TaskInstance |
 | `dataservice` | SQL 查询、数据接口服务 | QueryLog, InterfaceInfo, InterfaceField |
 | `monitor` | 服务器监控、操作日志 | OperLog |
 | `terminal` | Web 终端（PTY + WebSocket） | TerminalSession, TerminalCommand |
@@ -184,6 +185,7 @@ curl http://your.domain.com/
 | `/data-api/monitor/` | monitor（操作日志、服务器监控） |
 | `/data-api/datasource/` | datasource（数据源管理） |
 | `/data-api/dataasset/` | dataasset（元数据、血缘） |
+| `/data-api/datatask/` | datatask（统一任务中心） |
 | `/data-api/dataservice/` | dataservice（查询、接口） |
 | `/data-api/terminal/` | terminal（终端会话） |
 | `/api/docs/` | Swagger 文档 |

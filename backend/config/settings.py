@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'apps.dataservice',
     'apps.datasource',  # 数据源管理模块
     'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
+    'apps.datatask',    # 统一任务中心
     'apps.datadev',     # 数据开发模块
     'apps.terminal',    # Web Terminal
 ]

@@ -1,7 +1,6 @@
 import hashlib
 import logging
 import time
-import uuid
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -17,6 +16,7 @@ from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
 from apps.common.pagination import StandardPagination
 from apps.dbutils.factory import get_executor
+from apps.datatask.services import TaskService
 
 from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory
 from .serializers import (
@@ -443,6 +443,36 @@ class ScriptViewSet(BaseViewSet):
             'database': ds.db_name,
             'params': ds.params or {},
         }
+        username = request.user.username if hasattr(request, 'user') else ''
+        runtime_params = request.data.get('params') or {}
+        task_config = self._build_task_config(
+            script=script,
+            version=current_version,
+            datasource=ds,
+            sql=sql,
+        )
+        task, _ = TaskService.upsert_source_task(
+            task_name=script.script_name,
+            task_type='SQL_COMPUTE',
+            source_module='datadev.script',
+            source_record_id=script.id,
+            schedule_type='manual',
+            owner=script.owner or username,
+            task_config=task_config,
+            remark=script.description or '',
+            username=username,
+        )
+        task_instance = TaskService.create_task_instance(
+            task=task,
+            trigger_mode='manual',
+            runtime_config={
+                'scriptVersionId': current_version.id,
+                'params': runtime_params,
+            },
+            triggered_by=username,
+            executor_type=ds.db_type,
+        )
+        TaskService.mark_instance_running(task_instance, executor_type=ds.db_type)
 
         start_time = timezone.now()
         start_perf = time.perf_counter()
@@ -471,24 +501,37 @@ class ScriptViewSet(BaseViewSet):
 
         duration = round(time.perf_counter() - start_perf, 2)
         end_time = start_time + timedelta(seconds=duration)
+        result_summary = {
+            'columns': columns,
+            'rows': rows,
+            'rowCount': len(rows),
+            'error': error_msg,
+        }
+        task_result_summary = {
+            'columns': columns,
+            'rowCount': len(rows),
+            'error': error_msg,
+        }
+        TaskService.finalize_instance(
+            instance=task_instance,
+            status=status,
+            result_summary=task_result_summary,
+            error_message=error_msg,
+        )
 
         execution = DataDevScriptExecution.objects.create(
             script=script,
             version=current_version,
-            execution_id=uuid.uuid4().hex,
+            task_instance=task_instance,
+            execution_id=task_instance.instance_id,
             status=status,
             executor_type=ds.db_type,
-            executor_params=request.data.get('params'),
+            executor_params=runtime_params,
             start_time=start_time,
             end_time=end_time,
             duration_seconds=duration,
-            result_summary={
-                'columns': columns,
-                'rows': rows,
-                'rowCount': len(rows),
-                'error': error_msg,
-            },
-            executed_by=request.user.username if hasattr(request, 'user') else '',
+            result_summary=result_summary,
+            executed_by=username,
         )
 
         if status == 'failed':
@@ -505,11 +548,23 @@ class ScriptViewSet(BaseViewSet):
             'duration': duration,
         }, msg='执行成功')
 
+    def _build_task_config(self, *, script, version, datasource, sql):
+        return {
+            'scriptId': script.id,
+            'scriptCode': script.script_code,
+            'scriptType': script.script_type,
+            'directoryId': script.directory_id,
+            'datasourceId': datasource.id,
+            'datasourceType': datasource.db_type,
+            'currentVersionId': version.id,
+            'sqlText': sql,
+        }
+
     @action(detail=True, methods=['get'], url_path='executions')
     def list_executions(self, request, pk=None):
         """获取脚本执行记录"""
         script = self.get_object()
-        qs = script.executions.all()
+        qs = script.executions.select_related('version', 'task_instance').all()
 
         s = ScriptExecutionQuerySerializer(data=request.query_params)
         s.is_valid(raise_exception=False)
@@ -530,7 +585,7 @@ class ScriptViewSet(BaseViewSet):
 class ScriptExecutionViewSet(BaseViewSet):
     """脚本执行记录（全局查询）"""
     permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = DataDevScriptExecution.objects.select_related('script', 'version').all()
+    queryset = DataDevScriptExecution.objects.select_related('script', 'version', 'task_instance').all()
     serializer_class = ScriptExecutionSerializer
     pagination_class = StandardPagination
     http_method_names = ['get']

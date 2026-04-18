@@ -102,6 +102,8 @@ class ScriptVersionCreateSerializer(serializers.Serializer):
 
 class ScriptExecutionSerializer(serializers.ModelSerializer):
     """脚本执行记录序列化器"""
+    taskId = serializers.IntegerField(source='task_instance.task_id', read_only=True, allow_null=True)
+    taskInstanceId = serializers.IntegerField(source='task_instance_id', read_only=True, allow_null=True)
     executionId = serializers.CharField(source='execution_id', read_only=True)
     scriptId = serializers.IntegerField(source='script_id', read_only=True)
     scriptName = serializers.CharField(source='script.script_name', read_only=True, default='')
@@ -127,6 +129,7 @@ class ScriptExecutionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DataDevScriptExecution
         fields = [
+            'taskId', 'taskInstanceId',
             'executionId', 'scriptId', 'scriptName', 'status',
             'versionNumber', 'executorType', 'executorParams',
             'startTime', 'endTime', 'durationSeconds',

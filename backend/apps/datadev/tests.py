@@ -1,11 +1,17 @@
 from io import StringIO
+from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.test import APIRequestFactory, force_authenticate
 
+from apps.datasource.models import DataSource
+from apps.datatask.models import Task, TaskInstance
 from .models import DataDevDirectory, DataDevScript
+from .models import DataDevScriptExecution, DataDevScriptVersion
 from .views import ScriptViewSet
 from .views import DataDevDirectoryViewSet
 
@@ -214,3 +220,69 @@ class DataDevDirectoryViewLogicTests(TestCase):
         self.assertEqual(root_node['directoryName'], '根目录')
         self.assertEqual(child_node['directoryName'], '子目录')
         self.assertEqual(child_node['children'][0]['directoryName'], '孙目录')
+
+
+class ScriptExecutionTaskIntegrationTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='script_runner', password='password123')
+        self.datasource = DataSource.objects.create(
+            name='测试MySQL',
+            db_type='mysql',
+            host='127.0.0.1',
+            port=3306,
+            db_name='demo',
+            username='root',
+            password='secret',
+            create_by='tester',
+        )
+        self.script = DataDevScript.objects.create(
+            script_name='门店营收汇总',
+            script_code='store_revenue_summary',
+            script_type='sql',
+            datasource=self.datasource,
+            owner='script_runner',
+            create_by='script_runner',
+        )
+        self.version = DataDevScriptVersion.objects.create(
+            script=self.script,
+            version_number=1,
+            content='SELECT 1 AS order_cnt',
+            content_hash='hash',
+            is_current=True,
+            is_released=False,
+            create_by='script_runner',
+        )
+
+    @patch('apps.datadev.views.get_executor')
+    def test_execute_script_creates_task_and_task_instance(self, mock_get_executor):
+        class _MockQueryExecutor:
+            def execute_query(self, sql):
+                return {'columns': ['order_cnt'], 'rows': [(1,)]}
+
+            def close(self):
+                return None
+
+        mock_get_executor.return_value = _MockQueryExecutor()
+        view = ScriptViewSet.as_view({'post': 'execute_script'})
+        request = self.factory.post(
+            f'/data-api/datadev/scripts/{self.script.pk}/execute',
+            {'params': {'limit': 100}},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(self.script.pk))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        task = Task.objects.get(source_module='datadev.script', source_record_id=self.script.pk)
+        task_instance = TaskInstance.objects.get(task=task)
+        execution = DataDevScriptExecution.objects.get(script=self.script)
+        self.assertEqual(task.task_type, 'SQL_COMPUTE')
+        self.assertEqual(task.task_config['sqlText'], 'SELECT 1 AS order_cnt')
+        self.assertNotIn('runtimeParams', task.task_config)
+        self.assertEqual(task_instance.status, 'success')
+        self.assertEqual(task_instance.runtime_config['params'], {'limit': 100})
+        self.assertEqual(execution.task_instance_id, task_instance.id)
+        self.assertEqual(execution.execution_id, task_instance.instance_id)
