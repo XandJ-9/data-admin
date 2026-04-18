@@ -1,5 +1,97 @@
 # 任务追踪
 
+### 2026-04-18: 固化主线优先开发规则
+
+- ✅ 已将“单轮单目标、故障优先、禁止扩 scope、文档与审查后置、分歧先停”等规则写入项目根 `CLAUDE.md`
+- ✅ 上述规则现作为项目级执行铁律随会话启动自动加载，约束 Copilot / Claude Code 在本仓库中的默认工作流
+- ✅ 后续开发默认按“可用性 > 正确性 > 稳定性 > 体验优化”的顺序推进，避免再次偏离主线
+
+### 2026-04-18: 数据任务首页改造为运行总览台
+
+- ✅ `frontend/src/views/data/task/index.vue` 已从“逐任务卡片浏览”重构为“任务运行总览台”
+- ✅ 首页现聚焦全局运行态势：总任务量、启用任务、执行次数、成功率与失败实例等概览指标
+- ✅ 已移除大块筛选框，改为轻量“观察周期”切换，避免首页重新退回列表页思路
+- ✅ 已新增执行趋势柱状图、来源分布饼图、调度分布饼图、异常看板与最近动态，弱化首页的单任务管理负担
+- ✅ 图表区已改为宽屏自适应布局：趋势图独占主内容区，两个饼图并排铺满横向空间，不再缩在右侧窄栏
+- ✅ 首页快捷入口继续保留“新建集成任务 / 执行记录 / 依赖编排”，单任务治理下沉到详情页与实例页
+
+### 2026-04-18: 数据任务旧库 schema 漂移修复
+
+- ✅ 已定位“数据任务”页面首因不是前端组件，而是 `/data-api/datatask/task` 后端 500
+- ✅ 已确认当前开发库 `django_migrations` 与真实 SQLite 表结构漂移：`datatask_task` 仍为旧版遗留结构，缺少 `source_module / source_record_id / schedule_type` 等当前字段
+- ✅ 已新增 `backend/apps/datatask/migrations/0002_repair_legacy_schema.py`，兼容修复历史 `datatask` 旧表结构，并补建缺失的 `datatask_task_dependency / datatask_task_instance`
+- ✅ 修复迁移已在当前环境执行完成，`/data-api/datatask/task?pageNum=1&pageSize=9` 已恢复 200
+
+### 2026-04-18: 数据任务前后端调通（Phase 1.5）
+
+- ✅ `datatask` 已补齐统一任务更新接口，支持在任务详情页维护状态、负责人、调度方式与备注
+- ✅ 统一任务中心已新增“立即执行”能力，支持从 `Task` 按来源模块分发到数据集成 / 数据开发执行链路
+- ✅ `datatask` 任务详情页已升级为“概览 + 治理配置”结构，不再只读，可直接保存治理配置并触发执行
+- ✅ 数据任务页与详情页已支持按来源模块跳转到“数据集成详情”或“数据开发 IDE”来源页面
+- ✅ 菜单种子已修正 `/datatask` 误配的 `dataintegration:*` 权限点，并通过 `initdata` 同步到当前环境
+
+### 2026-04-18: 菜单种子与数据库菜单同步
+
+- ✅ 新增管理命令 `uv run python manage.py sync_menu_data`，支持将当前数据库 `sys_menu` 树导出回 `backend/apps/system/management/commands/menu_data.json`
+- ✅ 已按当前开发库真实菜单结构刷新 `menu_data.json`，补齐 `menuId/query/isFrame/isCache/redirect/activeMenu/isAffix/isBreadcrumb/alwaysShow` 等字段
+- ✅ `initdata` 已复用统一菜单转换逻辑，确保导出的 `menu_data.json` 仍可直接用于新环境初始化菜单
+
+### 2026-04-18: 数据任务管理模块与集成任务详情页（Phase 1）
+
+- ✅ 已补齐前端“数据任务”模块：新增 `frontend/src/views/data/task/index.vue`、`taskDetail.vue`、`instances.vue`
+- ✅ 任务中心改为统一任务视角，首页现支持按任务类型 / 来源模块 / 时间范围查看总览，并可直接跳转到任务详情与实例记录
+- ✅ 从任务中心新建“数据集成任务”时，已改为直接跳转 `frontend/src/views/data/integration/detail.vue` 详情页，不再使用抽屉创建
+- ✅ “数据集成 > 同步任务”列表页已收敛为纯列表 + 详情抽屉，创建/编辑统一切换为独立详情页
+- ✅ 初始化菜单已补齐 `/datatask`、隐藏任务详情路由与数据集成详情路由，`initdata` 已为当前环境补出新入口
+- ✅ `dataintegration` 创建 / 更新 / 删除已补齐事务与依赖清理，避免配置模型与统一任务中心出现脏状态
+- ✅ `system/getInfo` 已开始按角色菜单真实返回普通角色权限，前端 `v-hasPermi` 对数据任务 / 数据集成按钮显隐恢复生效
+- ✅ 数据集成详情页的数据源 / 源资产下拉已改为跨页拉取，不再受后端单页 `100` 条上限影响
+
+### 2026-04-18: 数据集成页面信息层级收敛（UX）
+
+- ✅ `frontend/src/views/data/integration/index.vue` 已从“大工作台同屏铺开”调整为“轻列表 + 重详情抽屉”结构
+- ✅ 首页仅保留轻筛选、任务列表和关键状态摘要，配置/调度/运行记录移入详情抽屉分 Tab 查看
+- ✅ 新建/编辑任务仍通过原有抽屉完成，继续复用当前后端接口与执行闭环
+
+### 2026-04-18: 新增页面浏览器不可见问题修复
+
+- ✅ 已定位当前环境无法看到“数据集成 / 任务编排”新页面的直接原因：前端动态路由依赖后端菜单，当前库缺失对应菜单记录
+- ✅ 已确认前端服务 `http://localhost:80/data-admin/` 与后端 `http://localhost:8000` 均正常监听，问题不在页面构建或服务进程
+- ✅ 已定位菜单缺失的根因是 `initdata` 以 `orderNum` 推导 `menu_id`，导致“数据集成”与历史“数据任务”顶级菜单发生 ID 冲突
+- ✅ 已修复 `initdata`，支持从 `menu_data.json` 显式读取 `menuId`，并为“数据集成”分配独立菜单 ID，避免后续环境继续丢路由
+
+### 2026-04-18: 数据集成 / 任务编排工作台化重构（UX）
+
+- ✅ `frontend/src/views/data/integration/index.vue` 已先完成工作台化改版，后续再进一步收敛为“轻列表 + 重详情抽屉”
+- ✅ `frontend/src/views/data/orchestration/index.vue` 已重构为“任务清单 + 上下游依赖泳道 + 抽屉维护依赖边”布局
+- ✅ 两个页面继续复用现有后端接口与权限点，不改动当前最小业务闭环
+- ✅ 已完成前端生产构建验证，确保工作台化改版后仍可正常打包
+
+### 2026-04-18: 统一任务依赖编排闭环（Phase 1）
+
+- ✅ `apps.datatask` 已补齐 `TaskDependency` 写接口，支持新增、修改、删除依赖关系
+- ✅ 依赖配置已补充后端校验：拦截自依赖、重复依赖和环依赖
+- ✅ 新增“任务编排 > 依赖编排”前端页面，支持查看任务清单、配置上下游关系与维护依赖边
+- ✅ 依赖建立后，下游任务会自动切换为 `dependency` 调度方式；依赖移除后若无其他上游则回退为 `manual`
+- ✅ 新增 `datatask` 回归测试，覆盖依赖创建、环路拦截与删除后的调度方式回退
+
+### 2026-04-18: 数据集成前端任务页与菜单入口（Phase 1）
+
+- ✅ 新增前端页面 `frontend/src/views/data/integration/index.vue`，提供数据集成任务查询、创建、编辑、删除、手动执行与执行记录查看能力
+- ✅ 页面已对接 `/data-api/dataintegration/task`、`/task/{id}/execute`、`/task/{id}/executions`、`/executionlog/{id}/detail` 等后端接口
+- ✅ 新增菜单种子“数据集成 > 同步任务”，并补齐 `dataintegration:task:*` 权限点
+- ✅ 初始化数据逻辑已将 `/data-integration` 纳入普通角色默认可见业务菜单范围
+- ✅ 前端执行器选项已对齐当前阶段能力边界：`mock` 可用，`datax` 标记为待接入
+
+### 2026-04-18: 数据集成模块接入统一任务中心（Phase 1）
+
+- ✅ 新增 `apps.dataintegration` 模块，落地 `DataIntegrationTask` 配置模型，承载源数据源、目标数据源、源资产、目标表、加载/写入模式与执行器配置
+- ✅ 新增数据集成核心接口：`/data-api/dataintegration/task`、`/data-api/dataintegration/task/{id}/execute`、`/data-api/dataintegration/task/{id}/executions`、`/data-api/dataintegration/executionlog`
+- ✅ 数据集成任务已接入统一任务中心：创建/更新配置时自动同步 `DATA_SYNC` 任务定义，执行时生成 `TaskInstance`
+- ✅ 首期已用 `mock` 执行器打通“任务配置 → 手动触发 → 执行实例/执行日志”闭环，`datax` 保留配置入口并返回明确提示
+- ✅ 新增 ADR-009，明确数据集成模块采用“配置模型 + 统一任务映射”策略
+- ✅ 新增 `apps.dataintegration` 回归测试，覆盖任务创建、执行和执行日志详情接口
+
 ### 2026-04-18: 平台统一任务内核（Phase 1）
 
 - ✅ 新增 `apps.datatask` 模块，落地统一任务定义 `Task`、依赖关系 `TaskDependency`、运行实例 `TaskInstance`

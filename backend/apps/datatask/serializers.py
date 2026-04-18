@@ -43,10 +43,47 @@ class TaskSerializer(BaseModelSerializer):
 
 
 class TaskQuerySerializer(serializers.Serializer):
+    taskName = serializers.CharField(required=False, allow_blank=True)
     taskType = serializers.ChoiceField(required=False, choices=['DATA_SYNC', 'SQL_COMPUTE'])
     status = serializers.ChoiceField(required=False, choices=['draft', 'active', 'paused', 'archived'])
     sourceModule = serializers.CharField(required=False, allow_blank=True)
     owner = serializers.CharField(required=False, allow_blank=True)
+
+
+class TaskUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        required=False,
+        choices=['draft', 'active', 'paused', 'archived'],
+    )
+    scheduleType = serializers.ChoiceField(
+        required=False,
+        choices=['manual', 'cron'],
+    )
+    cronExpression = serializers.CharField(required=False, allow_blank=True)
+    owner = serializers.CharField(required=False, allow_blank=True)
+    remark = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        instance: Task = self.context['instance']
+        has_upstream_dependencies = TaskDependency.objects.filter(
+            downstream_task_id=instance.id,
+            del_flag='0',
+        ).exists()
+        if has_upstream_dependencies and (
+            'scheduleType' in attrs or 'cronExpression' in attrs
+        ):
+            raise serializers.ValidationError(
+                {'scheduleType': '当前任务存在上游依赖，请前往任务编排维护依赖触发关系'}
+            )
+
+        schedule_type = attrs.get(
+            'scheduleType',
+            instance.schedule_type if instance.schedule_type != 'dependency' else 'manual',
+        )
+        cron_expression = attrs.get('cronExpression', instance.cron_expression)
+        if schedule_type == 'cron' and not cron_expression:
+            raise serializers.ValidationError({'cronExpression': '定时调度模式必须配置 Cron 表达式'})
+        return attrs
 
 
 class TaskDependencySerializer(BaseModelSerializer):
@@ -79,6 +116,81 @@ class TaskDependencySerializer(BaseModelSerializer):
 class TaskDependencyQuerySerializer(serializers.Serializer):
     upstreamTaskId = serializers.IntegerField(required=False)
     downstreamTaskId = serializers.IntegerField(required=False)
+
+
+class TaskDependencyCreateSerializer(serializers.Serializer):
+    upstreamTaskId = serializers.IntegerField()
+    downstreamTaskId = serializers.IntegerField()
+    triggerCondition = serializers.ChoiceField(choices=['SUCCESS'], default='SUCCESS')
+    lagSeconds = serializers.IntegerField(min_value=0, default=0)
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_upstreamTaskId(self, value):
+        if not Task.objects.filter(id=value, del_flag='0').exists():
+            raise serializers.ValidationError('上游任务不存在')
+        return value
+
+    def validate_downstreamTaskId(self, value):
+        if not Task.objects.filter(id=value, del_flag='0').exists():
+            raise serializers.ValidationError('下游任务不存在')
+        return value
+
+    def validate(self, attrs):
+        from .services import TaskService
+
+        upstream_task_id = attrs['upstreamTaskId']
+        downstream_task_id = attrs['downstreamTaskId']
+        if upstream_task_id == downstream_task_id:
+            raise serializers.ValidationError({'downstreamTaskId': '下游任务不能与上游任务相同'})
+        if TaskDependency.objects.filter(
+            upstream_task_id=upstream_task_id,
+            downstream_task_id=downstream_task_id,
+            del_flag='0',
+        ).exists():
+            raise serializers.ValidationError({'downstreamTaskId': '依赖关系已存在'})
+        if TaskService.would_create_cycle(upstream_task_id, downstream_task_id):
+            raise serializers.ValidationError({'downstreamTaskId': '当前依赖配置会形成环路'})
+        return attrs
+
+
+class TaskDependencyUpdateSerializer(serializers.Serializer):
+    upstreamTaskId = serializers.IntegerField()
+    downstreamTaskId = serializers.IntegerField()
+    triggerCondition = serializers.ChoiceField(choices=['SUCCESS'], default='SUCCESS')
+    lagSeconds = serializers.IntegerField(min_value=0, default=0)
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_upstreamTaskId(self, value):
+        if not Task.objects.filter(id=value, del_flag='0').exists():
+            raise serializers.ValidationError('上游任务不存在')
+        return value
+
+    def validate_downstreamTaskId(self, value):
+        if not Task.objects.filter(id=value, del_flag='0').exists():
+            raise serializers.ValidationError('下游任务不存在')
+        return value
+
+    def validate(self, attrs):
+        from .services import TaskService
+
+        instance = self.context['instance']
+        upstream_task_id = attrs['upstreamTaskId']
+        downstream_task_id = attrs['downstreamTaskId']
+        if upstream_task_id == downstream_task_id:
+            raise serializers.ValidationError({'downstreamTaskId': '下游任务不能与上游任务相同'})
+        if TaskDependency.objects.filter(
+            upstream_task_id=upstream_task_id,
+            downstream_task_id=downstream_task_id,
+            del_flag='0',
+        ).exclude(pk=instance.pk).exists():
+            raise serializers.ValidationError({'downstreamTaskId': '依赖关系已存在'})
+        if TaskService.would_create_cycle(
+            upstream_task_id,
+            downstream_task_id,
+            exclude_dependency_id=instance.pk,
+        ):
+            raise serializers.ValidationError({'downstreamTaskId': '当前依赖配置会形成环路'})
+        return attrs
 
 
 class TaskInstanceSerializer(serializers.ModelSerializer):

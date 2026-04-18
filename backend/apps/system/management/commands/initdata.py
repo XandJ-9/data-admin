@@ -3,16 +3,13 @@
 用法: python manage.py initdata
 """
 import json
-from pathlib import Path
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.datadev.models import DataDevDirectory
+from apps.system.management.commands.sync_menu_data import MENU_DATA_FILE, flatten_menu_tree
 from apps.system.models import Menu, Role, RoleMenu, User, UserRole, Dept
-
-# 菜单数据 JSON 文件路径（与本脚本同目录）
-MENU_DATA_FILE = Path(__file__).resolve().parent / 'menu_data.json'
 
 
 class Command(BaseCommand):
@@ -62,18 +59,29 @@ class Command(BaseCommand):
             RoleMenu.objects.all().delete()
             Menu.objects.all().delete()
 
-        if Menu.objects.filter(del_flag='0').exists():
-            self.stdout.write('菜单数据已存在，跳过')
-            return
-
         with open(MENU_DATA_FILE, 'r', encoding='utf-8') as f:
             menu_tree = json.load(f)
 
-        menus = self._flatten_menu_tree(menu_tree, parent_id=0)
+        menus = flatten_menu_tree(menu_tree, parent_id=0)
+        created_count = 0
+        updated_count = 0
         for m in menus:
-            Menu.objects.create(**m, create_by='system')
+            menu_defaults = {**m, 'del_flag': '0', 'update_by': 'system'}
+            _, created = Menu.objects.update_or_create(
+                menu_id=m['menu_id'],
+                defaults=menu_defaults,
+                create_defaults={**menu_defaults, 'create_by': 'system'},
+            )
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
 
-        self.stdout.write(self.style.SUCCESS(f'菜单初始化完成，共 {len(menus)} 条'))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'菜单初始化完成：新增 {created_count} 条，更新 {updated_count} 条'
+            )
+        )
 
     # ---------------------------------------------------------- 数据开发目录
     def _init_datadev_directories(self, force):
@@ -134,40 +142,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f'数据开发目录初始化完成，共 {initialized_count} 条'))
 
-    def _flatten_menu_tree(self, nodes, parent_id=0):
-        """
-        递归展开树形菜单 JSON 为扁平列表。
-        自动生成 menu_id：顶级节点 = orderNum，子节点 = parent_id * 100 + orderNum。
-        """
-        result = []
-        for node in nodes:
-            children = node.pop('children', None) or []
-            order_num = node.get('orderNum', 0)
-            menu_id = order_num if parent_id == 0 else parent_id * 100 + order_num
-            menu = {
-                'menu_id': menu_id,
-                'parent_id': parent_id,
-                'menu_name': node['menuName'],
-                'order_num': order_num,
-                'path': node.get('path', ''),
-                'component': node.get('component', ''),
-                'route_name': node.get('routeName', ''),
-                'menu_type': node.get('menuType', 'M'),
-                'visible': node.get('visible', '0'),
-                'status': node.get('status', '0'),
-                'perms': node.get('perms', ''),
-                'icon': node.get('icon', ''),
-                'redirect': node.get('redirect', ''),
-                'active_menu': node.get('activeMenu', ''),
-                'is_affix': node.get('isAffix', False),
-                'is_breadcrumb': node.get('isBreadcrumb', True),
-                'always_show': node.get('alwaysShow', True),
-            }
-            result.append(menu)
-            if children:
-                result.extend(self._flatten_menu_tree(children, parent_id=menu_id))
-        return result
-
     # ------------------------------------------------------------------ 角色
     def _init_roles(self, force):
         if force:
@@ -175,50 +149,72 @@ class Command(BaseCommand):
             RoleMenu.objects.all().delete()
             Role.objects.all().delete()
 
-        if Role.objects.filter(del_flag='0').exists():
-            self.stdout.write('角色数据已存在，跳过')
-            return
-
         # 超级管理员角色
-        admin_role = Role.objects.create(
-            role_id=1,
-            role_name='超级管理员',
+        admin_role, _ = Role.objects.update_or_create(
             role_key='admin',
-            role_sort=1,
-            data_scope='1',
-            status='0',
-            remark='超级管理员，拥有所有权限',
-            create_by='system',
+            defaults={
+                'role_name': '超级管理员',
+                'role_sort': 1,
+                'data_scope': '1',
+                'status': '0',
+                'remark': '超级管理员，拥有所有权限',
+                'del_flag': '0',
+                'update_by': 'system',
+            },
+            create_defaults={
+                'role_name': '超级管理员',
+                'role_sort': 1,
+                'data_scope': '1',
+                'status': '0',
+                'remark': '超级管理员，拥有所有权限',
+                'del_flag': '0',
+                'create_by': 'system',
+                'update_by': 'system',
+            },
         )
 
         # 普通角色
-        common_role = Role.objects.create(
-            role_id=2,
-            role_name='普通角色',
+        common_role, _ = Role.objects.update_or_create(
             role_key='common',
-            role_sort=2,
-            data_scope='5',
-            status='0',
-            remark='普通角色，拥有数据查询等基本权限',
-            create_by='system',
+            defaults={
+                'role_name': '普通角色',
+                'role_sort': 2,
+                'data_scope': '5',
+                'status': '0',
+                'remark': '普通角色，拥有数据查询等基本权限',
+                'del_flag': '0',
+                'update_by': 'system',
+            },
+            create_defaults={
+                'role_name': '普通角色',
+                'role_sort': 2,
+                'data_scope': '5',
+                'status': '0',
+                'remark': '普通角色，拥有数据查询等基本权限',
+                'del_flag': '0',
+                'create_by': 'system',
+                'update_by': 'system',
+            },
         )
 
         # 为管理员角色分配所有菜单
-        all_menus = Menu.objects.filter(del_flag='0')
-        RoleMenu.objects.bulk_create([
-            RoleMenu(role=admin_role, menu=m, create_by='system') for m in all_menus
-        ])
+        active_menus = list(Menu.objects.filter(del_flag='0'))
+        admin_grants = 0
+        for menu in active_menus:
+            if self._ensure_role_menu(role=admin_role, menu=menu):
+                admin_grants += 1
 
-        # 为普通角色分配部分菜单（数据资产、数据服务的目录/页面 + 查询按钮）
+        # 为普通角色分配部分菜单（数据资产、数据任务、数据集成、数据服务的目录/页面 + 查询按钮）
         # 找到业务模块的顶级目录 ID
-        biz_paths = {'/data-asset', '/data-service'}
-        biz_root_ids = set(
-            Menu.objects.filter(path__in=biz_paths, parent_id=0, del_flag='0')
-            .values_list('menu_id', flat=True)
-        )
+        biz_paths = {'/data-asset', '/datatask', '/data-integration', '/data-orchestration', '/data-service'}
+        menu_by_id = {menu.menu_id: menu for menu in active_menus}
+        biz_root_ids = {
+            menu.menu_id for menu in active_menus
+            if menu.parent_id == 0 and menu.path in biz_paths
+        }
         # 选取：目录(M)/页面(C) 或 perms 以 :query/:view 结尾的按钮(F)
         common_menu_ids = set()
-        for m in Menu.objects.filter(del_flag='0'):
+        for m in active_menus:
             # 属于业务顶级目录本身
             if m.menu_id in biz_root_ids:
                 common_menu_ids.add(m.menu_id)
@@ -228,18 +224,19 @@ class Command(BaseCommand):
                     common_menu_ids.add(m.menu_id)
             # 父节点的父节点追溯到业务顶级目录（三级按钮）
             else:
-                parent = Menu.objects.filter(menu_id=m.parent_id, del_flag='0').first()
+                parent = menu_by_id.get(m.parent_id)
                 if parent and parent.parent_id in biz_root_ids and m.menu_type == 'F':
                     if m.perms.endswith(':query') or m.perms.endswith(':view'):
                         common_menu_ids.add(m.menu_id)
 
         common_menus = Menu.objects.filter(menu_id__in=common_menu_ids, del_flag='0')
-        RoleMenu.objects.bulk_create([
-            RoleMenu(role=common_role, menu=m, create_by='system') for m in common_menus
-        ])
+        common_grants = 0
+        for menu in common_menus:
+            if self._ensure_role_menu(role=common_role, menu=menu):
+                common_grants += 1
 
         self.stdout.write(self.style.SUCCESS(
-            f'角色初始化完成：管理员（{all_menus.count()}个菜单），普通角色（{common_menus.count()}个菜单）'
+            f'角色初始化完成：管理员新增授权 {admin_grants} 条，普通角色新增授权 {common_grants} 条'
         ))
 
     # ------------------------------------------------------------------ 用户
@@ -249,7 +246,8 @@ class Command(BaseCommand):
             User.objects.filter(username__in=['admin', 'user']).delete()
 
         # 管理员
-        if not User.objects.filter(username='admin').exists():
+        admin_user = User.objects.filter(username='admin').first()
+        if admin_user is None:
             admin_user = User.objects.create_user(
                 username='admin',
                 password='admin123',
@@ -263,16 +261,25 @@ class Command(BaseCommand):
             )
             admin_user.create_by = 'system'
             admin_user.save(update_fields=['create_by'])
-
-            admin_role = Role.objects.filter(role_key='admin', del_flag='0').first()
-            if admin_role:
-                UserRole.objects.create(user=admin_user, role=admin_role, create_by='system')
             self.stdout.write(self.style.SUCCESS('管理员用户 admin 创建成功'))
         else:
-            self.stdout.write('管理员用户 admin 已存在，跳过')
+            self._restore_builtin_user(
+                user=admin_user,
+                nick_name='管理员',
+                dept_id=100,
+                remark='系统管理员',
+                is_superuser=True,
+                is_staff=True,
+            )
+            self.stdout.write('管理员用户 admin 已存在，补齐角色关系')
+
+        admin_role = Role.objects.filter(role_key='admin', del_flag='0').first()
+        if admin_role:
+            self._ensure_user_role(user=admin_user, role=admin_role)
 
         # 普通用户
-        if not User.objects.filter(username='user').exists():
+        normal_user = User.objects.filter(username='user').first()
+        if normal_user is None:
             normal_user = User.objects.create_user(
                 username='user',
                 password='user123',
@@ -286,10 +293,64 @@ class Command(BaseCommand):
             )
             normal_user.create_by = 'system'
             normal_user.save(update_fields=['create_by'])
-
-            common_role = Role.objects.filter(role_key='common', del_flag='0').first()
-            if common_role:
-                UserRole.objects.create(user=normal_user, role=common_role, create_by='system')
             self.stdout.write(self.style.SUCCESS('普通用户 user 创建成功'))
         else:
-            self.stdout.write('普通用户 user 已存在，跳过')
+            self._restore_builtin_user(
+                user=normal_user,
+                nick_name='普通用户',
+                dept_id=101,
+                remark='普通用户',
+                is_superuser=False,
+                is_staff=False,
+            )
+            self.stdout.write('普通用户 user 已存在，补齐角色关系')
+
+        common_role = Role.objects.filter(role_key='common', del_flag='0').first()
+        if common_role:
+            self._ensure_user_role(user=normal_user, role=common_role)
+
+    def _ensure_role_menu(self, *, role, menu):
+        relation = RoleMenu.objects.filter(role=role, menu=menu).first()
+        if relation is None:
+            RoleMenu.objects.create(role=role, menu=menu, create_by='system')
+            return True
+        if relation.del_flag != '0':
+            relation.del_flag = '0'
+            relation.update_by = 'system'
+            relation.save(update_fields=['del_flag', 'update_by'])
+            return True
+        return False
+
+    def _ensure_user_role(self, *, user, role):
+        relation = UserRole.objects.filter(user=user, role=role).first()
+        if relation is None:
+            UserRole.objects.create(user=user, role=role, create_by='system')
+            return True
+        if relation.del_flag != '0':
+            relation.del_flag = '0'
+            relation.update_by = 'system'
+            relation.save(update_fields=['del_flag', 'update_by'])
+            return True
+        return False
+
+    def _restore_builtin_user(self, *, user, nick_name, dept_id, remark, is_superuser, is_staff):
+        update_fields = []
+        resolved_dept_id = dept_id if Dept.objects.filter(dept_id=dept_id, del_flag='0').exists() else user.dept_id
+        expected_values = {
+            'nick_name': nick_name,
+            'sex': '0',
+            'status': '0',
+            'dept_id': resolved_dept_id,
+            'remark': remark,
+            'is_superuser': is_superuser,
+            'is_staff': is_staff,
+            'is_active': True,
+            'del_flag': '0',
+            'update_by': 'system',
+        }
+        for field_name, expected_value in expected_values.items():
+            if getattr(user, field_name) != expected_value:
+                setattr(user, field_name, expected_value)
+                update_fields.append(field_name)
+        if update_fields:
+            user.save(update_fields=update_fields)

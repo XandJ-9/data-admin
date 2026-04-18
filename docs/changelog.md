@@ -3,6 +3,50 @@
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
 
 # [v1.4.20] - 2026-04-18
+- [Docs] 已将“单轮单目标、故障优先、禁止扩 scope、文档与审查后置、分歧先停”等项目协作规则固化到根 `CLAUDE.md`，确保会话启动即自动加载。
+- [UX] 数据任务首页已从“逐任务卡片浏览”重构为“任务运行总览台”，首页只保留运行态势、异常暴露与快捷入口，不再承担单任务列表职责。
+- [UX] 数据任务总览台进一步移除大块筛选区，改用轻量“观察周期”切换，避免首页重新退回列表页思路。
+- [UX] 数据任务总览台新增概览指标、执行趋势柱状图、来源/调度分布饼图、异常看板与最近动态，帮助用户先判断整体运行健康度，再进入任务详情治理。
+- [UX] 数据任务图表区已改为宽屏自适应布局：趋势图占主内容整行，来源/调度饼图在常规桌面宽度下即可并排展开，并跟随容器宽度自动重算尺寸。
+- [Bugfix] 修复当前开发库 `datatask` 迁移记录与真实 SQLite 表结构漂移问题：新增 `0002_repair_legacy_schema`，兼容旧版 `datatask_task` 遗留表并补建统一任务依赖/实例表。
+- [Bugfix] 恢复 `/data-api/datatask/task` 列表接口可用性，解决“数据任务”页面进入即因 `no such column: datatask_task.source_module` 返回 500 的问题。
+- [Feature] `datatask` 已补齐统一任务更新接口：任务详情页现在可以直接维护状态、负责人、调度方式与备注，不再只是只读概览。
+- [Feature] 统一任务中心新增 `/data-api/datatask/task/{id}/execute` 执行入口，可按来源模块分发到数据集成任务或数据开发脚本的真实执行链路。
+- [Compat] `DataIntegrationTaskViewSet.execute_task` 与 `ScriptViewSet.execute_script` 已复用统一任务执行服务，避免来源页和任务中心出现双套执行逻辑漂移。
+- [UX] 数据任务详情页升级为“概览 + 治理配置”布局，支持直接保存治理配置、触发执行，并按来源模块跳回数据集成详情或数据开发 IDE。
+- [Bugfix] 修正 `/datatask` 菜单种子下误写为 `dataintegration:*` 的权限点，当前环境已通过 `initdata` 同步为 `datatask:*` 权限集。
+- [Feature] 新增管理命令 `uv run python manage.py sync_menu_data`，支持将当前数据库 `sys_menu` 树同步回 `backend/apps/system/management/commands/menu_data.json`。
+- [Docs] 已按当前开发库真实菜单结构刷新 `menu_data.json`，补齐 `menuId/query/isFrame/isCache/redirect/activeMenu/isAffix/isBreadcrumb/alwaysShow` 等菜单字段。
+- [Refactor] `initdata` 已复用统一菜单转换逻辑，确保数据库导出的 `menu_data.json` 仍可直接用于新环境菜单初始化。
+- [Feature] 新增“数据任务”前端模块：补齐 `frontend/src/views/data/task/index.vue`、`taskDetail.vue`、`instances.vue`，开始以统一任务中心视角承接任务管理。
+- [UX] 数据任务中心保留统一任务入口定位，并继续提供“新建集成任务”直达入口与来源工作面跳转能力。
+- [UX] 数据集成任务创建/编辑已从抽屉切换为独立详情页 `frontend/src/views/data/integration/detail.vue`，任务中心可直接跳转到该页面完成配置。
+- [Compat] `DataIntegrationTaskViewSet` 的创建/更新接口现直接返回任务详情数据，便于前端保存后无缝切换到详情页继续编辑。
+- [Feature] 初始化菜单补齐 `/datatask`、`DataTaskDetail`、`DataIntegrationTaskCreate`、`DataIntegrationTaskDetail` 路由，并将 `/datatask` 纳入普通角色默认可见业务菜单范围。
+- [Bugfix] `dataintegration` 创建 / 更新 / 删除已补齐事务与依赖清理，避免配置模型、统一任务和任务依赖出现软删不同步。
+- [Bugfix] `system/getInfo` 现按用户角色聚合菜单权限，普通角色的 `v-hasPermi` 按钮显隐恢复正常工作。
+- [Bugfix] 数据集成详情页的数据源 / 源资产选项改为跨页拉取，避免后端分页上限 100 导致下拉项缺失。
+- [Bugfix] 请求拦截器与新页面错误提示已对齐，业务失败不再重复弹出两次错误提示。
+- [UX] “数据集成 > 同步任务”页面继续收敛信息层级：首页改为轻筛选 + 紧凑任务列表，配置/调度/运行记录迁入详情抽屉分 Tab 查看。
+- [Bugfix] 修复初始化菜单时 `menu_id` 仅由 `orderNum` 推导导致的顶级菜单 ID 冲突问题；`initdata` 现支持从 `menu_data.json` 显式读取 `menuId`。
+- [Bugfix] 为“数据集成”菜单分配独立菜单 ID，修复当前环境登录后 `getRouters` 缺失 `/data-integration`、浏览器无法进入新页面的问题。
+- [UX] “数据集成 > 同步任务”页面重构为工作台式布局：筛选卡片、任务卡片流、配置概览、执行快照与抽屉式编辑集中在同一视图内。
+- [UX] “任务编排 > 依赖编排”页面重构为任务卡片 + 上下游依赖泳道布局，弱化通用表格页形态，更贴近数据平台编排工作台。
+- [Frontend] 两个工作台页面已统一改用组件化图标引用，降低对全局图标注册方式的运行时耦合。
+- [Feature] `apps.datatask` 已补齐 `TaskDependency` 写接口，支持新增、修改、删除依赖关系，并为下游任务自动同步 `dependency/manual` 调度方式。
+- [Feature] 新增“任务编排 > 依赖编排”页面 `frontend/src/views/data/orchestration/index.vue`，支持查看统一任务清单与配置上下游依赖关系。
+- [Guard] `TaskDependency` 新增自依赖、重复依赖与环依赖校验，避免形成非法 DAG。
+- [Feature] 初始化菜单新增“任务编排”模块及 `datatask:dependency:*` 权限点，并纳入普通角色默认可见业务菜单范围。
+- [Frontend] 新增“数据集成 > 同步任务”页面 `frontend/src/views/data/integration/index.vue`，支持任务查询、创建、编辑、删除、手动执行和执行记录查看。
+- [Frontend] 数据集成页面已对接当前后端任务接口，并补充配置校验、源资产联动选择与执行详情展示。
+- [Feature] 初始化菜单新增“数据集成”模块及 `dataintegration:task:*` 权限点，普通角色默认可见范围同步纳入 `/data-integration`。
+- [Compat] 前端 `api/data/integration.js` 已对齐当前阶段执行器边界：`mock` 为可用执行器，`datax` 标记为待接入。
+- [Feature] 新增数据集成模块 `apps.dataintegration`，落地 `DataIntegrationTask` 配置模型，承载源/目标数据源、源资产、目标表、加载/写入模式与执行器配置。
+- [Feature] 新增数据集成接口：`/data-api/dataintegration/task`、`/task/{id}/execute`、`/task/{id}/executions`、`/executionlog`，开始承接遗留前端 `integration.js` 的核心路径。
+- [Feature] 数据集成任务已接入统一任务中心：创建/更新配置时同步 `DATA_SYNC` 任务定义，执行时创建 `TaskInstance`。
+- [Compat] 数据集成首期已用 `mock` 执行器打通执行闭环；`datax` 目前保留配置入口，执行时返回显式提示，等待后续适配器接入。
+- [ADR] 新增 ADR-009，明确数据集成模块采用“配置模型 + 统一任务映射”策略。
+- [Test] 新增 `apps.dataintegration` 测试，覆盖任务创建、mock 执行和执行日志详情接口。
 - [Feature] 新增统一任务中心模块 `apps.datatask`，落地 `Task`、`TaskDependency`、`TaskInstance` 三类核心模型，作为平台目标态的统一任务内核。
 - [Feature] 新增统一任务查询接口：`GET /data-api/datatask/task`、`GET /data-api/datatask/task-dependency`、`GET /data-api/datatask/task-instance`。
 - [Feature] `datadev` 脚本执行链已接入统一任务中心：执行时自动生成/刷新 `SQL_COMPUTE` 任务并创建 `TaskInstance`。

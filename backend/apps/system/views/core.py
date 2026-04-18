@@ -12,7 +12,7 @@ from django.shortcuts import get_list_or_404, get_object_or_404
 from django.db.models import Q
 from django.core.cache import cache
 
-from ..models import UserRole, Menu, DictType, DictData
+from ..models import UserRole, RoleMenu, Menu, DictType, DictData
 from ..serializers import DictTypeSerializer, DictDataSerializer, UserProfileSerializer, UserInfoSerializer
 from ..common import audit_log
 
@@ -240,6 +240,7 @@ class GetInfoView(generics.GenericAPIView):
 
     def get(self, request):
         user = request.user
+        user_roles = []
         user_data = {
             'userId': user.id,
             'userName': user.username,
@@ -251,14 +252,30 @@ class GetInfoView(generics.GenericAPIView):
         }
 
         try:
-            user_roles = UserRole.objects.filter(user=user).select_related('role')
+            user_roles = UserRole.objects.filter(
+                user=user,
+                del_flag='0',
+                role__status='0',
+                role__del_flag='0',
+            ).select_related('role')
             roles = [ur.role.role_key for ur in user_roles]
         except Exception:
             roles = []
         if "admin" in roles:
             permissions = ["*:*:*"]
         else:
-            permissions = []
+            role_ids = [ur.role_id for ur in user_roles]
+            permissions = list(
+                Menu.objects.filter(
+                    menu_id__in=RoleMenu.objects.filter(
+                        role_id__in=role_ids,
+                        del_flag='0',
+                    ).values_list('menu_id', flat=True),
+                    del_flag='0',
+                    status='0',
+                    perms__gt='',
+                ).values_list('perms', flat=True).distinct().order_by('perms')
+            )
 
         resp = {
             'code': 200,
@@ -378,4 +395,3 @@ class GetRoutersView(generics.GenericAPIView):
         routers = [r for r in [to_router(n) for n in tree] if r is not None]
         # cache.set('routers', routers, timeout=3600)
         return Response({"code": 200, "msg": "操作成功", "data": routers})
-

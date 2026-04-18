@@ -1,7 +1,5 @@
 import hashlib
 import logging
-import time
-from datetime import timedelta
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -234,29 +232,30 @@ class ScriptViewSet(BaseViewSet):
 
         # 解析目录：未指定时自动取默认（order_num 最小的正常目录）
         directory = self._resolve_directory(directory_id)
-
-        script = DataDevScript.objects.create(
-            script_name=vd['scriptName'],
-            script_code=vd['scriptCode'],
-            script_type=vd['scriptType'],
-            description=vd.get('description', ''),
-            tags=vd.get('tags', []),
-            remark=vd.get('remark', ''),
-            directory=directory,
-            owner=username,
-            create_by=username,
-        )
-
-        if content:
-            DataDevScriptVersion.objects.create(
-                script=script,
-                version_number=1,
-                content=content,
-                content_hash=hashlib.sha256(content.encode()).hexdigest(),
-                is_current=True,
-                is_released=False,
+        with transaction.atomic():
+            script = DataDevScript.objects.create(
+                script_name=vd['scriptName'],
+                script_code=vd['scriptCode'],
+                script_type=vd['scriptType'],
+                description=vd.get('description', ''),
+                tags=vd.get('tags', []),
+                remark=vd.get('remark', ''),
+                directory=directory,
+                owner=username,
                 create_by=username,
             )
+
+            if content:
+                DataDevScriptVersion.objects.create(
+                    script=script,
+                    version_number=1,
+                    content=content,
+                    content_hash=hashlib.sha256(content.encode()).hexdigest(),
+                    is_current=True,
+                    is_released=False,
+                    create_by=username,
+                )
+            TaskService.sync_datadev_source_task(script, username=username)
         return self.ok(msg='创建成功')
 
     def _resolve_directory(self, directory_id):
@@ -276,29 +275,39 @@ class ScriptViewSet(BaseViewSet):
         s = ScriptUpdateSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         vd = s.validated_data
-
-        if 'scriptName' in vd:
-            instance.script_name = vd['scriptName']
-        if 'scriptType' in vd:
-            instance.script_type = vd['scriptType']
-        if 'description' in vd:
-            instance.description = vd['description']
-        if 'status' in vd:
-            instance.status = vd['status']
-        if 'tags' in vd:
-            instance.tags = vd['tags']
-        if 'remark' in vd:
-            instance.remark = vd['remark']
-        if 'directoryId' in vd:
-            instance.directory = self._resolve_directory(vd['directoryId'])
-        instance.update_by = getattr(request.user, 'username', '')
-        instance.save()
+        username = getattr(request.user, 'username', '')
+        with transaction.atomic():
+            if 'scriptName' in vd:
+                instance.script_name = vd['scriptName']
+            if 'scriptType' in vd:
+                instance.script_type = vd['scriptType']
+            if 'description' in vd:
+                instance.description = vd['description']
+            if 'status' in vd:
+                instance.status = vd['status']
+            if 'tags' in vd:
+                instance.tags = vd['tags']
+            if 'remark' in vd:
+                instance.remark = vd['remark']
+            if 'directoryId' in vd:
+                instance.directory = self._resolve_directory(vd['directoryId'])
+            instance.update_by = username
+            instance.save()
+            TaskService.sync_datadev_source_task(instance, username=username)
         return self.ok(msg='更新成功')
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.del_flag = '1'
-        instance.save(update_fields=['del_flag'])
+        username = getattr(request.user, 'username', '')
+        with transaction.atomic():
+            instance.del_flag = '1'
+            instance.update_by = username
+            instance.save(update_fields=['del_flag', 'update_by', 'update_time'])
+            TaskService.soft_delete_source_task(
+                source_module='datadev.script',
+                source_record_id=instance.id,
+                username=username,
+            )
         return self.ok(msg='删除成功')
 
     # ── 版本管理 ──────────────────────────────
@@ -396,6 +405,7 @@ class ScriptViewSet(BaseViewSet):
             script.status = 'published' if is_released else 'draft'
             script.update_by = username
             script.save(update_fields=['status', 'update_by', 'update_time'])
+            TaskService.sync_datadev_source_task(script, username=username)
 
     @action(detail=True, methods=['post'], url_path=r'versions/(?P<version_id>\d+)/rollback')
     def rollback_version(self, request, pk=None, version_id=None):
@@ -414,6 +424,7 @@ class ScriptViewSet(BaseViewSet):
             script.status = 'published'
             script.update_by = request.user.username if hasattr(request, 'user') else ''
             script.save(update_fields=['status', 'update_by', 'update_time'])
+            TaskService.sync_datadev_source_task(script, username=script.update_by)
         return self.ok(msg='回滚成功')
 
     # ── 执行管理 ──────────────────────────────
@@ -422,143 +433,18 @@ class ScriptViewSet(BaseViewSet):
     def execute_script(self, request, pk=None):
         """触发脚本执行并返回结果"""
         script = self.get_object()
-        current_version = script.versions.filter(is_current=True).first()
-
-        if not script.datasource:
-            return self.error(msg='脚本未关联数据源，无法执行')
-        if not current_version:
-            return self.error(msg='脚本没有当前版本')
-
-        sql = current_version.content
-        if not sql or not sql.strip():
-            return self.error(msg='脚本内容为空')
-
-        ds = script.datasource
-        info = {
-            'type': ds.db_type,
-            'host': ds.host,
-            'port': ds.port,
-            'username': ds.username,
-            'password': ds.password,
-            'database': ds.db_name,
-            'params': ds.params or {},
-        }
         username = request.user.username if hasattr(request, 'user') else ''
         runtime_params = request.data.get('params') or {}
-        task_config = self._build_task_config(
-            script=script,
-            version=current_version,
-            datasource=ds,
-            sql=sql,
-        )
-        task, _ = TaskService.upsert_source_task(
-            task_name=script.script_name,
-            task_type='SQL_COMPUTE',
-            source_module='datadev.script',
-            source_record_id=script.id,
-            schedule_type='manual',
-            owner=script.owner or username,
-            task_config=task_config,
-            remark=script.description or '',
+        result = TaskService.execute_datadev_script(
+            script,
             username=username,
+            runtime_params=runtime_params,
         )
-        task_instance = TaskService.create_task_instance(
-            task=task,
-            trigger_mode='manual',
-            runtime_config={
-                'scriptVersionId': current_version.id,
-                'params': runtime_params,
-            },
-            triggered_by=username,
-            executor_type=ds.db_type,
-        )
-        TaskService.mark_instance_running(task_instance, executor_type=ds.db_type)
-
-        start_time = timezone.now()
-        start_perf = time.perf_counter()
-        executor = None
-        status = 'success'
-        error_msg = ''
-        columns = []
-        rows = []
-
-        try:
-            executor = get_executor(info)
-            result = executor.execute_query(sql=sql)
-            columns = result.get('columns', [])
-            raw_rows = result.get('rows', [])
-            rows = [dict(zip(columns, row)) for row in raw_rows]
-        except Exception as e:
-            status = 'failed'
-            error_msg = str(e)
-            logger.exception('脚本执行失败: script_id=%s, error=%s', script.id, e)
-        finally:
-            if executor:
-                try:
-                    executor.close()
-                except Exception:
-                    pass
-
-        duration = round(time.perf_counter() - start_perf, 2)
-        end_time = start_time + timedelta(seconds=duration)
-        result_summary = {
-            'columns': columns,
-            'rows': rows,
-            'rowCount': len(rows),
-            'error': error_msg,
-        }
-        task_result_summary = {
-            'columns': columns,
-            'rowCount': len(rows),
-            'error': error_msg,
-        }
-        TaskService.finalize_instance(
-            instance=task_instance,
-            status=status,
-            result_summary=task_result_summary,
-            error_message=error_msg,
-        )
-
-        execution = DataDevScriptExecution.objects.create(
-            script=script,
-            version=current_version,
-            task_instance=task_instance,
-            execution_id=task_instance.instance_id,
-            status=status,
-            executor_type=ds.db_type,
-            executor_params=runtime_params,
-            start_time=start_time,
-            end_time=end_time,
-            duration_seconds=duration,
-            result_summary=result_summary,
-            executed_by=username,
-        )
-
-        if status == 'failed':
-            return self.error(msg=f'执行失败: {error_msg}', data={
-                'executionId': execution.execution_id,
-                'status': 'failed',
-            })
-
-        return self.data({
-            'executionId': execution.execution_id,
-            'status': 'success',
-            'columns': columns,
-            'rows': rows,
-            'duration': duration,
-        }, msg='执行成功')
-
-    def _build_task_config(self, *, script, version, datasource, sql):
-        return {
-            'scriptId': script.id,
-            'scriptCode': script.script_code,
-            'scriptType': script.script_type,
-            'directoryId': script.directory_id,
-            'datasourceId': datasource.id,
-            'datasourceType': datasource.db_type,
-            'currentVersionId': version.id,
-            'sqlText': sql,
-        }
+        if result['ok']:
+            return self.data(result['data'], msg=result['msg'])
+        if result['data'] is None:
+            return self.error(msg=result['msg'])
+        return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
 
     @action(detail=True, methods=['get'], url_path='executions')
     def list_executions(self, request, pk=None):

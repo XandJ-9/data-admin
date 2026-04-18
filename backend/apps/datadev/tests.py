@@ -10,6 +10,7 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.datasource.models import DataSource
 from apps.datatask.models import Task, TaskInstance
+from apps.datatask.services import TaskService
 from .models import DataDevDirectory, DataDevScript
 from .models import DataDevScriptExecution, DataDevScriptVersion
 from .views import ScriptViewSet
@@ -254,7 +255,7 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
             create_by='script_runner',
         )
 
-    @patch('apps.datadev.views.get_executor')
+    @patch('apps.dbutils.factory.get_executor')
     def test_execute_script_creates_task_and_task_instance(self, mock_get_executor):
         class _MockQueryExecutor:
             def execute_query(self, sql):
@@ -286,3 +287,82 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         self.assertEqual(task_instance.runtime_config['params'], {'limit': 100})
         self.assertEqual(execution.task_instance_id, task_instance.id)
         self.assertEqual(execution.execution_id, task_instance.instance_id)
+
+    @patch('apps.dbutils.factory.get_executor')
+    def test_execute_script_preserves_existing_task_governance(self, mock_get_executor):
+        class _MockQueryExecutor:
+            def execute_query(self, sql):
+                return {'columns': ['order_cnt'], 'rows': [(1,)]}
+
+            def close(self):
+                return None
+
+        mock_get_executor.return_value = _MockQueryExecutor()
+        TaskService.upsert_source_task(
+            task_name=self.script.script_name,
+            task_type='SQL_COMPUTE',
+            source_module='datadev.script',
+            source_record_id=self.script.id,
+            status='paused',
+            schedule_type='cron',
+            cron_expression='0 3 * * *',
+            owner='platform_owner',
+            task_config={'scriptId': self.script.id, 'sqlText': 'SELECT 1 AS order_cnt'},
+            remark='统一任务备注',
+            username='platform_owner',
+        )
+        view = ScriptViewSet.as_view({'post': 'execute_script'})
+        request = self.factory.post(
+            f'/data-api/datadev/scripts/{self.script.pk}/execute',
+            {},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(self.script.pk))
+
+        self.assertEqual(response.status_code, 200)
+        task = Task.objects.get(source_module='datadev.script', source_record_id=self.script.pk)
+        self.assertEqual(task.status, 'paused')
+        self.assertEqual(task.schedule_type, 'cron')
+        self.assertEqual(task.cron_expression, '0 3 * * *')
+        self.assertEqual(task.remark, '统一任务备注')
+
+
+class ScriptTaskLifecycleSyncTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='script_admin', password='password123')
+
+    def test_create_and_destroy_script_should_sync_platform_task(self):
+        create_view = ScriptViewSet.as_view({'post': 'create'})
+        create_request = self.factory.post(
+            '/data-api/datadev/scripts',
+            {
+                'scriptName': '生命周期脚本',
+                'scriptCode': 'script_lifecycle_sync',
+                'scriptType': 'sql',
+                'content': 'SELECT 1',
+                'remark': '脚本备注',
+            },
+            format='json',
+        )
+        force_authenticate(create_request, user=self.user)
+
+        create_response = create_view(create_request)
+
+        self.assertEqual(create_response.status_code, 200)
+        script = DataDevScript.objects.get(script_code='script_lifecycle_sync')
+        task = Task.objects.get(source_module='datadev.script', source_record_id=script.id, del_flag='0')
+        self.assertEqual(task.task_name, '生命周期脚本')
+        self.assertEqual(task.remark, '脚本备注')
+
+        destroy_view = ScriptViewSet.as_view({'delete': 'destroy'})
+        destroy_request = self.factory.delete(f'/data-api/datadev/scripts/{script.id}')
+        force_authenticate(destroy_request, user=self.user)
+
+        destroy_response = destroy_view(destroy_request, pk=str(script.id))
+
+        self.assertEqual(destroy_response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.del_flag, '1')

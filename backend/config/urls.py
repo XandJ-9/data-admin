@@ -35,12 +35,11 @@ urlpatterns = [
     # 业务路由api
     path('data-api/datasource/', include('apps.datasource.urls')),  # 数据源管理模块
     path('data-api/dataasset/', include('apps.dataasset.urls')),  # 数据资产管理模块（包含元数据管理）
+    path('data-api/dataintegration/', include('apps.dataintegration.urls')),  # 数据集成模块
     path('data-api/dataservice/', include('apps.dataservice.urls')),
     path('data-api/datatask/', include('apps.datatask.urls')),     # 统一任务中心
     path('data-api/datadev/', include('apps.datadev.urls')),       # 数据开发模块
     path('data-api/terminal/', include('apps.terminal.urls')),     # Web Terminal
-
-    # path('data-api/dataintegration/', include('apps.dataintegration.urls')),
     # path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),
     # path('data-api/datastudio/', include('apps.datastudio.urls')),
     # 验证码路由

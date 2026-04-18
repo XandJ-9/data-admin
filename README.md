@@ -36,6 +36,7 @@ uv venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 python manage.py migrate
 python manage.py initdata       # 初始化 admin 用户、角色、菜单
+python manage.py sync_menu_data # 将当前数据库菜单同步回 menu_data.json
 python manage.py runserver 0.0.0.0:8000
 ```
 
@@ -125,6 +126,7 @@ uv sync
 # 数据库初始化（首次部署）
 uv run python manage.py migrate
 uv run python manage.py initdata        # 创建 admin 用户和初始数据
+uv run python manage.py sync_menu_data  # 将当前数据库菜单同步回 menu_data.json
 
 # 收集静态文件
 uv run python manage.py collectstatic --noinput
