@@ -125,7 +125,7 @@
     </el-row>
 
     <el-row :gutter="16" class="content-row">
-      <el-col :xs="24" :xl="12">
+      <el-col :xs="24" :lg="12">
         <el-card shadow="hover" class="content-card">
           <template #header>
             <div class="section-head">
@@ -204,7 +204,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :xl="12">
+      <el-col :xs="24" :lg="12">
         <el-card shadow="hover" class="content-card">
           <template #header>
             <div class="section-head">
@@ -804,12 +804,21 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 16px;
 }
 
 .hero-card,
 .metric-card,
 .content-card {
-  border-radius: 18px;
+  border-radius: 8px;
+}
+
+.hero-card {
+  border: 1px solid #ebeef5;
+}
+
+.hero-card :deep(.el-card__body) {
+  padding: 20px 22px;
 }
 
 .hero-layout {
@@ -831,8 +840,10 @@ onBeforeUnmount(() => {
 
 .hero-main h1 {
   margin: 12px 0 10px;
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1.35;
+  font-weight: 600;
+  color: #303133;
 }
 
 .hero-main p,
@@ -863,10 +874,10 @@ onBeforeUnmount(() => {
 
 .control-card {
   height: 100%;
-  padding: 20px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #f8fbff 0%, #f3f7ff 100%);
-  border: 1px solid #d9ecff;
+  padding: 18px 20px;
+  border-radius: 8px;
+  background: #f5f7fa;
+  border: 1px solid #ebeef5;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -901,17 +912,19 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 14px;
   align-items: center;
+  min-height: 112px;
+  padding: 18px 20px;
 }
 
 .metric-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 20px;
+  font-size: 24px;
   flex-shrink: 0;
 }
 
@@ -933,8 +946,8 @@ onBeforeUnmount(() => {
 }
 
 .metric-value {
-  font-size: 28px;
-  line-height: 1.2;
+  font-size: 26px;
+  line-height: 1;
 }
 
 .content-row {
@@ -943,6 +956,15 @@ onBeforeUnmount(() => {
 
 .chart-card-large {
   height: 100%;
+}
+
+.content-card :deep(.el-card__body) {
+  padding: 18px 20px;
+}
+
+.content-card :deep(.el-card__header) {
+  border-bottom: 1px solid #ebeef5;
+  padding: 16px 20px;
 }
 
 .section-head {
@@ -1028,18 +1050,23 @@ onBeforeUnmount(() => {
 .alert-list,
 .activity-list {
   display: grid;
-  gap: 10px;
+  gap: 0;
 }
 
 .alert-item {
   display: grid;
   gap: 6px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid var(--el-border-color-light);
-  background: var(--el-bg-color);
+  padding: 14px 0 14px 14px;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--el-border-color-light);
+  background: transparent;
   text-align: left;
   cursor: pointer;
+}
+
+.alert-item:last-child {
+  border-bottom: none;
 }
 
 .alert-item div {
@@ -1050,18 +1077,15 @@ onBeforeUnmount(() => {
 }
 
 .alert-item.danger {
-  border-color: rgba(245, 108, 108, 0.28);
-  background: rgba(245, 108, 108, 0.06);
+  box-shadow: inset 3px 0 0 #f56c6c;
 }
 
 .alert-item.warning {
-  border-color: rgba(230, 162, 60, 0.28);
-  background: rgba(230, 162, 60, 0.06);
+  box-shadow: inset 3px 0 0 #e6a23c;
 }
 
 .alert-item.neutral {
-  border-color: rgba(144, 147, 153, 0.28);
-  background: rgba(144, 147, 153, 0.06);
+  box-shadow: inset 3px 0 0 #909399;
 }
 
 .activity-item {

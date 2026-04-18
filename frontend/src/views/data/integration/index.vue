@@ -1,47 +1,62 @@
 <template>
   <div class="app-container integration-page" v-loading="loading">
-    <el-card shadow="hover" class="hero-card">
-      <div class="hero-layout">
-        <div>
-          <span class="hero-eyebrow">数据集成</span>
-          <h1>轻列表看任务，重详情页做配置</h1>
-          <p>首页只保留筛选、任务清单和关键状态。配置编辑改到独立详情页，运行记录仍在详情抽屉里快速查看。</p>
-        </div>
+    <el-card shadow="hover" class="hero-panel">
+      <div class="hero-copy">
+        <span class="hero-eyebrow">数据集成</span>
+        <h1>把同步任务配置、执行入口和状态判断放在同一页</h1>
+        <p>
+          数据集成首页仍以任务清单为主，但视觉层统一收敛到概览页风格：先看模块定位和关键状态，再进入列表做筛选、执行和详情维护。
+        </p>
         <div class="hero-actions">
           <el-button type="primary" :icon="Plus" @click="handleAdd" v-hasPermi="['dataintegration:task:add']">新建同步任务</el-button>
-          <el-button :icon="Refresh" @click="getList">刷新列表</el-button>
+          <el-button plain type="primary" :icon="Refresh" @click="getList">刷新列表</el-button>
+        </div>
+        <div class="hero-tags">
+          <el-tag size="small" type="primary" effect="light" round>任务配置管理</el-tag>
+          <el-tag size="small" effect="plain" round>执行状态跟踪</el-tag>
+          <el-tag size="small" effect="plain" round>详情页深度编辑</el-tag>
+        </div>
+      </div>
+      <div class="hero-highlight">
+        <div class="highlight-card">
+          <span class="highlight-label">使用方式</span>
+          <ul>
+            <li>先看当前任务规模和启用情况</li>
+            <li>再在列表里筛选并进入详情页维护配置</li>
+            <li>执行记录留在详情抽屉和详情页中查看，不把首页做成大工作台</li>
+          </ul>
         </div>
       </div>
     </el-card>
 
-    <el-row :gutter="16" class="summary-row">
+    <el-row :gutter="16" class="metric-row">
       <el-col :xs="24" :md="8">
-        <el-card shadow="hover" class="summary-card">
-          <div class="summary-icon tone-blue"><el-icon><Tickets /></el-icon></div>
-          <div>
-            <div class="summary-label">当前筛选任务</div>
-            <div class="summary-value">{{ total }}</div>
-            <div class="summary-hint">当前过滤条件下可见的同步任务数</div>
+        <el-card shadow="hover" class="metric-card">
+          <div class="metric-icon tone-blue"><el-icon><Tickets /></el-icon></div>
+          <div class="metric-body">
+            <span class="metric-label">当前筛选任务</span>
+            <strong class="metric-value">{{ total }}</strong>
+            <span class="metric-hint">当前过滤条件下可见的同步任务数</span>
           </div>
         </el-card>
       </el-col>
       <el-col :xs="24" :md="8">
-        <el-card shadow="hover" class="summary-card">
-          <div class="summary-icon tone-green"><el-icon><CircleCheck /></el-icon></div>
-          <div>
-            <div class="summary-label">启用中的任务</div>
-            <div class="summary-value">{{ activeTaskCount }}</div>
-            <div class="summary-hint">当前页处于启用状态，可直接纳入调度的任务</div>
+        <el-card shadow="hover" class="metric-card">
+          <div class="metric-icon tone-green"><el-icon><CircleCheck /></el-icon></div>
+          <div class="metric-body">
+            <span class="metric-label">启用中的任务</span>
+            <strong class="metric-value">{{ activeTaskCount }}</strong>
+            <span class="metric-hint">当前页处于启用状态，可直接纳入调度的任务</span>
           </div>
         </el-card>
       </el-col>
       <el-col :xs="24" :md="8">
-        <el-card shadow="hover" class="summary-card">
-          <div class="summary-icon tone-orange"><el-icon><Clock /></el-icon></div>
-          <div>
-            <div class="summary-label">Cron 任务</div>
-            <div class="summary-value">{{ cronTaskCount }}</div>
-            <div class="summary-hint">当前页按 Cron 调度的任务数量</div>
+        <el-card shadow="hover" class="metric-card">
+          <div class="metric-icon tone-orange"><el-icon><Clock /></el-icon></div>
+          <div class="metric-body">
+            <span class="metric-label">Cron 任务</span>
+            <strong class="metric-value">{{ cronTaskCount }}</strong>
+            <span class="metric-hint">当前页按 Cron 调度的任务数量</span>
           </div>
         </el-card>
       </el-col>
@@ -241,19 +256,25 @@ const {
 </script>
 
 <style scoped>
-.hero-card,
-.summary-card,
+.hero-panel,
+.metric-card,
 .filter-card,
 .list-card {
-  border-radius: 16px;
+  border-radius: 8px;
 }
 
-.hero-card {
+.hero-panel {
+  border: 1px solid #ebeef5;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.08), rgba(103, 194, 58, 0.05));
 }
 
-.hero-layout,
+.hero-panel :deep(.el-card__body) {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  padding: 20px 22px;
+}
+
 .toolbar-row,
 .section-head,
 .hero-actions,
@@ -262,31 +283,64 @@ const {
   gap: 12px;
 }
 
-.hero-layout,
 .toolbar-row,
 .section-head {
   justify-content: space-between;
   align-items: flex-start;
 }
 
-.hero-layout h1,
+.hero-copy h1,
 .section-head h3 {
-  margin: 0;
+  margin: 12px 0 10px;
+}
+
+.hero-copy h1 {
+  font-size: 28px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #303133;
 }
 
 .hero-eyebrow,
-.summary-label,
-.summary-hint,
 .section-meta,
 .task-cell span,
 .owner-cell small {
   color: var(--el-text-color-secondary);
 }
 
-.hero-layout p,
+.hero-copy p,
 .section-head p {
-  margin: 8px 0 0;
-  line-height: 1.7;
+  margin: 0;
+  line-height: 1.8;
+}
+
+.hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.highlight-card {
+  height: 100%;
+  padding: 18px 20px;
+  border-radius: 8px;
+  background: #f5f7fa;
+  border: 1px solid #ebeef5;
+}
+
+.highlight-label {
+  font-size: 13px;
+  color: #909399;
+}
+
+.highlight-card ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  line-height: 1.65;
+  color: #303133;
 }
 
 .hero-actions,
@@ -294,45 +348,64 @@ const {
   flex-wrap: wrap;
 }
 
-.summary-row {
+.metric-row {
   margin-bottom: 16px;
 }
 
-.summary-card {
+.metric-card :deep(.el-card__body) {
   display: flex;
   align-items: center;
   gap: 14px;
+  min-height: 112px;
+  padding: 18px 20px;
 }
 
-.summary-icon {
+.metric-icon {
+  width: 56px;
+  height: 56px;
   display: inline-flex;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  border-radius: 12px;
+  font-size: 24px;
 }
 
 .tone-blue {
-  color: #2f7df6;
-  background: rgba(47, 125, 246, 0.12);
+  color: #fff;
+  background: linear-gradient(135deg, #409eff, #66b1ff);
 }
 
 .tone-green {
-  color: #28a745;
-  background: rgba(40, 167, 69, 0.12);
+  color: #fff;
+  background: linear-gradient(135deg, #67c23a, #85ce61);
 }
 
 .tone-orange {
-  color: #ff8f1f;
-  background: rgba(255, 143, 31, 0.14);
+  color: #fff;
+  background: linear-gradient(135deg, #e6a23c, #ebb563);
 }
 
-.summary-value {
-  margin: 4px 0;
-  font-size: 28px;
+.metric-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-label {
+  font-size: 13px;
+  color: #909399;
+}
+
+.metric-value {
+  font-size: 26px;
   line-height: 1;
+  color: #303133;
+}
+
+.metric-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
 }
 
 .toolbar-row {
@@ -381,7 +454,11 @@ const {
 }
 
 @media (max-width: 992px) {
-  .hero-layout,
+  .hero-panel :deep(.el-card__body),
+  .toolbar-row {
+    grid-template-columns: 1fr;
+  }
+
   .toolbar-row {
     flex-direction: column;
   }
