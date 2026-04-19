@@ -29,6 +29,7 @@ def get_supported_executors() -> list:
     return [
         {'value': 'mock', 'label': '模拟执行器', 'description': '用于开发和测试'},
         {'value': 'datax', 'label': 'DataX执行器', 'description': '用于数据同步，支持多种数据源'},
-        {'value': 'spark', 'label': 'Spark SQL执行器', 'description': '用于大数据处理和复杂转换'},
+        {'value': 'spark', 'label': 'Spark SQL执行器', 'description': '用于 Spark 集群 SQL 开发执行'},
+        {'value': 'hive', 'label': 'Hive SQL执行器', 'description': '用于 Hive SQL 开发执行'},
         {'value': 'python', 'label': 'Python脚本执行器', 'description': '执行自定义Python脚本'},
     ]

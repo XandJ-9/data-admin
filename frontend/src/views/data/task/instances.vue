@@ -3,12 +3,12 @@
     <el-card shadow="hover" class="hero-card">
       <div class="hero-layout">
         <div>
-          <span class="hero-eyebrow">统一任务实例</span>
-          <h1>把执行记录和任务定义拆开看</h1>
-          <p>这里聚焦实例层：谁触发、什么时候跑、跑得怎么样。需要改配置时回到任务详情页。</p>
+          <span class="hero-eyebrow">任务运维实例</span>
+          <h1>集中查看数据集成与数据开发任务的执行记录</h1>
+          <p>这里聚焦实例层：谁触发、什么时候跑、跑得怎么样。需要改配置时回到对应任务详情页。</p>
         </div>
         <div class="hero-actions">
-          <el-button :icon="ArrowLeft" @click="goBack">返回任务中心</el-button>
+          <el-button :icon="ArrowLeft" @click="goBack">返回任务运维</el-button>
           <el-button :icon="Refresh" @click="getList">刷新记录</el-button>
         </div>
       </div>
@@ -42,7 +42,7 @@
         <div class="table-head">
           <div>
             <h3>执行记录</h3>
-            <p>{{ route.query.taskName ? `当前聚焦：${route.query.taskName}` : '查看所有统一任务实例' }}</p>
+            <p>{{ route.query.taskName ? `当前聚焦：${route.query.taskName}` : '查看所有纳管任务实例' }}</p>
           </div>
           <span>共 {{ total }} 条</span>
         </div>

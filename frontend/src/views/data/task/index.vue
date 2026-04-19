@@ -3,14 +3,15 @@
     <el-card shadow="hover" class="hero-card">
       <div class="hero-layout">
         <div class="hero-main">
-          <span class="hero-eyebrow">数据任务中心</span>
-          <h1>首页只看运行态势，不再做重筛选</h1>
+          <span class="hero-eyebrow">任务运维中心</span>
+          <h1>统一纳管数据集成任务和数据开发任务</h1>
           <p>
-            这个页面负责回答三件事：近一段时间运行是否稳定、当前任务结构是什么样、哪些任务需要立刻处理。
-            创建、治理、执行记录和依赖维护继续下沉到对应工作面，不再让首页承担列表页角色。
+            这个页面负责回答三件事：近一段时间运行是否稳定、当前纳管任务来自哪里、哪些任务需要立刻处理。
+            数据集成与数据开发继续共用统一 Task 中轴，配置、治理、执行记录和依赖维护则下沉到各自工作面。
           </p>
           <div class="hero-actions">
             <el-button type="primary" :icon="Plus" @click="handleCreateIntegrationTask" v-hasPermi="['dataintegration:task:add']">新建集成任务</el-button>
+            <el-button :icon="EditPen" @click="goToDataDevelopment" v-hasPermi="['datadev:ide:view']">进入数据开发</el-button>
             <el-button :icon="Histogram" @click="goToInstances" v-hasPermi="['datatask:instance:list']">查看执行记录</el-button>
             <el-button :icon="Share" @click="goToOrchestration" v-hasPermi="['datatask:dependency:query']">进入依赖编排</el-button>
             <el-button :icon="Refresh" @click="loadOverview">刷新总览</el-button>
@@ -32,7 +33,7 @@
                 <strong>{{ lastUpdatedText }}</strong>
               </div>
               <div>
-                <span>统一任务数</span>
+                <span>纳管任务数</span>
                 <strong>{{ filteredTasks.length }}</strong>
               </div>
             </div>
@@ -77,7 +78,7 @@
             <div class="section-head">
               <div>
                 <h2>来源分布饼图</h2>
-                <p>看当前统一任务主要来自哪个业务面。</p>
+                <p>看当前纳管任务主要来自数据集成还是数据开发。</p>
               </div>
             </div>
           </template>
@@ -244,7 +245,7 @@
 </template>
 
 <script setup name="DataTaskIndex">
-import { CircleCheck, Clock, Histogram, Plus, Refresh, Share, Warning } from '@element-plus/icons-vue'
+import { CircleCheck, Clock, EditPen, Histogram, Plus, Refresh, Share, Warning } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { useRouter } from 'vue-router'
@@ -313,7 +314,7 @@ const overviewCards = computed(() => [
   {
     title: '任务总量',
     value: filteredTasks.value.length,
-    hint: '统一任务中心当前纳管的任务规模',
+    hint: '任务运维当前纳管的数据集成与数据开发任务规模',
     icon: Histogram,
     tone: 'tone-blue',
   },
@@ -739,6 +740,10 @@ async function loadOverview() {
 
 function handleCreateIntegrationTask() {
   router.push({ name: 'DataIntegrationTaskCreate', query: { from: 'task-center' } })
+}
+
+function goToDataDevelopment() {
+  router.push({ name: 'DataDevHome' })
 }
 
 function goToInstances() {

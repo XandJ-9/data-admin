@@ -6,9 +6,9 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from apps.common.encrypt import encrypt_password
 from apps.datasource.models import DataSource
 
-from .models import InterfaceField, InterfaceInfo
+from .models import InterfaceField, InterfaceInfo, ReportInfo, ReportInterfaceRelation
 from .serializers import InterfaceInfoCreateSerializer
-from .views import InterfaceInfoViewSet
+from .views import InterfaceInfoViewSet, ReportInfoViewSet
 
 
 class _MockExecutor:
@@ -382,3 +382,90 @@ class InterfacePublishTests(TestCase):
         self.assertEqual(response.data['code'], '0')
         self.assertEqual(response.data['data'][0], {'city': '上海', 'amount': 12.5})
         self.assertEqual(response.data['totaldata'][0], {'city': '总计', 'amount': 20.5})
+
+
+
+class ReportInfoTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='reporter', password='password123')
+        self.interface_a = InterfaceInfo.objects.create(
+            interface_name='用户接口',
+            interface_code='user_api',
+            interface_db_type='mysql',
+            interface_db_name='demo',
+            interface_sql='select 1',
+            enable='1',
+        )
+        self.interface_b = InterfaceInfo.objects.create(
+            interface_name='订单接口',
+            interface_code='order_api',
+            interface_db_type='mysql',
+            interface_db_name='demo',
+            interface_sql='select 1',
+            enable='1',
+        )
+
+    def test_report_create_should_bind_multiple_interfaces(self):
+        view = ReportInfoViewSet.as_view({'post': 'create'})
+        request = self.factory.post(
+            '/data-api/dataservice/report-info',
+            {
+                'reportName': '经营分析报表',
+                'reportCode': 'ops_report',
+                'reportDesc': '日报表',
+                'interfaceIds': [self.interface_a.id, self.interface_b.id],
+            },
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        report = ReportInfo.objects.get(report_code='ops_report')
+        self.assertEqual(report.user_name, self.user.username)
+        relation_ids = list(ReportInterfaceRelation.objects.filter(report=report, del_flag='0').order_by('interface_position').values_list('interface_id', flat=True))
+        self.assertEqual(relation_ids, [self.interface_a.id, self.interface_b.id])
+
+    def test_report_retrieve_should_return_interface_list(self):
+        report = ReportInfo.objects.create(
+            report_name='销售报表',
+            report_code='sales_report',
+            report_desc='月报',
+            user_name='owner_a',
+        )
+        ReportInterfaceRelation.objects.create(report=report, interface=self.interface_a, interface_position=1)
+        ReportInterfaceRelation.objects.create(report=report, interface=self.interface_b, interface_position=2)
+
+        view = ReportInfoViewSet.as_view({'get': 'retrieve'})
+        request = self.factory.get(f'/data-api/dataservice/report-info/{report.id}')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(report.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data']['interfaceCount'], 2)
+        self.assertEqual(response.data['data']['interfaces'][0]['interfaceCode'], 'user_api')
+        self.assertEqual(response.data['data']['interfaces'][1]['interfaceCode'], 'order_api')
+
+    def test_report_destroy_should_soft_delete_relations(self):
+        report = ReportInfo.objects.create(
+            report_name='删除报表',
+            report_code='delete_report',
+        )
+        relation = ReportInterfaceRelation.objects.create(report=report, interface=self.interface_a, interface_position=1)
+
+        view = ReportInfoViewSet.as_view({'delete': 'destroy'})
+        request = self.factory.delete(f'/data-api/dataservice/report-info/{report.id}')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(report.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        report.refresh_from_db()
+        relation.refresh_from_db()
+        self.assertEqual(report.del_flag, '1')
+        self.assertEqual(relation.del_flag, '1')

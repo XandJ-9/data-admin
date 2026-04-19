@@ -2,12 +2,12 @@
   <div class="app-container integration-detail-page" v-loading="loading">
     <div class="page-head">
       <div>
-        <div class="page-breadcrumb">数据任务 / 数据集成</div>
+        <div class="page-breadcrumb">{{ pageBreadcrumb }}</div>
         <h1>{{ pageTitle }}</h1>
         <p>{{ isEditMode ? '直接在详情页完成配置、校验、执行和回看，不再把任务编辑塞进抽屉。' : '先完成源到目标的同步配置，保存后再进入执行与运维视角。' }}</p>
       </div>
       <div class="page-actions">
-        <el-button :icon="ArrowLeft" @click="goBack">返回任务中心</el-button>
+        <el-button :icon="ArrowLeft" @click="goBack">{{ backButtonText }}</el-button>
         <el-button :loading="validating" @click="handleValidate">校验配置</el-button>
         <el-button
           v-if="taskSnapshot"
@@ -20,7 +20,6 @@
           type="primary"
           plain
           :icon="VideoPlay"
-          :disabled="taskSnapshot.executorType !== 'mock'"
           @click="handleExecute"
           v-hasPermi="['dataintegration:task:execute']"
         >立即执行</el-button>
@@ -104,10 +103,13 @@
 
 <script setup name="DataIntegrationTaskDetail">
 import { ArrowLeft, Histogram, VideoPlay } from '@element-plus/icons-vue'
+import { useRoute } from 'vue-router'
 import ExecutionRecordsDialog from './components/ExecutionRecordsDialog.vue'
 import IntegrationTaskFormSections from './components/IntegrationTaskFormSections.vue'
 import { useIntegrationTaskForm } from './components/useIntegrationTaskForm'
 import { executorLabel, loadTypeLabel, scheduleTypeLabel, statusLabel, statusTagType, writeModeLabel } from './components/taskViewMeta'
+
+const route = useRoute()
 
 const {
   STATUS_OPTIONS,
@@ -149,6 +151,12 @@ const routeText = computed(() => {
   const targetName = form.value.targetSchemaName ? `${form.value.targetSchemaName}.${form.value.targetTableName || '未命名目标表'}` : (form.value.targetTableName || '未命名目标表')
   return `${sourceName} -> ${targetName}`
 })
+
+const isFromTaskOps = computed(() => ['task-center', 'task-detail'].includes(route.query.from))
+
+const pageBreadcrumb = computed(() => (isFromTaskOps.value ? '任务运维 / 数据集成' : '数据集成 / 任务详情'))
+
+const backButtonText = computed(() => (isFromTaskOps.value ? '返回任务运维' : '返回数据集成'))
 </script>
 
 <style scoped>

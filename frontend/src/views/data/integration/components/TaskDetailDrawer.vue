@@ -95,7 +95,6 @@
           v-if="task"
           type="primary"
           :icon="VideoPlay"
-          :disabled="task.executorType !== 'mock'"
           @click="$emit('execute', task)"
           v-hasPermi="['dataintegration:task:execute']"
         >立即执行</el-button>

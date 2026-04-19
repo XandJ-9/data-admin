@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -288,6 +289,75 @@ class DataIntegrationTaskViewSetTests(TestCase):
         self.assertEqual(task_instance.status, 'failed')
         self.assertEqual(task_instance.error_message, 'mock unavailable')
         self.assertEqual(response.data['code'], 400)
+
+    @patch('apps.executors.base.ExecutorFactory.create_executor')
+    def test_execute_task_should_support_datax_executor(self, mock_create_executor):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单 DataX 同步',
+            task_code='sync_order_info_datax',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_asset=self.asset,
+            target_schema_name='ods',
+            target_table_name='ods_order_info',
+            executor_type='datax',
+            task_config={'columnMappings': [{'sourceColumn': 'id', 'targetColumn': 'id', 'dataType': 'bigint'}]},
+            create_by='tester',
+        )
+        Task.objects.create(
+            task_name='订单 DataX 同步',
+            task_code='data_sync_dataintegration_task_datax',
+            task_type='DATA_SYNC',
+            source_module='dataintegration.task',
+            source_record_id=integration_task.id,
+            create_by='tester',
+        )
+        mock_executor = SimpleNamespace(
+            validate=lambda: (True, ''),
+            execute=lambda: {'status': 'success', 'total_rows': 128, 'success_rows': 128, 'failed_rows': 0},
+        )
+        mock_create_executor.return_value = mock_executor
+        view = DataIntegrationTaskViewSet.as_view({'post': 'execute_task'})
+        request = self.factory.post(f'/data-api/dataintegration/task/{integration_task.id}/execute', {}, format='json')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        platform_task = Task.objects.get(source_module='dataintegration.task', source_record_id=integration_task.id)
+        task_instance = TaskInstance.objects.get(task=platform_task)
+        self.assertEqual(task_instance.status, 'success')
+        self.assertEqual(task_instance.executor_type, 'datax')
+        self.assertEqual(task_instance.result_summary['total_rows'], 128)
+
+    @patch('apps.dataintegration.views.ExecutorFactory.create_executor')
+    def test_validate_task_should_run_executor_validation(self, mock_create_executor):
+        mock_create_executor.return_value = SimpleNamespace(validate=lambda: (True, ''))
+        view = DataIntegrationTaskViewSet.as_view({'post': 'validate_task'})
+        request = self.factory.post(
+            '/data-api/dataintegration/task/validate',
+            {
+                'taskName': 'DataX 校验任务',
+                'taskCode': 'sync_validate_datax',
+                'sourceDataSourceId': self.source_datasource.id,
+                'targetDataSourceId': self.target_datasource.id,
+                'sourceAssetId': self.asset.id,
+                'targetSchemaName': 'ods',
+                'targetTableName': 'ods_order_info',
+                'loadType': 'full',
+                'writeMode': 'overwrite',
+                'executorType': 'datax',
+                'scheduleType': 'manual',
+                'taskConfig': {'columnMappings': [{'sourceColumn': 'id', 'targetColumn': 'id'}]},
+            },
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
 
     def test_execution_log_detail_should_return_instance(self):
         integration_task = DataIntegrationTask.objects.create(

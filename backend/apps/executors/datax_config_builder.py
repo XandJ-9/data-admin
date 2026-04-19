@@ -1,37 +1,40 @@
 """
-DataX Configuration Builder
+DataX 配置构建器。
 
-This module builds DataX JSON configurations from ETL task settings.
+面向当前 `DataIntegrationTask` 模型生成 DataX JSON 配置，
+兼容关系库到关系库、关系库到 HDFS/Hive 的最小可用执行链路。
 """
+
+from __future__ import annotations
 
 import json
 import logging
-from typing import Dict, Any, List, Union
-from datetime import datetime
+from typing import Any
+
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 
 class DataXConfigBuilder:
-    """
-    DataX configuration builder.
+    """根据当前数据集成任务配置生成 DataX 作业配置。"""
 
-    Builds DataX JSON configurations based on ETL task configuration
-    and datasource information.
-    """
-
-    # Database type mappings to DataX reader names
     READER_MAPPING = {
         'mysql': 'mysqlreader',
+        'mariadb': 'mysqlreader',
+        'starrocks': 'mysqlreader',
+        'postgres': 'postgresqlreader',
         'postgresql': 'postgresqlreader',
         'oracle': 'oraclereader',
         'sqlserver': 'sqlserverreader',
         'sqlite': 'sqlitereader',
     }
 
-    # Database type mappings to DataX writer names
     WRITER_MAPPING = {
         'mysql': 'mysqlwriter',
+        'mariadb': 'mysqlwriter',
+        'starrocks': 'mysqlwriter',
+        'postgres': 'postgresqlwriter',
         'postgresql': 'postgresqlwriter',
         'oracle': 'oraclewriter',
         'sqlserver': 'sqlserverwriter',
@@ -39,380 +42,263 @@ class DataXConfigBuilder:
         'hdfs': 'hdfswriter',
     }
 
-    def __init__(self, task):
-        """
-        Initialize config builder with ETL task.
+    WRITE_MODE_MAPPING = {
+        'overwrite': 'replace',
+        'append': 'insert',
+        'upsert': 'update',
+    }
 
-        Args:
-            task: ETLTask instance
-        """
+    def __init__(self, task: Any, runtime_config: dict[str, Any] | None = None):
         self.task = task
-        self.executor_params = task.executor_params or {}
+        self.task_config = dict(getattr(task, 'task_config', {}) or {})
+        self.runtime_config = runtime_config or {}
 
-    def build(self, execution_date: str = None) -> Dict[str, Any]:
-        """
-        Build DataX JSON configuration.
-
-        Args:
-            execution_date: Execution date for partition (format: YYYYMMDD)
-
-        Returns:
-            DataX configuration dictionary
-        """
-        # Get executor-specific parameters
-        datax_config = self.executor_params.get('datax', {})
-        multi_tenant = self.executor_params.get('multi_tenant', {})
-        incremental = self.executor_params.get('incremental', {})
-
-        # Build reader configuration
-        reader = self._build_reader(
-            datax_config.get('reader', {}),
-            incremental
-        )
-
-        # Build writer configuration
-        writer = self._build_writer(
-            datax_config.get('writer', {}),
-            execution_date,
-            multi_tenant
-        )
-
-        # Build speed configuration
-        speed = datax_config.get('speed', {
-            'channel': 1,
-            'byte': 1048576,  # 1MB
-            'record': 100000
-        })
-
-        # Build full DataX configuration
-        config = {
+    def build(self, execution_date: str | None = None) -> dict[str, Any]:
+        speed = {
+            **getattr(settings, 'DATAX_DEFAULT_SPEED', {}),
+            **(self.task_config.get('speed') or {}),
+        }
+        error_limit = {
+            **getattr(settings, 'DATAX_ERROR_LIMIT', {}),
+            **(self.task_config.get('errorLimit') or {}),
+        }
+        reader_config = dict(self.task_config.get('reader') or {})
+        writer_config = dict(self.task_config.get('writer') or {})
+        content = {
+            'reader': {
+                'name': self._get_reader_name(),
+                'parameter': self._build_reader(reader_config),
+            },
+            'writer': {
+                'name': self._get_writer_name(),
+                'parameter': self._build_writer(writer_config, execution_date),
+            },
+        }
+        return {
             'job': {
                 'setting': {
                     'speed': speed,
-                    'errorLimit': {
-                        'record': 0,
-                        'percentage': 0.02
-                    }
+                    'errorLimit': error_limit,
                 },
-                'content': [{
-                    'reader': {
-                        'name': self._get_reader_name(),
-                        'parameter': reader
-                    },
-                    'writer': {
-                        'name': self._get_writer_name(),
-                        'parameter': writer
-                    }
-                }]
-            }
+                'content': [content],
+            },
         }
 
-        logger.info(f"Built DataX config for task: {self.task.task_code}")
-        return config
+    def validate_config(self) -> tuple[bool, str]:
+        if not getattr(self.task, 'source_datasource', None):
+            return False, '源数据源不能为空'
+        if not getattr(self.task, 'target_datasource', None):
+            return False, '目标数据源不能为空'
 
-    def _get_reader_name(self) -> str:
-        """Get DataX reader name based on source datasource type."""
-        db_type = self.task.source_datasource.db_type.lower()
-        reader_name = self.READER_MAPPING.get(db_type, 'mysqlreader')
-        logger.debug(f"Reader name for {db_type}: {reader_name}")
-        return reader_name
+        source_type = self._normalize_db_type(self.task.source_datasource.db_type)
+        target_type = self._normalize_db_type(self.task.target_datasource.db_type)
+        if source_type not in self.READER_MAPPING:
+            return False, f'不支持的源数据库类型: {self.task.source_datasource.db_type}'
+        if target_type not in self.WRITER_MAPPING:
+            return False, f'不支持的目标数据库类型: {self.task.target_datasource.db_type}'
 
-    def _get_writer_name(self) -> str:
-        """Get DataX writer name based on target datasource type."""
-        db_type = self.task.target_datasource.db_type.lower()
-        writer_name = self.WRITER_MAPPING.get(db_type, 'hdfswriter')
-        logger.debug(f"Writer name for {db_type}: {writer_name}")
-        return writer_name
+        if not self._get_source_table_name() and not self._get_query_sql():
+            return False, '未配置源表或 querySql，无法生成 DataX reader 配置'
+        if target_type not in ('hive', 'hdfs') and not self._get_target_table_name():
+            return False, '目标表不能为空'
+        if target_type in ('hive', 'hdfs') and not self._resolve_hdfs_columns():
+            return False, '目标为 Hive/HDFS 时，需在 taskConfig.columnMappings 或 taskConfig.writer.column 中提供列定义'
+        return True, ''
 
-    def _build_reader(self, reader_config: Dict, incremental: Dict) -> Dict[str, Any]:
-        """
-        Build reader configuration.
-
-        Args:
-            reader_config: Reader configuration from executor_params
-            incremental: Incremental configuration
-
-        Returns:
-            Reader parameter dictionary
-        """
-        # Get datasource connection info
+    def _build_reader(self, reader_config: dict[str, Any]) -> dict[str, Any]:
         source_ds = self.task.source_datasource
+        jdbc_url = self._build_jdbc_url(source_ds)
+        query_sql = self._get_query_sql()
+        where_clause = self._merge_where_clause(reader_config.get('where') or self.task_config.get('whereClause') or '')
 
-        # Build connection configuration
-        connection = {
-            'jdbcUrl': [f"jdbc:{self._get_jdbc_url(source_ds)}"],
-            'table': [self.task.source_table.table_name]
+        reader_params: dict[str, Any] = {
+            'username': source_ds.username,
+            'password': source_ds.password,
+            'connection': [{
+                'jdbcUrl': [jdbc_url],
+                'table': [self._get_source_table_name()],
+            }],
+            'column': self._resolve_source_columns(),
         }
-
-        # Build authentication
-        username = source_ds.username
-        password = source_ds.password  # Note: DataX requires plaintext password
-
-        # Build column list
-        # If field mappings exist, use target field names; otherwise use source columns
-        if self.task.field_mappings.exists():
-            column = [fm.target_field_name for fm in self.task.field_mappings.all()]
-        else:
-            # Fetch from source metadata
-            column = reader_config.get('column', ['*'])
-
-        # Build query SQL
-        if self.task.sql_config:
-            # Support incremental extraction
-            query_sql = self.task.sql_config
-            if incremental.get('enabled') and incremental.get('field'):
-                # Apply incremental filter
-                watermark = self._get_watermark_value()
-                query_sql = self._apply_incremental_filter(
-                    query_sql,
-                    incremental['field'],
-                    watermark
-                )
-            query_sql = [query_sql]
-        else:
-            query_sql = None
-
-        # Build reader parameters
-        reader_params = {
-            'username': username,
-            'password': password,
-            'connection': [connection] if not query_sql else [],
-            'column': column,
-        }
-
-        # Add query SQL if present
         if query_sql:
             reader_params['connection'] = [{
-                'jdbcUrl': [f"jdbc:{self._get_jdbc_url(source_ds)}"],
-                'querySql': query_sql
+                'jdbcUrl': [jdbc_url],
+                'querySql': [self._apply_incremental_filter(query_sql)],
             }]
-            reader_params.pop('column', None)  # Remove column when using querySql
+            reader_params.pop('column', None)
+        elif where_clause:
+            reader_params['where'] = where_clause
 
-        # Merge with custom reader config
-        reader_params.update(reader_config)
-
+        if reader_config.get('splitPk'):
+            reader_params['splitPk'] = reader_config['splitPk']
+        if reader_config.get('fetchSize'):
+            reader_params['fetchSize'] = reader_config['fetchSize']
+        if reader_config.get('session'):
+            reader_params['session'] = reader_config['session']
         return reader_params
 
-    def _build_writer(
-        self,
-        writer_config: Dict,
-        execution_date: str,
-        multi_tenant: Dict
-    ) -> Dict[str, Any]:
-        """
-        Build writer configuration.
-
-        Args:
-            writer_config: Writer configuration from executor_params
-            execution_date: Execution date for partition
-            multi_tenant: Multi-tenant configuration
-
-        Returns:
-            Writer parameter dictionary
-        """
+    def _build_writer(self, writer_config: dict[str, Any], execution_date: str | None) -> dict[str, Any]:
         target_ds = self.task.target_datasource
-        target_table = self.task.target_table
-
-        # HDFS/Hive writer
-        if target_ds.db_type.lower() in ['hive', 'hdfs']:
-            # Build HDFS path with partition
-            path = self._build_hdfs_path(target_table, execution_date, multi_tenant)
-
-            # Get field mappings or default columns
-            if self.task.field_mappings.exists():
-                columns = []
-                for fm in self.task.field_mappings.all():
-                    columns.append({
-                        'name': fm.target_field_name,
-                        'type': fm.data_type or 'string'
-                    })
-            else:
-                columns = writer_config.get('column', [])
-
-            writer_params = {
-                'path': path,
-                'fileName': execution_date or datetime.now().strftime('%Y%m%d'),
-                'writeMode': writer_config.get('writeMode', 'append'),
-                'column': columns,
-                'compress': writer_config.get('compress', 'gzip'),
-                'fieldDelimiter': writer_config.get('fieldDelimiter', ','),
+        target_type = self._normalize_db_type(target_ds.db_type)
+        if target_type in ('hive', 'hdfs'):
+            params = self._parse_datasource_params(target_ds.params)
+            base_path = (
+                writer_config.get('path')
+                or self.task_config.get('path')
+                or params.get('path')
+                or f"/data/{self._get_target_table_name().replace('.', '/')}"
+            )
+            return {
+                'defaultFS': writer_config.get('defaultFS') or params.get('defaultFS') or 'file:///',
+                'path': self._build_hdfs_path(base_path, execution_date),
+                'fileName': writer_config.get('fileName') or self.task.task_code,
+                'fileType': writer_config.get('fileType') or params.get('fileType') or 'text',
+                'writeMode': writer_config.get('writeMode') or 'append',
+                'fieldDelimiter': writer_config.get('fieldDelimiter') or params.get('fieldDelimiter') or '\t',
+                'nullFormat': writer_config.get('nullFormat') or params.get('nullFormat') or '\\N',
+                'column': self._resolve_hdfs_columns(),
             }
 
-            # Add format (textfile or orc)
-            if 'fileType' in writer_config:
-                writer_params['fileType'] = writer_config['fileType']
-
-        # Relational database writer
-        else:
-            connection = {
-                'jdbcUrl': f"jdbc:{self._get_jdbc_url(target_ds)}",
-                'table': [target_table]
-            }
-
-            # Build column list from field mappings
-            if self.task.field_mappings.exists():
-                column = [fm.target_field_name for fm in self.task.field_mappings.all()]
-            else:
-                column = writer_config.get('column', ['*'])
-
-            writer_params = {
-                'username': target_ds.username,
-                'password': target_ds.password,
-                'writeMode': writer_config.get('writeMode', 'insert'),
-                'connection': [connection],
-                'column': column
-            }
-
-        # Merge with custom writer config
-        writer_params.update(writer_config)
-
+        write_mode = writer_config.get('writeMode') or self.WRITE_MODE_MAPPING.get(getattr(self.task, 'write_mode', 'append'), 'insert')
+        writer_params: dict[str, Any] = {
+            'username': target_ds.username,
+            'password': target_ds.password,
+            'writeMode': write_mode,
+            'column': self._resolve_target_columns(),
+            'connection': [{
+                'jdbcUrl': self._build_jdbc_url(target_ds),
+                'table': [self._get_target_table_name()],
+            }],
+        }
+        if writer_config.get('preSql'):
+            writer_params['preSql'] = writer_config['preSql']
+        if writer_config.get('postSql'):
+            writer_params['postSql'] = writer_config['postSql']
+        if writer_config.get('batchSize'):
+            writer_params['batchSize'] = writer_config['batchSize']
+        if writer_config.get('session'):
+            writer_params['session'] = writer_config['session']
         return writer_params
 
-    def _build_hdfs_path(
-        self,
-        base_path: str,
-        execution_date: str,
-        multi_tenant: Dict
-    ) -> str:
-        """
-        Build HDFS path with partition.
+    def _get_reader_name(self) -> str:
+        return self.READER_MAPPING[self._normalize_db_type(self.task.source_datasource.db_type)]
 
-        Args:
-            base_path: Base HDFS path
-            execution_date: Execution date
-            multi_tenant: Multi-tenant configuration
+    def _get_writer_name(self) -> str:
+        return self.WRITER_MAPPING[self._normalize_db_type(self.task.target_datasource.db_type)]
 
-        Returns:
-            Full HDFS path with partitions
-        """
+    def _get_source_table_name(self) -> str:
+        source_asset = getattr(self.task, 'source_asset', None)
+        if source_asset and source_asset.object_name:
+            return source_asset.object_name
+        return str(self.task_config.get('sourceTableName') or '').strip()
+
+    def _get_target_table_name(self) -> str:
+        schema_name = str(getattr(self.task, 'target_schema_name', '') or '').strip()
+        table_name = str(getattr(self.task, 'target_table_name', '') or '').strip()
+        if not table_name:
+            return ''
+        return f'{schema_name}.{table_name}' if schema_name else table_name
+
+    def _get_query_sql(self) -> str:
+        reader_config = self.task_config.get('reader') or {}
+        return str(reader_config.get('querySql') or self.task_config.get('querySql') or '').strip()
+
+    def _resolve_column_mappings(self) -> list[dict[str, Any]]:
+        return [item for item in (self.task_config.get('columnMappings') or []) if isinstance(item, dict)]
+
+    def _resolve_source_columns(self) -> list[str]:
+        mappings = self._resolve_column_mappings()
+        mapped = [item.get('sourceColumn') or item.get('targetColumn') for item in mappings if item.get('sourceColumn') or item.get('targetColumn')]
+        configured = self.task_config.get('columns') or (self.task_config.get('reader') or {}).get('column') or (self.task_config.get('reader') or {}).get('columns')
+        if isinstance(configured, list) and configured:
+            return configured
+        return mapped or ['*']
+
+    def _resolve_target_columns(self) -> list[str]:
+        mappings = self._resolve_column_mappings()
+        mapped = [item.get('targetColumn') or item.get('sourceColumn') for item in mappings if item.get('targetColumn') or item.get('sourceColumn')]
+        configured = (self.task_config.get('writer') or {}).get('column') or self.task_config.get('columns')
+        if isinstance(configured, list) and configured:
+            if configured and isinstance(configured[0], dict):
+                return [item.get('name') for item in configured if item.get('name')]
+            return configured
+        return mapped or ['*']
+
+    def _resolve_hdfs_columns(self) -> list[dict[str, str]]:
+        configured = (self.task_config.get('writer') or {}).get('column') or self.task_config.get('columns')
+        if isinstance(configured, list) and configured:
+            if isinstance(configured[0], dict):
+                return [
+                    {
+                        'name': item.get('name'),
+                        'type': item.get('type', 'string'),
+                    }
+                    for item in configured
+                    if item.get('name')
+                ]
+            return [{'name': item, 'type': 'string'} for item in configured]
+
+        columns = []
+        for item in self._resolve_column_mappings():
+            target_column = item.get('targetColumn') or item.get('sourceColumn')
+            if not target_column:
+                continue
+            columns.append({
+                'name': target_column,
+                'type': item.get('dataType') or 'string',
+            })
+        return columns
+
+    def _build_hdfs_path(self, base_path: str, execution_date: str | None) -> str:
         path = base_path.rstrip('/')
-
-        # Add multi-tenant partition if enabled
-        if multi_tenant.get('enabled'):
-            tenant_id = multi_tenant.get('tenant_id', 'default')
-            path = f"{path}/tenant_id={tenant_id}"
-
-        # Add date partition
+        partition_format = self.task_config.get('partitionFormat') or 'ds={execution_date}'
         if execution_date:
-            path = f"{path}/ds={execution_date}"
-
+            path = f"{path}/{partition_format.format(execution_date=execution_date)}"
         return path
 
-    def _get_jdbc_url(self, datasource) -> str:
-        """
-        Build JDBC URL from datasource connection.
+    def _merge_where_clause(self, base_where: str) -> str:
+        incremental_field = str(self.task_config.get('incrementalField') or '').strip()
+        incremental_value = self.runtime_config.get('incrementalValue', self.task_config.get('incrementalValue'))
+        if getattr(self.task, 'load_type', 'full') != 'incremental' or not incremental_field or incremental_value in (None, ''):
+            return base_where
+        incremental_clause = f"{incremental_field} >= '{incremental_value}'"
+        if not base_where:
+            return incremental_clause
+        return f"({base_where}) AND {incremental_clause}"
 
-        Args:
-            datasource: DataSource instance
-
-        Returns:
-            JDBC URL string
-        """
-        db_type = datasource.db_type.lower()
-
-        if db_type == 'mysql':
-            return f"mysql://{datasource.host}:{datasource.port}/{datasource.db_name}"
-        elif db_type == 'postgresql':
-            return f"postgresql://{datasource.host}:{datasource.port}/{datasource.db_name}"
-        elif db_type == 'oracle':
-            return f"oracle:thin:@{datasource.host}:{datasource.port}:{datasource.db_name}"
-        elif db_type == 'sqlserver':
-            return f"sqlserver://{datasource.host}:{datasource.port};databaseName={datasource.db_name}"
-        else:
-            # Default to MySQL format
-            return f"mysql://{datasource.host}:{datasource.port}/{datasource.db_name}"
-
-    def _apply_incremental_filter(
-        self,
-        sql: str,
-        increment_field: str,
-        watermark_value: Union[str, int, None]
-    ) -> str:
-        """
-        Apply incremental filter to SQL query.
-
-        Args:
-            sql: Original SQL query
-            increment_field: Field name for incremental extraction
-            watermark_value: Watermark value (last extracted value)
-
-        Returns:
-            SQL with incremental filter applied
-        """
-        if watermark_value is None:
-            # First time execution, no filter
+    def _apply_incremental_filter(self, sql: str) -> str:
+        where_clause = self._merge_where_clause('')
+        if not where_clause:
             return sql
+        lowered = sql.lower()
+        keyword = ' where ' if ' where ' not in lowered else ' and '
+        return f'{sql}{keyword}{where_clause}'
 
-        # Add WHERE clause for incremental extraction
-        if 'where' in sql.lower():
-            # SQL already has WHERE clause, add AND
-            incremental_filter = f" AND {increment_field} >= '{watermark_value}'"
-            sql = sql + incremental_filter
-        else:
-            # Add WHERE clause
-            incremental_filter = f" WHERE {increment_field} >= '{watermark_value}'"
-            sql = sql + incremental_filter
+    def _build_jdbc_url(self, datasource) -> str:
+        db_type = self._normalize_db_type(datasource.db_type)
+        if db_type in ('mysql', 'mariadb', 'starrocks'):
+            return f'jdbc:mysql://{datasource.host}:{datasource.port}/{datasource.db_name}'
+        if db_type in ('postgres', 'postgresql'):
+            return f'jdbc:postgresql://{datasource.host}:{datasource.port}/{datasource.db_name}'
+        if db_type == 'oracle':
+            return f'jdbc:oracle:thin:@{datasource.host}:{datasource.port}:{datasource.db_name}'
+        if db_type == 'sqlserver':
+            return f'jdbc:sqlserver://{datasource.host}:{datasource.port};databaseName={datasource.db_name}'
+        if db_type == 'sqlite':
+            return f'jdbc:sqlite:{datasource.db_name}'
+        raise ValueError(f'不支持的 JDBC 数据源类型: {datasource.db_type}')
 
-        logger.debug(f"Applied incremental filter: {incremental_filter}")
-        return sql
+    def _parse_datasource_params(self, raw_params: Any) -> dict[str, Any]:
+        if not raw_params:
+            return {}
+        if isinstance(raw_params, dict):
+            return raw_params
+        if isinstance(raw_params, str):
+            try:
+                return json.loads(raw_params)
+            except json.JSONDecodeError:
+                logger.warning('数据源 params 不是合法 JSON，已忽略: task=%s', getattr(self.task, 'task_code', 'unknown'))
+        return {}
 
-    def _get_watermark_value(self):
-        """
-        Get watermark value for incremental extraction.
-
-        Returns:
-            Watermark value or None if first execution
-        """
-        logger.debug(
-            "Watermark lookup skipped for task %s because dataetl persistence has been removed",
-            self.task.task_code,
-        )
-        return None
-
-    def validate_config(self) -> tuple:
-        """
-        Validate DataX configuration.
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
-        # Validate executor_params exists
-        if not self.executor_params:
-            return False, "执行器参数不能为空"
-
-        # Validate datax configuration
-        if 'datax' not in self.executor_params:
-            return False, "DataX配置不存在，请在executor_params.datax中配置"
-
-        datax_config = self.executor_params['datax']
-
-        # Validate reader and writer configuration
-        if 'reader' not in datax_config or 'writer' not in datax_config:
-            return False, "DataX配置缺少reader或writer配置"
-
-        # Validate source and target datasources
-        if not self.task.source_datasource:
-            return False, "源数据源不能为空"
-
-        if not self.task.target_datasource:
-            return False, "目标数据源不能为空"
-
-        # Validate source table
-        if not self.task.source_table:
-            return False, "源表不能为空"
-
-        # Validate target table
-        if not self.task.target_table:
-            return False, "目标表不能为空"
-
-        # Validate database types
-        source_db_type = self.task.source_datasource.db_type.lower()
-        if source_db_type not in self.READER_MAPPING:
-            return False, f"不支持的源数据库类型: {source_db_type}"
-
-        target_db_type = self.task.target_datasource.db_type.lower()
-        if target_db_type not in self.WRITER_MAPPING:
-            return False, f"不支持的目标数据库类型: {target_db_type}"
-
-        logger.info(f"DataX configuration validation passed for task: {self.task.task_code}")
-        return True, ""
+    def _normalize_db_type(self, db_type: str) -> str:
+        return str(db_type or '').strip().lower()

@@ -140,7 +140,7 @@ export function useIntegrationTaskForm() {
 
   const supportedExecutors = getSupportedExecutors().map(item => ({
     ...item,
-    disabled: item.value !== 'mock',
+    disabled: false,
   }))
 
   const isEditMode = computed(() => Boolean(route.params.taskId))

@@ -1,11 +1,25 @@
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 from apps.system.serializers import BaseModelSerializer
-from apps.dataservice.models import QueryLog, InterfaceInfo, InterfaceField
+from apps.dataservice.models import QueryLog, InterfaceInfo, InterfaceField, ReportInfo, ReportInterfaceRelation
 
 
 def _validate_total_sql_requirement(is_total_value, total_sql_value):
     if is_total_value == '1' and not str(total_sql_value or '').strip():
         raise serializers.ValidationError('启用合计时必须填写合计SQL')
+
+
+def _normalize_interface_ids(interface_ids):
+    normalized = []
+    seen = set()
+    for interface_id in interface_ids or []:
+        normalized_id = int(interface_id)
+        if normalized_id in seen:
+            continue
+        seen.add(normalized_id)
+        normalized.append(normalized_id)
+    return normalized
 
 
 class DataServiceQuerySerializer(serializers.Serializer):
@@ -137,3 +151,101 @@ class InterfaceFieldSerializer(BaseModelSerializer):
 
 class InterfaceFieldUpdateSerializer(InterfaceFieldSerializer):
     fieldId = serializers.IntegerField(source='id')
+
+
+class ReportInfoSerializer(BaseModelSerializer):
+    reportId = serializers.IntegerField(source='id', read_only=True)
+    reportName = serializers.CharField(source='report_name')
+    reportCode = serializers.RegexField(source='report_code', regex=r'^[A-Za-z0-9_-]+$', max_length=255)
+    reportDesc = serializers.CharField(source='report_desc', required=False, allow_blank=True, allow_null=True)
+    userName = serializers.CharField(source='user_name', required=False, allow_blank=True, allow_null=True)
+    interfaceIds = serializers.ListField(child=serializers.IntegerField(min_value=1), write_only=True, required=False, allow_empty=False)
+    interfaceCount = serializers.SerializerMethodField(read_only=True)
+    interfaces = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ReportInfo
+        fields = [
+            'reportId', 'reportName', 'reportCode', 'reportDesc', 'userName',
+            'interfaceIds', 'interfaceCount', 'interfaces'
+        ]
+
+    def validate_interfaceIds(self, value):
+        interface_ids = _normalize_interface_ids(value)
+        valid_count = InterfaceInfo.objects.filter(id__in=interface_ids, del_flag='0').count()
+        if valid_count != len(interface_ids):
+            raise serializers.ValidationError('存在已删除或不存在的接口，请重新选择')
+        return interface_ids
+
+    def validate(self, attrs):
+        if self.instance is None and not attrs.get('interfaceIds'):
+            raise serializers.ValidationError('请至少选择一个接口')
+        return attrs
+
+    def get_interfaceCount(self, obj):
+        return len(self._get_active_relations(obj))
+
+    def get_interfaces(self, obj):
+        interfaces = []
+        for relation in self._get_active_relations(obj):
+            interface = relation.interface
+            if interface.del_flag != '0':
+                continue
+            interfaces.append({
+                'interfaceId': interface.id,
+                'interfaceName': interface.interface_name,
+                'interfaceCode': interface.interface_code,
+                'interfaceDesc': interface.interface_desc or '',
+                'userName': interface.user_name or '',
+                'enable': interface.enable,
+            })
+        return interfaces
+
+    def create(self, validated_data):
+        interface_ids = validated_data.pop('interfaceIds', [])
+        with transaction.atomic():
+            report = ReportInfo.objects.create(**validated_data)
+            self._sync_interfaces(report, interface_ids)
+        return report
+
+    def update(self, instance, validated_data):
+        interface_ids = validated_data.pop('interfaceIds', None)
+        with transaction.atomic():
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            if interface_ids is not None:
+                self._sync_interfaces(instance, interface_ids)
+        return instance
+
+    def _sync_interfaces(self, report, interface_ids):
+        username = getattr(getattr(self.context.get('request'), 'user', None), 'username', '') or ''
+        ReportInterfaceRelation.objects.filter(report=report, del_flag='0').update(
+            del_flag='1',
+            update_by=username,
+            update_time=timezone.now(),
+        )
+        relations = []
+        for index, interface_id in enumerate(interface_ids, start=1):
+            relations.append(ReportInterfaceRelation(
+                report=report,
+                interface_id=interface_id,
+                interface_position=index,
+                create_by=username,
+                update_by=username,
+            ))
+        ReportInterfaceRelation.objects.bulk_create(relations)
+
+    def _get_active_relations(self, obj):
+        prefetched = getattr(obj, 'prefetched_active_relations', None)
+        if prefetched is not None:
+            return prefetched
+        return list(
+            obj.report_interfaces.select_related('interface')
+            .filter(del_flag='0', interface__del_flag='0')
+            .order_by('interface_position', 'id')
+        )
+
+
+class ReportInfoUpdateSerializer(ReportInfoSerializer):
+    reportId = serializers.IntegerField(source='id')

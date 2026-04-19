@@ -87,7 +87,8 @@ function filterChildren(childrenMap, lastRouter = false) {
   var children = []
   childrenMap.forEach(el => {
     el.path = lastRouter ? lastRouter.path + '/' + el.path : el.path
-    if (el.children && el.children.length && el.component === 'ParentView') {
+    const shouldFlattenParentView = el.children && el.children.length && el.component === 'ParentView' && !el.redirect
+    if (shouldFlattenParentView) {
       children = children.concat(filterChildren(el.children, el))
     } else {
       children.push(el)

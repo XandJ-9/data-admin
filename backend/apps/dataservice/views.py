@@ -12,8 +12,9 @@ from .serializers import (
     DataServiceQuerySerializer, DataServiceQueryLogSerializer, InterfacePublishSerializer,
     InterfaceChangeStatusSerializer, InterfaceInfoSerializer, InterfaceInfoCreateSerializer,
     InterfaceInfoUpdateSerializer, InterfaceFieldSerializer, InterfaceFieldUpdateSerializer,
+    ReportInfoSerializer, ReportInfoUpdateSerializer,
 )
-from .models import InterfaceInfo, InterfaceField
+from .models import InterfaceInfo, InterfaceField, ReportInfo, ReportInterfaceRelation
 from .custom import make_interface_workbook, parse_interface_workbook
 from .query_wrapper import InterfaceQueryWrapper
 
@@ -21,7 +22,7 @@ from apps.dbutils.factory import get_executor
 from django.template import Template, Context
 from django.db import transaction
 from django.utils import timezone
-from django.db.models import F
+from django.db.models import F, Prefetch
 from openpyxl import load_workbook
 
 import time
@@ -694,3 +695,63 @@ class InterfaceFieldViewSet(BaseViewSet):
                         interface_para_position__gt=old_position,
                         interface_para_position__lte=new_position
                     ).update(interface_para_position=F('interface_para_position') - 1)
+
+
+
+class ReportInfoViewSet(BaseViewSet):
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    queryset = ReportInfo.objects.filter(del_flag='0').order_by('-create_time')
+    serializer_class = ReportInfoSerializer
+    update_body_serializer_class = ReportInfoUpdateSerializer
+    update_body_id_field = 'reportId'
+
+    def get_queryset(self):
+        active_relations = Prefetch(
+            'report_interfaces',
+            queryset=ReportInterfaceRelation.objects.filter(del_flag='0').select_related('interface').order_by('interface_position', 'id'),
+            to_attr='prefetched_active_relations',
+        )
+        qs = super().get_queryset().prefetch_related(active_relations)
+        report_name = self.request.query_params.get('reportName', '')
+        report_code = self.request.query_params.get('reportCode', '')
+        user_name = self.request.query_params.get('userName', '')
+        if report_name:
+            qs = qs.filter(report_name__icontains=report_name)
+        if report_code:
+            qs = qs.filter(report_code__icontains=report_code)
+        if user_name:
+            qs = qs.filter(user_name__icontains=user_name)
+        return qs.order_by('-create_time')
+
+    def perform_create(self, serializer):
+        username = getattr(self.request.user, 'username', '') or ''
+        if username and not str(serializer.validated_data.get('user_name') or '').strip():
+            serializer.validated_data['user_name'] = username
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        username = getattr(self.request.user, 'username', '') or ''
+        current_owner = getattr(serializer.instance, 'user_name', '') if serializer.instance else ''
+        if not str(serializer.validated_data.get('user_name') or '').strip():
+            serializer.validated_data['user_name'] = current_owner or username
+        super().perform_update(serializer)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        reports = instance if isinstance(instance, list) else [instance]
+        username = getattr(request.user, 'username', '') or ''
+        report_ids = [item.id for item in reports]
+        with transaction.atomic():
+            for item in reports:
+                item.del_flag = '1'
+                if username:
+                    item.update_by = username
+                    item.save(update_fields=['del_flag', 'update_by', 'update_time'])
+                else:
+                    item.save(update_fields=['del_flag', 'update_time'])
+
+            relation_updates = {'del_flag': '1', 'update_time': timezone.now()}
+            if username:
+                relation_updates['update_by'] = username
+            ReportInterfaceRelation.objects.filter(report_id__in=report_ids, del_flag='0').update(**relation_updates)
+        return self.ok('删除成功')

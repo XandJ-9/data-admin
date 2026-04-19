@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 
 from django.db import IntegrityError, transaction
@@ -19,6 +20,10 @@ class TaskService:
         'draft': 'draft',
         'published': 'active',
         'archived': 'archived',
+    }
+    MODEL_STATUS_TO_TASK_STATUS = {
+        'draft': 'draft',
+        'deployed': 'active',
     }
 
     @staticmethod
@@ -337,6 +342,7 @@ class TaskService:
             'scriptId': script.id,
             'scriptCode': script.script_code,
             'scriptType': script.script_type,
+            'engineType': getattr(script, 'engine_type', ''),
             'directoryId': script.directory_id,
             'datasourceId': datasource.id if datasource else None,
             'datasourceType': datasource.db_type if datasource else '',
@@ -437,34 +443,39 @@ class TaskService:
                 cls.sync_dependency_schedule_type(downstream_task_id)
 
     @classmethod
-    def execute_integration_task(cls, integration_task, *, username: str = '') -> dict:
+    def execute_integration_task(
+        cls,
+        integration_task,
+        *,
+        username: str = '',
+        trigger_mode: str = 'manual',
+        runtime_config: dict | None = None,
+    ) -> dict:
         from apps.executors.base import ExecutorFactory
 
         platform_task = cls.sync_integration_source_task(integration_task, username=username)
+        effective_runtime_config = {
+            'integrationTaskId': integration_task.id,
+            **(runtime_config or {}),
+        }
         task_instance = cls.create_task_instance(
             task=platform_task,
-            trigger_mode='manual',
-            runtime_config={'integrationTaskId': integration_task.id},
-            triggered_by=username,
+            trigger_mode=trigger_mode,
+            runtime_config=effective_runtime_config,
+            triggered_by=username or trigger_mode,
             executor_type=integration_task.executor_type,
         )
         cls.mark_instance_running(task_instance, executor_type=integration_task.executor_type)
 
         try:
-            if integration_task.executor_type != 'mock':
-                cls.finalize_instance(
-                    instance=task_instance,
-                    status='failed',
-                    result_summary={'error': '当前阶段仅支持 mock 执行器联调'},
-                    error_message='当前阶段仅支持 mock 执行器联调',
-                )
-                return {
-                    'ok': False,
-                    'msg': '当前阶段仅支持 mock 执行器联调',
-                    'data': {'executionId': task_instance.instance_id, 'status': 'failed'},
-                }
-
-            executor = ExecutorFactory.create_executor('mock', integration_task)
+            executor = ExecutorFactory.create_executor(
+                integration_task.executor_type,
+                integration_task,
+                config=effective_runtime_config,
+            )
+            is_valid, validate_message = executor.validate()
+            if not is_valid:
+                raise ValueError(validate_message)
             result = executor.execute()
         except Exception as exc:
             cls.finalize_instance(
@@ -479,13 +490,14 @@ class TaskService:
                 'data': {'executionId': task_instance.instance_id, 'status': 'failed'},
             }
 
+        result_status = result.get('status') or 'success'
         cls.finalize_instance(
             instance=task_instance,
-            status=result['status'],
+            status=result_status,
             result_summary=result,
             error_message=result.get('error_message') or '',
         )
-        if result['status'] == 'failed':
+        if result_status == 'failed':
             return {
                 'ok': False,
                 'msg': result.get('error_message') or '执行失败',
@@ -496,7 +508,7 @@ class TaskService:
             'msg': '执行成功',
             'data': {
                 'executionId': task_instance.instance_id,
-                'status': result['status'],
+                'status': result_status,
                 'resultSummary': result,
             },
         }
@@ -508,6 +520,8 @@ class TaskService:
         *,
         username: str = '',
         runtime_params: dict | None = None,
+        trigger_mode: str = 'manual',
+        runtime_config: dict | None = None,
     ) -> dict:
         from datetime import timedelta
 
@@ -515,10 +529,9 @@ class TaskService:
 
         from apps.datadev.models import DataDevScriptExecution
         from apps.dbutils.factory import get_executor
+        from apps.executors.base import ExecutorFactory
 
         current_version = script.versions.filter(is_current=True).first()
-        if not script.datasource:
-            return {'ok': False, 'msg': '脚本未关联数据源，无法执行', 'data': None}
         if not current_version:
             return {'ok': False, 'msg': '脚本没有当前版本', 'data': None}
 
@@ -527,16 +540,64 @@ class TaskService:
             return {'ok': False, 'msg': '脚本内容为空', 'data': None}
 
         ds = script.datasource
-        info = {
-            'type': ds.db_type,
-            'host': ds.host,
-            'port': ds.port,
-            'username': ds.username,
-            'password': ds.password,
-            'database': ds.db_name,
-            'params': ds.params or {},
-        }
+        info = None
         runtime_params = runtime_params or {}
+        execution_mode = str(runtime_params.get('executionMode') or '').strip().lower()
+        modeling_info = None
+        configured_engine_type = str(getattr(script, 'engine_type', '') or '').strip().lower()
+        if configured_engine_type in ('spark-sql', 'sparksql'):
+            configured_engine_type = 'spark'
+        elif configured_engine_type in ('hiveserver2', 'hive2'):
+            configured_engine_type = 'hive'
+        elif configured_engine_type not in ('spark', 'hive', 'mvp'):
+            configured_engine_type = 'mvp'
+        normalized_executor_type = 'mvp'
+        if execution_mode == 'modeling':
+            normalized_executor_type = str(runtime_params.get('engine') or 'spark').strip().lower()
+            if normalized_executor_type in ('spark-sql', 'sparksql'):
+                normalized_executor_type = 'spark'
+            if normalized_executor_type not in ('spark', 'hive'):
+                return {'ok': False, 'msg': '建模执行仅支持 Spark SQL 或 Hive', 'data': None}
+            if not re.search(r'\bcreate\s+table\b', sql, flags=re.IGNORECASE):
+                return {'ok': False, 'msg': '建模执行当前仅支持 CREATE TABLE 语句', 'data': None}
+            modeling_owner = str(runtime_params.get('owner') or script.owner or username or '').strip()
+            target_layer = str(runtime_params.get('targetLayer') or '').strip().upper()
+            target_table_name = str(runtime_params.get('targetTableName') or '').strip()
+            table_comment = str(runtime_params.get('tableComment') or '').strip()
+            if not modeling_owner:
+                return {'ok': False, 'msg': '建模执行必须填写负责人', 'data': None}
+            if target_layer not in ('ODS', 'DWD', 'DWS', 'ADS'):
+                return {'ok': False, 'msg': '建模执行必须选择 ODS/DWD/DWS/ADS 层级', 'data': None}
+            if not target_table_name:
+                return {'ok': False, 'msg': '建模执行必须填写目标表名', 'data': None}
+            if not table_comment:
+                return {'ok': False, 'msg': '建模执行必须填写表注释', 'data': None}
+            modeling_info = {
+                'engine': normalized_executor_type,
+                'targetLayer': target_layer,
+                'targetTableName': target_table_name,
+                'tableComment': table_comment,
+                'owner': modeling_owner,
+            }
+        elif ds is not None:
+            info = {
+                'type': ds.db_type,
+                'host': ds.host,
+                'port': ds.port,
+                'username': ds.username,
+                'password': ds.password,
+                'database': ds.db_name,
+                'params': ds.params or {},
+            }
+            normalized_executor_type = str(ds.db_type or '').lower()
+            if normalized_executor_type in ('spark-sql', 'sparksql', 'spark'):
+                normalized_executor_type = 'spark'
+            elif normalized_executor_type in ('hive', 'hiveserver2', 'hive2'):
+                normalized_executor_type = 'hive'
+        elif script.script_type == 'sql' and configured_engine_type in ('spark', 'hive'):
+            normalized_executor_type = configured_engine_type
+        elif script.script_type == 'python' or configured_engine_type == 'mvp':
+            normalized_executor_type = 'mvp'
         existing_task = Task.objects.filter(
             source_module='datadev.script',
             source_record_id=script.id,
@@ -553,7 +614,7 @@ class TaskService:
             status=preserved_status,
             schedule_type=preserved_schedule_type,
             cron_expression=preserved_cron_expression,
-            owner=script.owner or username,
+            owner=(modeling_info['owner'] if modeling_info else script.owner or username),
             task_config=cls.build_script_task_config(
                 script=script,
                 version=current_version,
@@ -565,15 +626,16 @@ class TaskService:
         )
         task_instance = cls.create_task_instance(
             task=task,
-            trigger_mode='manual',
+            trigger_mode=trigger_mode,
             runtime_config={
                 'scriptVersionId': current_version.id,
                 'params': runtime_params,
+                **(runtime_config or {}),
             },
-            triggered_by=username,
-            executor_type=ds.db_type,
+            triggered_by=username or trigger_mode,
+            executor_type=normalized_executor_type,
         )
-        cls.mark_instance_running(task_instance, executor_type=ds.db_type)
+        cls.mark_instance_running(task_instance, executor_type=normalized_executor_type)
 
         start_time = timezone.now()
         start_perf = timezone.now().timestamp()
@@ -582,37 +644,105 @@ class TaskService:
         error_msg = ''
         columns: list[str] = []
         rows: list[dict] = []
+        engine_result: dict = {}
 
         try:
-            executor = get_executor(info)
-            result = executor.execute_query(sql=sql)
-            columns = result.get('columns', [])
-            raw_rows = result.get('rows', [])
-            rows = [dict(zip(columns, row)) for row in raw_rows]
+            if normalized_executor_type == 'mvp':
+                statement_count = len([segment for segment in sql.split(';') if segment.strip()]) or 1
+                columns = ['mode', 'message', 'statementCount']
+                rows = [{
+                    'mode': 'MVP预演',
+                    'message': '当前阶段未绑定执行数据源，本次仅完成脚本登记、版本确认和任务预演',
+                    'statementCount': statement_count,
+                }]
+                engine_result = {
+                    'status': 'success',
+                    'columns': columns,
+                    'rows': rows,
+                    'duration_seconds': 0,
+                    'design_only': True,
+                }
+            elif normalized_executor_type in ('spark', 'hive'):
+                executor = ExecutorFactory.create_executor(
+                    normalized_executor_type,
+                    script,
+                    config={
+                        'engine': normalized_executor_type,
+                        'sql': sql,
+                        'datasource': ds if modeling_info is None else None,
+                        'runtimeParams': runtime_params,
+                    },
+                )
+                is_valid, validate_message = executor.validate()
+                if not is_valid:
+                    raise ValueError(validate_message)
+                engine_result = executor.execute()
+                status = engine_result.get('status') or 'success'
+                error_msg = engine_result.get('error_message') or ''
+                columns = engine_result.get('columns') or []
+                raw_rows = engine_result.get('rows') or []
+                if raw_rows and isinstance(raw_rows[0], dict):
+                    rows = raw_rows
+                    if not columns:
+                        columns = list(raw_rows[0].keys())
+                else:
+                    rows = [dict(zip(columns, row)) for row in raw_rows]
+            else:
+                executor = get_executor(info)
+                query_result = executor.execute_query(sql=sql)
+                columns = query_result.get('columns', [])
+                raw_rows = query_result.get('rows', [])
+                rows = [dict(zip(columns, row)) for row in raw_rows]
         except Exception as exc:
             status = 'failed'
             error_msg = str(exc)
             logger.exception('脚本执行失败: script_id=%s, error=%s', script.id, exc)
         finally:
-            if executor:
+            if executor and hasattr(executor, 'close'):
                 try:
                     executor.close()
                 except Exception:
                     logger.warning('关闭脚本执行器失败: script_id=%s', script.id, exc_info=True)
 
+        if modeling_info and status == 'success' and not columns and not rows:
+            columns = ['mode', 'targetLayer', 'targetTableName', 'tableComment', 'owner']
+            rows = [{
+                'mode': '建模执行',
+                'targetLayer': modeling_info['targetLayer'],
+                'targetTableName': modeling_info['targetTableName'],
+                'tableComment': modeling_info['tableComment'],
+                'owner': modeling_info['owner'],
+            }]
+
         duration = round(timezone.now().timestamp() - start_perf, 2)
+        if engine_result.get('duration_seconds') not in (None, ''):
+            duration = engine_result['duration_seconds']
         end_time = start_time + timedelta(seconds=duration)
         result_summary = {
             'columns': columns,
             'rows': rows,
             'rowCount': len(rows),
             'error': error_msg,
+            'engine': normalized_executor_type,
         }
+        if engine_result.get('raw_output'):
+            result_summary['rawOutput'] = engine_result['raw_output']
+        if engine_result.get('raw_error'):
+            result_summary['rawError'] = engine_result['raw_error']
         task_result_summary = {
             'columns': columns,
             'rowCount': len(rows),
             'error': error_msg,
+            'engine': normalized_executor_type,
         }
+        if modeling_info:
+            result_summary['executionMode'] = 'modeling'
+            result_summary['modelingInfo'] = modeling_info
+            task_result_summary['executionMode'] = 'modeling'
+            task_result_summary['modelingInfo'] = modeling_info
+        if engine_result.get('design_only'):
+            result_summary['designOnly'] = True
+            task_result_summary['designOnly'] = True
         cls.finalize_instance(
             instance=task_instance,
             status=status,
@@ -626,19 +756,25 @@ class TaskService:
             task_instance=task_instance,
             execution_id=task_instance.instance_id,
             status=status,
-            executor_type=ds.db_type,
+            executor_type=normalized_executor_type,
             executor_params=runtime_params,
             start_time=start_time,
             end_time=end_time,
             duration_seconds=duration,
             result_summary=result_summary,
+            error_message=error_msg,
             executed_by=username,
         )
         if status == 'failed':
             return {
                 'ok': False,
                 'msg': f'执行失败: {error_msg}',
-                'data': {'executionId': execution.execution_id, 'status': 'failed'},
+                'data': {
+                    'executionId': execution.execution_id,
+                    'status': 'failed',
+                    'rawOutput': result_summary.get('rawOutput', ''),
+                    'rawError': result_summary.get('rawError', ''),
+                },
             }
         return {
             'ok': True,
@@ -649,11 +785,242 @@ class TaskService:
                 'columns': columns,
                 'rows': rows,
                 'duration': duration,
+                'designOnly': bool(engine_result.get('design_only')),
+                'executionMode': 'modeling' if modeling_info else 'standard',
+                'modelingInfo': modeling_info,
+                'rawOutput': result_summary.get('rawOutput', ''),
+                'rawError': result_summary.get('rawError', ''),
+            },
+        }
+
+    @staticmethod
+    def escape_sql_literal(value: str) -> str:
+        return str(value or '').replace("'", "''")
+
+    @classmethod
+    def build_datamodel_create_sql(cls, model) -> str:
+        active_fields = model.model_fields.filter(del_flag='0').order_by('ordinal_position', 'id')
+        if not active_fields.exists():
+            raise ValueError('模型字段不能为空')
+        qualified_table_name = model.table_name
+        if getattr(model, 'schema_name', ''):
+            qualified_table_name = f"{model.schema_name}.{model.table_name}"
+        column_lines = []
+        for field in active_fields:
+            line = f"  `{field.field_name}` {field.field_type}"
+            if not field.is_nullable:
+                line += ' NOT NULL'
+            line += f" COMMENT '{cls.escape_sql_literal(field.field_comment)}'"
+            column_lines.append(line)
+        return '\n'.join([
+            f"CREATE TABLE IF NOT EXISTS {qualified_table_name} (",
+            ',\n'.join(column_lines),
+            ')',
+            f"COMMENT '{cls.escape_sql_literal(model.table_comment)}'",
+        ])
+
+    @classmethod
+    def build_datamodel_task_config(cls, model, sql_text: str) -> dict:
+        return {
+            'modelId': model.id,
+            'modelCode': model.model_code,
+            'layer': model.layer,
+            'tableName': model.table_name,
+            'schemaName': model.schema_name,
+            'tableComment': model.table_comment,
+            'engineType': model.engine_type,
+            'fieldCount': model.model_fields.filter(del_flag='0').count(),
+            'sqlText': sql_text,
+        }
+
+    @classmethod
+    def sync_datamodel_source_task(cls, model, username: str = '') -> Task:
+        sql_text = cls.build_datamodel_create_sql(model)
+        existing_task = Task.objects.filter(
+            source_module='datadev.model',
+            source_record_id=model.id,
+            del_flag='0',
+        ).first()
+        default_status = cls.MODEL_STATUS_TO_TASK_STATUS.get(model.status, 'draft')
+        preserved_status, preserved_schedule_type, preserved_cron_expression = cls.get_task_governance_defaults(existing_task)
+        task, _ = cls.upsert_source_task(
+            task_name=model.model_name,
+            task_type='SQL_COMPUTE',
+            source_module='datadev.model',
+            source_record_id=model.id,
+            status=existing_task.status if existing_task else default_status,
+            schedule_type=preserved_schedule_type,
+            cron_expression=preserved_cron_expression,
+            owner=model.owner or username,
+            task_config=cls.build_datamodel_task_config(model, sql_text),
+            remark=model.remark or '',
+            username=username,
+        )
+        if existing_task is None and task.status != default_status:
+            task.status = default_status
+            task.save(update_fields=['status', 'update_time'])
+        return task
+
+    @classmethod
+    def execute_datamodel_task(
+        cls,
+        model,
+        *,
+        username: str = '',
+        trigger_mode: str = 'manual',
+    ) -> dict:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.executors.base import ExecutorFactory
+
+        if not model.owner:
+            return {'ok': False, 'msg': '提交建表前必须填写负责人', 'data': None}
+        if not model.table_comment:
+            return {'ok': False, 'msg': '提交建表前必须填写表注释', 'data': None}
+        active_fields = model.model_fields.filter(del_flag='0').order_by('ordinal_position', 'id')
+        if not active_fields.exists():
+            return {'ok': False, 'msg': '提交建表前至少需要定义一个字段', 'data': None}
+        for field in active_fields:
+            if not field.field_comment:
+                return {'ok': False, 'msg': f'字段 {field.field_name} 缺少字段注释', 'data': None}
+
+        sql_text = cls.build_datamodel_create_sql(model)
+        existing_task = Task.objects.filter(
+            source_module='datadev.model',
+            source_record_id=model.id,
+            del_flag='0',
+        ).first()
+        preserved_status, preserved_schedule_type, preserved_cron_expression = cls.get_task_governance_defaults(existing_task)
+        task, _ = cls.upsert_source_task(
+            task_name=model.model_name,
+            task_type='SQL_COMPUTE',
+            source_module='datadev.model',
+            source_record_id=model.id,
+            status=preserved_status,
+            schedule_type=preserved_schedule_type,
+            cron_expression=preserved_cron_expression,
+            owner=model.owner or username,
+            task_config=cls.build_datamodel_task_config(model, sql_text),
+            remark=model.remark or (existing_task.remark if existing_task else ''),
+            username=username,
+        )
+        task_instance = cls.create_task_instance(
+            task=task,
+            trigger_mode=trigger_mode,
+            runtime_config={
+                'layer': model.layer,
+                'tableName': model.table_name,
+                'schemaName': model.schema_name,
+                'engineType': model.engine_type,
+            },
+            triggered_by=username or trigger_mode,
+            executor_type=model.engine_type,
+        )
+        cls.mark_instance_running(task_instance, executor_type=model.engine_type)
+
+        start_time = timezone.now()
+        start_perf = timezone.now().timestamp()
+        executor = ExecutorFactory.create_executor(
+            model.engine_type,
+            model,
+            config={'engine': model.engine_type, 'sql': sql_text},
+        )
+        status = 'success'
+        error_msg = ''
+        engine_result = {}
+        columns = []
+        rows = []
+        try:
+            is_valid, validate_message = executor.validate()
+            if not is_valid:
+                raise ValueError(validate_message)
+            engine_result = executor.execute()
+            status = engine_result.get('status') or 'success'
+            error_msg = engine_result.get('error_message') or ''
+            columns = engine_result.get('columns') or []
+            raw_rows = engine_result.get('rows') or []
+            if raw_rows and isinstance(raw_rows[0], dict):
+                rows = raw_rows
+                if not columns:
+                    columns = list(raw_rows[0].keys())
+            else:
+                rows = [dict(zip(columns, row)) for row in raw_rows]
+        except Exception as exc:
+            status = 'failed'
+            error_msg = str(exc)
+            logger.exception('模型建表失败: model_id=%s, error=%s', model.id, exc)
+        finally:
+            if executor and hasattr(executor, 'close'):
+                try:
+                    executor.close()
+                except Exception:
+                    logger.warning('关闭模型执行器失败: model_id=%s', model.id, exc_info=True)
+
+        if status == 'success' and not columns and not rows:
+            columns = ['layer', 'tableName', 'engineType', 'owner']
+            rows = [{
+                'layer': model.layer,
+                'tableName': model.table_name,
+                'engineType': model.engine_type,
+                'owner': model.owner,
+            }]
+
+        duration = round(timezone.now().timestamp() - start_perf, 2)
+        if engine_result.get('duration_seconds') not in (None, ''):
+            duration = engine_result['duration_seconds']
+        end_time = start_time + timedelta(seconds=duration)
+        result_summary = {
+            'columns': columns,
+            'rowCount': len(rows),
+            'engine': model.engine_type,
+            'tableName': model.table_name,
+            'layer': model.layer,
+            'error': error_msg,
+        }
+        cls.finalize_instance(
+            instance=task_instance,
+            status=status,
+            result_summary=result_summary,
+            error_message=error_msg,
+        )
+        if status == 'success':
+            model.status = 'deployed'
+            model.update_by = username
+            model.save(update_fields=['status', 'update_by', 'update_time'])
+            end_time = end_time
+        if status == 'failed':
+            return {
+                'ok': False,
+                'msg': f'提交建表失败: {error_msg}',
+                'data': {'taskInstanceId': task_instance.id, 'status': 'failed'},
+            }
+        return {
+            'ok': True,
+            'msg': '提交建表成功',
+            'data': {
+                'taskInstanceId': task_instance.id,
+                'executionId': task_instance.instance_id,
+                'status': status,
+                'columns': columns,
+                'rows': rows,
+                'duration': duration,
+                'generatedSql': sql_text,
+                'startedAt': start_time,
+                'finishedAt': end_time,
             },
         }
 
     @classmethod
-    def execute_task(cls, task: Task, *, username: str = '') -> dict:
+    def execute_task(
+        cls,
+        task: Task,
+        *,
+        username: str = '',
+        trigger_mode: str = 'manual',
+        runtime_config: dict | None = None,
+    ) -> dict:
         if task.source_module == 'dataintegration.task' and task.source_record_id:
             from apps.dataintegration.models import DataIntegrationTask
 
@@ -663,7 +1030,12 @@ class TaskService:
             ).first()
             if integration_task is None:
                 return {'ok': False, 'msg': '来源集成任务不存在或已删除', 'data': None}
-            return cls.execute_integration_task(integration_task, username=username)
+            return cls.execute_integration_task(
+                integration_task,
+                username=username,
+                trigger_mode=trigger_mode,
+                runtime_config=runtime_config,
+            )
 
         if task.source_module == 'datadev.script' and task.source_record_id:
             from apps.datadev.models import DataDevScript
@@ -674,6 +1046,11 @@ class TaskService:
             ).first()
             if script is None:
                 return {'ok': False, 'msg': '来源脚本不存在或已删除', 'data': None}
-            return cls.execute_datadev_script(script, username=username)
+            return cls.execute_datadev_script(
+                script,
+                username=username,
+                trigger_mode=trigger_mode,
+                runtime_config=runtime_config,
+            )
 
         return {'ok': False, 'msg': f'暂不支持执行来源模块 {task.source_module or "未知"}', 'data': None}

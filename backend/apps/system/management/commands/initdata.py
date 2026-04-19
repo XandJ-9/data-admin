@@ -204,7 +204,7 @@ class Command(BaseCommand):
             if self._ensure_role_menu(role=admin_role, menu=menu):
                 admin_grants += 1
 
-        # 为普通角色分配部分菜单（数据资产、数据任务、数据集成、数据服务的目录/页面 + 查询按钮）
+        # 为普通角色分配部分菜单（数据资产、任务运维、数据集成、数据服务的目录/页面 + 查询按钮）
         # 找到业务模块的顶级目录 ID
         biz_paths = {'/data-asset', '/datatask', '/data-integration', '/data-orchestration', '/data-service'}
         menu_by_id = {menu.menu_id: menu for menu in active_menus}

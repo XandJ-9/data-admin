@@ -16,7 +16,7 @@ from apps.common.pagination import StandardPagination
 from apps.dbutils.factory import get_executor
 from apps.datatask.services import TaskService
 
-from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory
+from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory, DataDevModel, DataDevModelField
 from .serializers import (
     ScriptListSerializer,
     ScriptCreateSerializer,
@@ -29,6 +29,10 @@ from .serializers import (
     DataDevDirectorySerializer,
     DataDevDirectoryCreateSerializer,
     DataDevDirectoryUpdateSerializer,
+    DataModelListSerializer,
+    DataModelDetailSerializer,
+    DataModelCreateUpdateSerializer,
+    DataModelQuerySerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -237,6 +241,7 @@ class ScriptViewSet(BaseViewSet):
                 script_name=vd['scriptName'],
                 script_code=vd['scriptCode'],
                 script_type=vd['scriptType'],
+                engine_type='mvp' if vd['scriptType'] == 'python' else vd.get('engineType', 'spark'),
                 description=vd.get('description', ''),
                 tags=vd.get('tags', []),
                 remark=vd.get('remark', ''),
@@ -281,6 +286,8 @@ class ScriptViewSet(BaseViewSet):
                 instance.script_name = vd['scriptName']
             if 'scriptType' in vd:
                 instance.script_type = vd['scriptType']
+            if 'engineType' in vd:
+                instance.engine_type = vd['engineType']
             if 'description' in vd:
                 instance.description = vd['description']
             if 'status' in vd:
@@ -291,6 +298,10 @@ class ScriptViewSet(BaseViewSet):
                 instance.remark = vd['remark']
             if 'directoryId' in vd:
                 instance.directory = self._resolve_directory(vd['directoryId'])
+            if instance.script_type != 'sql':
+                instance.engine_type = 'mvp'
+            elif not instance.engine_type:
+                instance.engine_type = 'spark'
             instance.update_by = username
             instance.save()
             TaskService.sync_datadev_source_task(instance, username=username)
@@ -500,3 +511,122 @@ class ScriptExecutionViewSet(BaseViewSet):
         instance = self.get_object()
         serializer = ScriptExecutionSerializer(instance)
         return self.data(serializer.data)
+
+
+class DataModelViewSet(BaseViewSet):
+    """数据建模模块。"""
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    queryset = DataDevModel.objects.prefetch_related('model_fields').all()
+    serializer_class = DataModelListSerializer
+    pagination_class = StandardPagination
+
+    def get_queryset(self):
+        qs = super().get_queryset().prefetch_related('model_fields')
+        s = DataModelQuerySerializer(data=self.request.query_params)
+        s.is_valid(raise_exception=False)
+        vd = getattr(s, 'validated_data', {})
+        if vd.get('modelName'):
+            qs = qs.filter(model_name__icontains=vd['modelName'])
+        if vd.get('layer'):
+            qs = qs.filter(layer=vd['layer'])
+        if vd.get('status'):
+            qs = qs.filter(status=vd['status'])
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        page = self.paginate_queryset(qs)
+        serializer = self.get_serializer(page if page is not None else qs, many=True)
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return self.data(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = DataModelDetailSerializer(instance)
+        result = serializer.data
+        result['fields'] = result.get('fields', [])
+        result['generatedSql'] = TaskService.build_datamodel_create_sql(instance)
+        return self.data(result)
+
+    def create(self, request, *args, **kwargs):
+        serializer = DataModelCreateUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        username = request.user.username if hasattr(request, 'user') else ''
+        with transaction.atomic():
+            model = DataDevModel.objects.create(
+                model_name=vd['modelName'],
+                model_code=vd['modelCode'],
+                layer=vd['layer'],
+                table_name=vd['tableName'],
+                schema_name=vd.get('schemaName', ''),
+                table_comment=vd['tableComment'],
+                engine_type=vd['engineType'],
+                owner=vd['owner'],
+                description=vd.get('description', ''),
+                remark=vd.get('remark', ''),
+                create_by=username,
+                update_by=username,
+            )
+            self._replace_fields(model, vd['fields'], username)
+            TaskService.sync_datamodel_source_task(model, username=username)
+        return self.data({'modelId': model.id}, msg='创建成功')
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = DataModelCreateUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        username = request.user.username if hasattr(request, 'user') else ''
+        with transaction.atomic():
+            instance.model_name = vd['modelName']
+            instance.model_code = vd['modelCode']
+            instance.layer = vd['layer']
+            instance.table_name = vd['tableName']
+            instance.schema_name = vd.get('schemaName', '')
+            instance.table_comment = vd['tableComment']
+            instance.engine_type = vd['engineType']
+            instance.owner = vd['owner']
+            instance.description = vd.get('description', '')
+            instance.remark = vd.get('remark', '')
+            instance.update_by = username
+            instance.save()
+            self._replace_fields(instance, vd['fields'], username)
+            TaskService.sync_datamodel_source_task(instance, username=username)
+        return self.data({'modelId': instance.id}, msg='保存成功')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        with transaction.atomic():
+            DataDevModelField.objects.filter(model=instance, del_flag='0').update(del_flag='1')
+            DataDevModel.objects.filter(pk=instance.pk).update(del_flag='1')
+            TaskService.soft_delete_source_task(source_module='datadev.model', source_record_id=instance.id, username=request.user.username)
+        return self.ok(msg='删除成功')
+
+    @action(detail=True, methods=['post'], url_path='submit')
+    def submit_model(self, request, pk=None):
+        model = self.get_object()
+        username = request.user.username if hasattr(request, 'user') else ''
+        result = TaskService.execute_datamodel_task(model, username=username)
+        if result['ok']:
+            return self.data(result['data'], msg=result['msg'])
+        if result['data'] is None:
+            return self.error(msg=result['msg'])
+        return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
+
+    def _replace_fields(self, model, fields_payload, username):
+        DataDevModelField.objects.filter(model=model, del_flag='0').update(del_flag='1')
+        field_objects = []
+        for index, item in enumerate(fields_payload, start=1):
+            field_objects.append(DataDevModelField(
+                model=model,
+                field_name=item['fieldName'],
+                field_type=item['fieldType'],
+                field_comment=item['fieldComment'],
+                is_nullable=item.get('isNullable', True),
+                ordinal_position=item.get('ordinalPosition') or index,
+                create_by=username,
+                update_by=username,
+            ))
+        DataDevModelField.objects.bulk_create(field_objects)

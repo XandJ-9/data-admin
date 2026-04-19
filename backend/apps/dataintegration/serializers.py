@@ -98,8 +98,6 @@ class DataIntegrationTaskCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError({'targetDataSourceId': '源数据源和目标数据源不能相同'})
         if attrs['scheduleType'] == 'cron' and not attrs.get('cronExpression'):
             raise serializers.ValidationError({'cronExpression': '定时调度模式必须配置 Cron 表达式'})
-        if attrs['executorType'] == 'datax':
-            raise serializers.ValidationError({'executorType': '当前阶段 DataX 执行链路尚未接入，请先使用 mock 执行器'})
         source_asset_id = attrs.get('sourceAssetId')
         if source_asset_id is not None:
             source_asset = DataAsset.objects.filter(id=source_asset_id, del_flag='0').first()
@@ -176,8 +174,6 @@ class DataIntegrationTaskUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError({'targetDataSourceId': '源数据源和目标数据源不能相同'})
         if schedule_type == 'cron' and not cron_expression:
             raise serializers.ValidationError({'cronExpression': '定时调度模式必须配置 Cron 表达式'})
-        if executor_type == 'datax':
-            raise serializers.ValidationError({'executorType': '当前阶段 DataX 执行链路尚未接入，请先使用 mock 执行器'})
         if source_asset_id is not None and source_datasource_id is not None:
             source_asset = DataAsset.objects.filter(id=source_asset_id, del_flag='0').first()
             if source_asset is not None and source_asset.namespace.data_source_id != source_datasource_id:
@@ -247,8 +243,6 @@ class DataIntegrationTaskValidateSerializer(serializers.Serializer):
             raise serializers.ValidationError({'targetDataSourceId': '源数据源和目标数据源不能相同'})
         if attrs['scheduleType'] == 'cron' and not attrs.get('cronExpression'):
             raise serializers.ValidationError({'cronExpression': '定时调度模式必须配置 Cron 表达式'})
-        if attrs['executorType'] == 'datax':
-            raise serializers.ValidationError({'executorType': '当前阶段 DataX 执行链路尚未接入，请先使用 mock 执行器'})
         source_asset_id = attrs.get('sourceAssetId')
         if source_asset_id is not None:
             source_asset = DataAsset.objects.filter(id=source_asset_id, del_flag='0').first()

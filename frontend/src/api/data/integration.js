@@ -95,8 +95,8 @@ export function getExecutionLogDetail(logId) {
  */
 export function getSupportedExecutors() {
   return [
-    { value: 'mock', label: 'Mock执行器', description: '当前阶段可用，用于打通任务配置与执行闭环' },
-    { value: 'datax', label: 'DataX执行器（待接入）', description: '后续用于真实数据同步执行' }
+    { value: 'mock', label: 'Mock执行器', description: '用于开发联调或无真实执行环境时的闭环验证' },
+    { value: 'datax', label: 'DataX执行器', description: '用于真实数据同步执行，依赖后端 DataX 环境配置' }
   ]
 }
 

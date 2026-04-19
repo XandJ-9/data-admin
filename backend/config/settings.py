@@ -182,7 +182,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DATAX_HOME = os.environ.get('DATAX_HOME', '/opt/datax')
 
 # DataX使用的Python解释器路径
-DATAX_PYTHON = os.environ.get('DATAX_PYTHON', 'python3')
+DATAX_PYTHON = os.environ.get('DATAX_PYTHON', '/Users/xujia/MyCode/data-admin/backend/.venv/bin/python3')
 
 # DataX作业配置文件临时目录
 DATAX_JOB_DIR = os.environ.get('DATAX_JOB_DIR', '/tmp/datax_jobs')
@@ -203,3 +203,6 @@ DATAX_ERROR_LIMIT = {
 
 SPARK_HOME=os.environ.get('SPARK_HOME', '/opt/spark')
 SPARK_MASTER=os.environ.get('SPARK_MASTER', 'spark://localhost:7077')
+SPARK_SQL_BIN=os.environ.get('SPARK_SQL_BIN', os.path.join(SPARK_HOME, 'bin', 'spark-sql'))
+HIVE_HOME=os.environ.get('HIVE_HOME', '/opt/hive')
+HIVE_BIN=os.environ.get('HIVE_BIN', os.path.join(HIVE_HOME, 'bin', 'hive'))

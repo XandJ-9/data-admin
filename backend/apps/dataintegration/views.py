@@ -176,8 +176,34 @@ class DataIntegrationTaskViewSet(BaseViewSet):
             errors.append('源数据源和目标数据源不能相同')
         if validated_data['scheduleType'] == 'cron' and not validated_data.get('cronExpression'):
             errors.append('定时调度模式必须配置 Cron 表达式')
-        if validated_data['executorType'] == 'datax':
-            errors.append('当前阶段 DataX 执行链路尚未接入，请先使用 mock 执行器完成配置联调')
+        if not errors:
+            source_asset = self._get_source_asset(validated_data.get('sourceAssetId'))
+            draft_task = DataIntegrationTask(
+                task_name=validated_data['taskName'],
+                task_code=validated_data['taskCode'],
+                source_datasource_id=validated_data['sourceDataSourceId'],
+                target_datasource_id=validated_data['targetDataSourceId'],
+                source_asset=source_asset,
+                target_schema_name=validated_data.get('targetSchemaName', ''),
+                target_table_name=validated_data['targetTableName'],
+                load_type=validated_data['loadType'],
+                write_mode=validated_data['writeMode'],
+                executor_type=validated_data['executorType'],
+                schedule_type=validated_data['scheduleType'],
+                cron_expression=validated_data.get('cronExpression', ''),
+                owner=validated_data.get('owner', ''),
+                task_config=validated_data.get('taskConfig', {}),
+                remark=validated_data.get('remark', ''),
+            )
+            draft_task.source_datasource = DataSource.objects.get(id=validated_data['sourceDataSourceId'], del_flag='0')
+            draft_task.target_datasource = DataSource.objects.get(id=validated_data['targetDataSourceId'], del_flag='0')
+            try:
+                executor = ExecutorFactory.create_executor(validated_data['executorType'], draft_task)
+                is_valid, validate_message = executor.validate()
+                if not is_valid:
+                    errors.append(validate_message)
+            except Exception as exc:
+                errors.append(str(exc))
         if errors:
             return self.error(msg='；'.join(errors))
         return self.ok(msg='校验通过')

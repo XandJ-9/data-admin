@@ -143,7 +143,7 @@
           <template #default="{ row }">
             <div class="execution-cell">
               <el-tag size="small" :type="row.executorType === 'mock' ? 'success' : 'warning'">{{ executorLabel(row.executorType) }}</el-tag>
-              <small>{{ row.executorType === 'mock' ? '当前可直接联调' : '待接入真实执行链' }}</small>
+              <small>{{ row.executorType === 'mock' ? '当前用于联调闭环' : '当前走真实执行链路' }}</small>
             </div>
           </template>
         </el-table-column>
@@ -162,7 +162,6 @@
               link
               type="primary"
               :icon="VideoPlay"
-              :disabled="row.executorType !== 'mock'"
               @click.stop="handleExecute(row)"
               v-hasPermi="['dataintegration:task:execute']"
             >执行</el-button>

@@ -47,7 +47,7 @@ export function useIntegrationPage() {
 
   const supportedExecutors = getSupportedExecutors().map(item => ({
     ...item,
-    disabled: item.value !== 'mock',
+    disabled: false,
   }))
 
   const executorOptions = supportedExecutors.map(item => ({

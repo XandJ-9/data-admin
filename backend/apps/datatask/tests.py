@@ -1,12 +1,14 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 from unittest.mock import patch
 
 from apps.datadev.models import DataDevScript, DataDevScriptExecution, DataDevScriptVersion
 from apps.dataintegration.models import DataIntegrationTask
 from apps.datasource.models import DataSource
-from .models import Task, TaskDependency
+from .models import Task, TaskDependency, TaskInstance
+from .scheduler import TaskSchedulerService
 from .services import TaskService
 from .views import TaskDependencyViewSet, TaskViewSet
 
@@ -260,6 +262,9 @@ class TaskViewSetTests(TestCase):
     @patch('apps.executors.base.ExecutorFactory.create_executor')
     def test_task_execute_should_dispatch_to_integration_source(self, mock_create_executor):
         class _MockExecutor:
+            def validate(self):
+                return True, ''
+
             def execute(self):
                 return {'status': 'success', 'rowCount': 5}
 
@@ -382,7 +387,7 @@ class TaskDependencyViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 400)
-        self.assertIn('环路', str(response.data['message']))
+        self.assertIn('环路', str(response.data.get('msg') or response.data.get('message')))
 
     def test_delete_last_dependency_restores_manual_schedule(self):
         dependency = TaskDependency.objects.create(
@@ -460,3 +465,149 @@ class TaskDependencyViewSetTests(TestCase):
             self.compute_task.task_config[TaskService.SOURCE_CRON_EXPRESSION_KEY],
             '0 3 * * *',
         )
+
+
+
+class TaskSchedulerServiceTests(TestCase):
+    def test_run_cycle_dispatches_due_cron_task(self):
+        now = timezone.now().replace(second=0, microsecond=0)
+        task = Task.objects.create(
+            task_name='定时同步任务',
+            task_code='cron_sync_orders',
+            task_type='DATA_SYNC',
+            status='active',
+            schedule_type='cron',
+            cron_expression=f'{now.minute} {now.hour} * * *',
+            create_by='tester',
+        )
+
+        with patch('apps.datatask.scheduler.TaskService.execute_task', return_value={'ok': True, 'msg': '执行成功', 'data': {'executionId': 'cron-run'}}) as execute_task:
+            summary = TaskSchedulerService.run_cycle(now=now)
+
+        execute_task.assert_called_once()
+        _, kwargs = execute_task.call_args
+        self.assertEqual(kwargs['trigger_mode'], 'schedule')
+        self.assertEqual(summary['cron']['dispatchedTaskIds'], [task.id])
+
+    def test_run_cycle_skips_cron_task_when_same_minute_already_dispatched(self):
+        now = timezone.now().replace(second=0, microsecond=0)
+        task = Task.objects.create(
+            task_name='定时同步任务',
+            task_code='cron_sync_orders_once',
+            task_type='DATA_SYNC',
+            status='active',
+            schedule_type='cron',
+            cron_expression=f'{now.minute} {now.hour} * * *',
+            create_by='tester',
+        )
+        TaskInstance.objects.create(
+            task=task,
+            instance_id='existing-schedule-instance',
+            status='success',
+            trigger_mode='schedule',
+            scheduled_at=now,
+        )
+
+        with patch('apps.datatask.scheduler.TaskService.execute_task') as execute_task:
+            summary = TaskSchedulerService.run_cycle(now=now)
+
+        execute_task.assert_not_called()
+        self.assertEqual(summary['cron']['skippedTaskIds'], [task.id])
+
+    def test_run_cycle_dispatches_dependency_task_after_all_upstreams_succeed(self):
+        now = timezone.now().replace(second=0, microsecond=0)
+        upstream_a = Task.objects.create(
+            task_name='ODS 订单同步',
+            task_code='dep_upstream_a',
+            task_type='DATA_SYNC',
+            status='active',
+            create_by='tester',
+        )
+        upstream_b = Task.objects.create(
+            task_name='ODS 门店同步',
+            task_code='dep_upstream_b',
+            task_type='DATA_SYNC',
+            status='active',
+            create_by='tester',
+        )
+        downstream = Task.objects.create(
+            task_name='DWS 汇总任务',
+            task_code='dep_downstream',
+            task_type='SQL_COMPUTE',
+            status='active',
+            schedule_type='dependency',
+            create_by='tester',
+        )
+        dep_a = TaskDependency.objects.create(upstream_task=upstream_a, downstream_task=downstream, lag_seconds=0, create_by='tester')
+        dep_b = TaskDependency.objects.create(upstream_task=upstream_b, downstream_task=downstream, lag_seconds=0, create_by='tester')
+        TaskInstance.objects.create(
+            task=upstream_a,
+            instance_id='upstream-a-success',
+            status='success',
+            trigger_mode='manual',
+            scheduled_at=now,
+            started_at=now,
+            finished_at=now,
+        )
+        TaskInstance.objects.create(
+            task=upstream_b,
+            instance_id='upstream-b-success',
+            status='success',
+            trigger_mode='manual',
+            scheduled_at=now,
+            started_at=now,
+            finished_at=now,
+        )
+
+        with patch('apps.datatask.scheduler.TaskService.execute_task', return_value={'ok': True, 'msg': '执行成功', 'data': {'executionId': 'dependency-run'}}) as execute_task:
+            summary = TaskSchedulerService.run_cycle(now=now)
+
+        execute_task.assert_called_once()
+        _, kwargs = execute_task.call_args
+        self.assertEqual(kwargs['trigger_mode'], 'dependency')
+        self.assertEqual(kwargs['runtime_config']['dependencyUpstreams'][0]['dependencyId'], dep_a.id)
+        self.assertEqual(kwargs['runtime_config']['dependencyUpstreams'][1]['dependencyId'], dep_b.id)
+        self.assertEqual(summary['dependency']['dispatchedTaskIds'], [downstream.id])
+
+    def test_run_cycle_skips_dependency_task_when_same_fingerprint_exists(self):
+        now = timezone.now().replace(second=0, microsecond=0)
+        upstream = Task.objects.create(
+            task_name='ODS 用户同步',
+            task_code='dep_upstream_single',
+            task_type='DATA_SYNC',
+            status='active',
+            create_by='tester',
+        )
+        downstream = Task.objects.create(
+            task_name='ADS 用户指标',
+            task_code='dep_downstream_single',
+            task_type='SQL_COMPUTE',
+            status='active',
+            schedule_type='dependency',
+            create_by='tester',
+        )
+        dependency = TaskDependency.objects.create(upstream_task=upstream, downstream_task=downstream, lag_seconds=0, create_by='tester')
+        upstream_instance = TaskInstance.objects.create(
+            task=upstream,
+            instance_id='upstream-single-success',
+            status='success',
+            trigger_mode='manual',
+            scheduled_at=now,
+            started_at=now,
+            finished_at=now,
+        )
+        fingerprint = TaskSchedulerService._build_dependency_fingerprint([(dependency, upstream_instance)])
+        TaskInstance.objects.create(
+            task=downstream,
+            instance_id='downstream-existing',
+            status='success',
+            trigger_mode='dependency',
+            scheduled_at=now,
+            runtime_config={'dependencyFingerprint': fingerprint},
+        )
+
+        with patch('apps.datatask.scheduler.TaskService.execute_task') as execute_task:
+            summary = TaskSchedulerService.run_cycle(now=now)
+
+        execute_task.assert_not_called()
+        self.assertEqual(summary['dependency']['skippedTaskIds'], [downstream.id])

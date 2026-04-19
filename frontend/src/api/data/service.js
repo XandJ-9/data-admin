@@ -206,3 +206,46 @@ export function importInterfaceMeta(data) {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
+
+// 报表信息：列表
+export function listReportInfo(query) {
+  return request({
+    url: '/dataservice/report-info',
+    method: 'get',
+    params: query
+  })
+}
+
+// 报表信息：详情
+export function getReportInfo(reportId) {
+  return request({
+    url: '/dataservice/report-info/' + reportId,
+    method: 'get'
+  })
+}
+
+// 报表信息：新增
+export function addReportInfo(data) {
+  return request({
+    url: '/dataservice/report-info',
+    method: 'post',
+    data: data
+  })
+}
+
+// 报表信息：修改
+export function updateReportInfo(data) {
+  return request({
+    url: '/dataservice/report-info/' + data.reportId,
+    method: 'put',
+    data: data
+  })
+}
+
+// 报表信息：删除
+export function delReportInfo(reportId) {
+  return request({
+    url: '/dataservice/report-info/' + reportId,
+    method: 'delete'
+  })
+}
