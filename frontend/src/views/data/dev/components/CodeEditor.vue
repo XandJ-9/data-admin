@@ -1,7 +1,6 @@
 <template>
   <div class="code-editor">
-    <!-- 工具栏 -->
-    <div class="editor-toolbar">
+    <div v-if="!hideToolbar" class="editor-toolbar">
       <div class="toolbar-left">
         <div class="doc-chip" :title="scriptName || '未命名脚本'">
           <span class="doc-chip-name">{{ scriptName || '未命名脚本' }}</span>
@@ -34,7 +33,6 @@
       </div>
     </div>
 
-    <!-- 编辑器主体 -->
     <div class="editor-body" ref="editorWrapperRef">
       <VAceEditor
         :value="modelValue"
@@ -71,6 +69,7 @@ const props = defineProps({
   running: { type: Boolean, default: false },
   hasChange: { type: Boolean, default: false },
   theme: { type: String, default: 'xcode' },
+  hideToolbar: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:modelValue', 'run', 'save', 'publish', 'fullscreen', 'cursor-change'])
@@ -99,18 +98,15 @@ function onInput(val) {
 
 function onEditorInit(editor) {
   aceInstance.value = editor
-  // 光标位置变化上报
   editor.selection.on('changeCursor', () => {
     const pos = editor.getCursorPosition()
     emit('cursor-change', { row: pos.row + 1, col: pos.column + 1 })
   })
-  // Ctrl/Cmd + Enter 执行
   editor.commands.addCommand({
     name: 'runScript',
     bindKey: { win: 'Ctrl-Enter', mac: 'Command-Enter' },
     exec: () => emit('run'),
   })
-  // Ctrl/Cmd + S 保存
   editor.commands.addCommand({
     name: 'saveScript',
     bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
@@ -123,11 +119,10 @@ function onMenuCommand(cmd) {
   if (!editor) return
   switch (cmd) {
     case 'format':
-      // 简易格式化：利用 ace beautify 扩展或保持原样
       try {
         const beautify = ace.require('ace/ext/beautify')
         if (beautify) beautify.beautify(editor.session)
-      } catch { /* noop */ }
+      } catch {}
       break
     case 'undo':
       editor.undo()
@@ -216,13 +211,16 @@ defineExpose({ getEditor: () => aceInstance.value })
     padding: 6px 8px;
     flex-wrap: wrap;
   }
+
   .toolbar-right {
     width: 100%;
     flex-wrap: wrap;
   }
+
   .doc-chip {
     max-width: 100%;
   }
+
   .doc-chip-name {
     max-width: 160px;
   }
