@@ -2,12 +2,12 @@
   <div class="app-container task-detail-page" v-loading="loading">
     <div class="page-head">
       <div>
-        <div class="page-path">数据任务 / 任务详情</div>
+        <div class="page-path">任务运维 / 任务详情</div>
         <h1>{{ taskDetail.taskName || '任务详情' }}</h1>
-        <p>{{ taskDetail.remark || '这里展示统一任务视角下的配置、来源和运行概况。' }}</p>
+        <p>{{ taskDetail.remark || '这里展示任务运维视角下的数据集成/数据开发任务配置、来源和运行概况。' }}</p>
       </div>
       <div class="page-actions">
-        <el-button :icon="ArrowLeft" @click="goBack">返回任务中心</el-button>
+        <el-button :icon="ArrowLeft" @click="goBack">返回任务运维</el-button>
         <el-button
           type="primary"
           plain
@@ -288,10 +288,7 @@ function openSourceDetail() {
     return
   }
   if (taskDetail.value.sourceModule === 'datadev.script') {
-    router.push({
-      name: 'DataDevIde',
-      query: { scriptId: taskDetail.value.sourceRecordId },
-    })
+    router.push(`/datadev/ide/detail/${taskDetail.value.sourceRecordId}`)
   }
 }
 
