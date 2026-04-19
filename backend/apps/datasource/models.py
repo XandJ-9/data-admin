@@ -14,6 +14,14 @@ class DataSource(BaseModel):
     params = models.TextField(blank=True, default='', verbose_name='连接参数(JSON 或 KV)')
     status = models.CharField(max_length=1, choices=[('0', '正常'), ('1', '停用')], default='0', verbose_name='状态')
     remark = models.CharField(max_length=500, blank=True, default='', verbose_name='备注')
+    connectivity_status = models.CharField(
+        max_length=16,
+        choices=[('unknown', '未测试'), ('success', '连通'), ('failed', '异常')],
+        default='unknown',
+        verbose_name='最近连通性状态',
+    )
+    connectivity_message = models.CharField(max_length=255, blank=True, default='', verbose_name='最近连通性说明')
+    connectivity_tested_at = models.DateTimeField(blank=True, null=True, verbose_name='最近连通性测试时间')
 
     class Meta:
         db_table = 'dataasset_datasource'

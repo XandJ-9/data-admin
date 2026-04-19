@@ -5,10 +5,7 @@ export function listDatasource(query) {
   return request({
     url: '/datasource/datasource',
     method: 'get',
-    params: query,
-    headers: {
-      'repeatSubmit': false
-    }
+    params: query
   })
 }
 

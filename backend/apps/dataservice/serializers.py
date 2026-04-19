@@ -3,12 +3,45 @@ from apps.system.serializers import BaseModelSerializer
 from apps.dataservice.models import QueryLog, InterfaceInfo, InterfaceField
 
 
+def _validate_total_sql_requirement(is_total_value, total_sql_value):
+    if is_total_value == '1' and not str(total_sql_value or '').strip():
+        raise serializers.ValidationError('启用合计时必须填写合计SQL')
+
+
 class DataServiceQuerySerializer(serializers.Serializer):
     dataSourceId = serializers.IntegerField()
     sql = serializers.CharField()
     params = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False, allow_empty=True, allow_null=True)
     pageSize = serializers.IntegerField(required=False, min_value=1, default=50)
     offset = serializers.IntegerField(required=False, min_value=0, default=0)
+
+
+class InterfacePublishSerializer(serializers.Serializer):
+    dataSourceId = serializers.IntegerField()
+    sql = serializers.CharField()
+    params = serializers.DictField(
+        child=serializers.CharField(allow_blank=True),
+        required=False,
+        allow_empty=True,
+        allow_null=True,
+    )
+    outputColumns = serializers.ListField(child=serializers.CharField(allow_blank=True), allow_empty=False)
+    interfaceName = serializers.CharField(max_length=255)
+    interfaceCode = serializers.RegexField(r'^[A-Za-z0-9_-]+$', max_length=255)
+    interfaceDesc = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    isTotal = serializers.ChoiceField(required=False, choices=['0', '1'], default='0')
+    totalSql = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    isPaging = serializers.ChoiceField(required=False, choices=['0', '1'], default='1')
+    enable = serializers.ChoiceField(required=False, choices=['0', '1'], default='1')
+
+    def validate(self, attrs):
+        _validate_total_sql_requirement(attrs.get('isTotal', '0'), attrs.get('totalSql'))
+        return attrs
+
+
+class InterfaceChangeStatusSerializer(serializers.Serializer):
+    interfaceId = serializers.IntegerField()
+    enable = serializers.ChoiceField(choices=['0', '1'])
 
 
 class DataServiceQueryLogSerializer(BaseModelSerializer):
@@ -58,6 +91,10 @@ class InterfaceInfoSerializer(BaseModelSerializer):
             'userName', 'interfaceDatasource','enable','reportName','reportCode',
             'moduleName','platformName'
         ]
+
+    def validate(self, attrs):
+        _validate_total_sql_requirement(attrs.get('is_total', '0'), attrs.get('total_sql'))
+        return attrs
 
 
 class InterfaceInfoCreateSerializer(InterfaceInfoSerializer):

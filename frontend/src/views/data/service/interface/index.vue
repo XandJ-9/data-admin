@@ -1,7 +1,6 @@
 <!-- eslint-disable vue/no-v-model-argument -->
 <template>
   <div class="app-container">
-    <!-- 搜索栏 -->
     <el-form v-if="showSearch" :model="queryParams" ref="queryRef" :inline="true">
       <el-form-item label="接口名称" prop="interfaceName">
         <el-input v-model="queryParams.interfaceName" placeholder="请输入接口名称" clearable style="width: 200px" @keyup.enter="getList" />
@@ -14,19 +13,23 @@
           <el-option v-for="item in dbTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
       </el-form-item>
+      <el-form-item label="负责人" prop="userName">
+        <el-input v-model="queryParams.userName" placeholder="请输入负责人" clearable style="width: 200px" @keyup.enter="getList" />
+      </el-form-item>
+      <el-form-item label="接口状态" prop="enable">
+        <el-select v-model="queryParams.enable" placeholder="请选择接口状态" clearable style="width: 200px">
+          <el-option v-for="dict in enable_options" :key="dict.value" :label="dict.label" :value="dict.value" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="getList">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
       </el-form-item>
     </el-form>
 
-    <!-- 工具栏 -->
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
         <el-button type="primary" plain icon="Plus" @click="handleAdd" v-hasPermi="['dataservice:interface:add']">新增</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <!-- <el-button type="success" plain icon="Edit" :disabled="single" @click="handleUpdate" v-hasPermi="['dataservice:interface:edit']">修改</el-button> -->
       </el-col>
       <el-col :span="1.5">
         <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
@@ -48,17 +51,20 @@
       <right-toolbar :showSearch="showSearch" @update:showSearch="val => (showSearch = val)" @queryTable="getList" />
     </el-row>
 
-    <!-- 列表 -->
     <el-table v-loading="loading" :data="dataList" @selection-change="handleSelectionChange" border>
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="接口名称" prop="interfaceName" width="200" :show-overflow-tooltip="true" />
       <el-table-column label="接口编码" prop="interfaceCode" width="200" :show-overflow-tooltip="true" />
+      <el-table-column label="负责人" prop="userName" width="140" :show-overflow-tooltip="true" />
       <el-table-column label="数据库类型" prop="interfaceDbType" width="120" />
       <el-table-column label="数据库名称" prop="interfaceDbName" :show-overflow-tooltip="true" />
       <el-table-column label="业务平台" prop="platformName" width="120" :show-overflow-tooltip="true" />
       <el-table-column label="模块名称" prop="moduleName" width="120" :show-overflow-tooltip="true" />
-      <el-table-column label="报表名称" prop="reportName" width="120" :show-overflow-tooltip="true" />
-      <el-table-column label="报表编码" prop="reportCode" width="120" :show-overflow-tooltip="true" />
+      <el-table-column label="状态" prop="enable" width="90">
+        <template #default="scope">
+          <dict-tag :options="enable_options" :value="scope.row.enable" />
+        </template>
+      </el-table-column>
       <el-table-column label="分页" prop="isPaging" width="80">
         <template #default="scope">
           <dict-tag :options="yes_no_options" :value="scope.row.isPaging" />
@@ -89,18 +95,22 @@
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="200" fixed="right">
+      <el-table-column label="操作" align="center" width="300" fixed="right">
         <template #default="scope">
-          <el-button link size="small" type="primary" icon="View" @click="openDetail(scope.row)">明细</el-button>
-          <el-button link size="small" type="primary" icon="Coin" @click="openExecute(scope.row)" v-hasPermi="['dataservice:interface:execute']">查询</el-button>
+          <el-button link size="small" type="primary" icon="View" @click="openDetail(scope.row)">详情</el-button>
           <el-button link size="small" type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['dataservice:interface:edit']">修改</el-button>
-          <!-- <el-button link size="small" type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['dataservice:interface:remove']">删除</el-button> -->
-          <!-- <el-button link size="small" type="warning" icon="Download" @click="handleExport(scope.row)" v-hasPermi="['dataservice:interface:export']">导出数据</el-button> -->
+          <el-button
+            link
+            size="small"
+            :type="scope.row.enable === '1' ? 'warning' : 'success'"
+            @click="handleChangeStatus(scope.row)"
+            v-hasPermi="['dataservice:interface:edit']"
+          >{{ scope.row.enable === '1' ? '下线' : '上线' }}</el-button>
+          <el-button link size="small" type="danger" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['dataservice:interface:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <!-- 分页 -->
     <pagination
       v-show="total > 0"
       :total="total"
@@ -111,7 +121,6 @@
       @pagination="getList"
     />
 
-    <!-- 新增/修改弹窗 -->
     <el-dialog :title="title" v-model="open" width="900px" append-to-body>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="140px">
         <el-row :gutter="20">
@@ -193,6 +202,11 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="负责人" prop="userName">
+              <el-input v-model="form.userName" placeholder="默认取当前登录用户" />
+            </el-form-item>
+          </el-col>
           <el-col :span="24">
             <el-form-item label="接口描述" prop="interfaceDesc">
               <el-input v-model="form.interfaceDesc" type="textarea" :rows="2" placeholder="请输入接口描述" />
@@ -205,7 +219,7 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="合计SQL" prop="totalSql">
-              <el-input v-model="form.totalSql" type="textarea" :rows="3" placeholder="可选：合计 SQL" />
+              <el-input v-model="form.totalSql" type="textarea" :rows="3" :placeholder="form.isTotal === '1' ? '请输入合计 SQL' : '未启用合计时可留空'" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -218,16 +232,6 @@
               <el-input v-model="form.moduleName" placeholder="请输入模块名称" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="报表编码" prop="reportCode">
-              <el-input v-model="form.reportCode" placeholder="请输入报表编码" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="报表名称" prop="reportName">
-              <el-input v-model="form.reportName" placeholder="请输入报表名称" />
-            </el-form-item>
-          </el-col>
         </el-row>
       </el-form>
       <template #footer>
@@ -237,53 +241,19 @@
         </div>
       </template>
     </el-dialog>
-
-    <!-- 执行查询弹窗 -->
-    <el-dialog :title="execTitle" v-model="execOpen" width="900px" append-to-body>
-      <el-form label-width="120px">
-        <el-row :gutter="20">
-          <el-col :span="24">
-            <el-form-item label="参数(JSON)">
-              <el-input v-model="execForm.paramsJson" type="textarea" :rows="5" placeholder='例如: {&#10;  "startDate": "2024-01-01",&#10;  "endDate": "2024-12-31"&#10;}' />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="每页条数">
-              <el-input-number v-model="execForm.pageSize" :min="1" :max="5000" controls-position="right" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="偏移量">
-              <el-input-number v-model="execForm.offset" :min="0" controls-position="right" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-      <el-divider />
-      <el-table v-loading="execLoading" :data="execRows" height="300px" style="width: 100%">
-        <el-table-column v-for="col in execColumns" :key="col" :prop="col" :label="col" :show-overflow-tooltip="true" />
-      </el-table>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="runExecute">执行查询</el-button>
-          <el-button type="warning" @click="exportFromDialog">导出数据</el-button>
-          <el-button @click="execOpen = false">关 闭</el-button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
-  
 </template>
 
 <script setup name="DataServiceInterface">
 /* eslint-disable vue/no-v-model-argument */
-import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, executeInterfaceById, exportInterfaceById, importInterfaceMeta } from '@/api/data/service'
+import { listInterfaceInfo, getInterfaceInfo, addInterfaceInfo, updateInterfaceInfo, delInterfaceInfo, changeInterfaceStatus, importInterfaceMeta } from '@/api/data/service'
 import { listDatasource } from '@/api/data/datasource'
+import useUserStore from '@/store/modules/user'
 import { useRouter } from 'vue-router'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
-const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
+const userStore = useUserStore()
 
 const yes_no_options = [
   { value: '1', label: '是' },
@@ -294,6 +264,7 @@ const enable_options = [
   { value: '1', label: '启用' },
   { value: '0', label: '禁用' },
 ]
+
 const alarm_type_options = [
   { value: '0', label: '否' },
   { value: '1', label: '邮件' },
@@ -308,21 +279,25 @@ const dataList = ref([])
 const loading = ref(true)
 const showSearch = ref(true)
 const ids = ref([])
-const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const open = ref(false)
 const title = ref('')
-
 const datasourceOptions = ref([])
-
-// 导入相关
 const uploadRef = ref(null)
+
+const dbTypeOptions = ref([
+  { value: 'mysql', label: 'MySQL' },
+  { value: 'postgres', label: 'PostgreSQL' },
+  { value: 'presto', label: 'Presto' },
+  { value: 'trino', label: 'Trino' },
+  { value: 'starrocks', label: 'StarRocks' },
+])
 
 function customUpload(option) {
   const formData = new FormData()
   formData.append('file', option.file)
-  proxy.$modal.loading("正在导入数据，请稍候...")
+  proxy.$modal.loading('正在导入数据，请稍候...')
   importInterfaceMeta(formData).then(res => {
     proxy.$modal.closeLoading()
     proxy.$modal.msgSuccess(res.msg)
@@ -333,65 +308,49 @@ function customUpload(option) {
   })
 }
 
-// 导出接口信息
 function handleExport() {
-    // 验证是否选择了接口
-    if (ids.value.length == 0) {
-        proxy.$modal.msgWarning('请先选择要导出的接口')
-        return
-    }
+  if (ids.value.length === 0) {
+    proxy.$modal.msgWarning('请先选择要导出的接口')
+    return
+  }
+  if (ids.value.length > 10) {
+    proxy.$modal.msgWarning('一次最多只能导出10个接口，请减少选择数量')
+    return
+  }
 
-    // 验证导出数量
-    if (ids.value.length > 10) {
-        proxy.$modal.msgWarning('一次最多只能导出10个接口，请减少选择数量')
-        return
-    }
+  proxy.$modal.loading(`正在导出 ${ids.value.length} 个接口的元数据，请稍候...`)
+  let successCount = 0
+  let failCount = 0
+  const selectedTotal = ids.value.length
 
-    // 显示加载提示
-    proxy.$modal.loading(`正在导出 ${ids.value.length} 个接口的元数据，请稍候...`)
-
-    // 执行导出
-    let successCount = 0
-    let failCount = 0
-    const total = ids.value.length
-
-    ids.value.forEach(id => {
-        proxy.download('/dataservice/interface-info/' + id + '/export-meta', {}, `interface_${id}_meta.xlsx`)
-            .then(() => {
-                successCount++
-            })
-            .catch(() => {
-                failCount++
-            })
-            .finally(() => {
-                // 当所有导出请求完成后
-                if (successCount + failCount === total) {
-                    proxy.$modal.closeLoading()
-                    if (failCount === 0) {
-                        proxy.$modal.msgSuccess(`成功导出 ${successCount} 个接口元数据`)
-                    } else {
-                        proxy.$modal.msgWarning(`导出完成：成功 ${successCount} 个，失败 ${failCount} 个`)
-                    }
-                }
-            })
-    })
+  ids.value.forEach(id => {
+    proxy.download('/dataservice/interface-info/' + id + '/export-meta', {}, `interface_${id}_meta.xlsx`)
+      .then(() => {
+        successCount++
+      })
+      .catch(() => {
+        failCount++
+      })
+      .finally(() => {
+        if (successCount + failCount === selectedTotal) {
+          proxy.$modal.closeLoading()
+          if (failCount === 0) {
+            proxy.$modal.msgSuccess(`成功导出 ${successCount} 个接口元数据`)
+          } else {
+            proxy.$modal.msgWarning(`导出完成：成功 ${successCount} 个，失败 ${failCount} 个`)
+          }
+        }
+      })
+  })
 }
 
-// 执行查询弹窗与结果
-const execOpen = ref(false)
-const execTitle = ref('执行查询')
-const execLoading = ref(false)
-const execForm = ref({ interfaceId: undefined, paramsJson:undefined, pageSize: 50, offset: 0 })
-const execRows = ref([])
-const execColumns = ref([])
-
-const dbTypeOptions = ref([
-  { value: 'mysql', label: 'MySQL' },
-  { value: 'postgres', label: 'PostgreSQL' },
-  { value: 'presto', label: 'Presto' },
-  { value: 'trino', label: 'Trino' },
-  { value: 'starrocks', label: 'StarRocks' },
-])
+function validateTotalSql(rule, value, callback) {
+  if (form.value.isTotal === '1' && !String(value || '').trim()) {
+    callback(new Error('启用合计时必须填写合计SQL'))
+    return
+  }
+  callback()
+}
 
 const data = reactive({
   form: {},
@@ -401,12 +360,15 @@ const data = reactive({
     interfaceName: undefined,
     interfaceCode: undefined,
     interfaceDbType: undefined,
+    userName: undefined,
+    enable: undefined,
   },
   rules: {
     interfaceName: [{ required: true, message: '接口名称不能为空', trigger: 'blur' }],
     interfaceCode: [{ required: true, message: '接口编码不能为空', trigger: 'blur' }],
     interfaceDbType: [{ required: true, message: '数据库类型不能为空', trigger: 'change' }],
     interfaceDbName: [{ required: true, message: '数据库名称不能为空', trigger: 'blur' }],
+    totalSql: [{ validator: validateTotalSql, trigger: 'blur' }],
   },
 })
 
@@ -423,16 +385,14 @@ function getList() {
   })
 }
 
-
 function resetQuery() {
-    proxy.resetForm('queryRef')
-    queryParams.value.pageNum = 1
-    getList()
+  proxy.resetForm('queryRef')
+  queryParams.value.pageNum = 1
+  getList()
 }
 
 function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.interfaceId)
-  single.value = selection.length !== 1
   multiple.value = selection.length === 0
 }
 
@@ -453,12 +413,11 @@ function reset() {
     isSecondTable: '0',
     isLoginVisit: '0',
     alarmType: '0',
-    userName: undefined,
+    enable: '1',
+    userName: userStore.name || undefined,
     interfaceDatasource: undefined,
     platformName: undefined,
     moduleName: undefined,
-    reportCode: undefined,
-    reportName: undefined,
   }
   proxy.resetForm('formRef')
 }
@@ -486,17 +445,25 @@ function handleUpdate(row) {
   })
 }
 
+function buildSubmitPayload() {
+  const payload = { ...form.value }
+  delete payload.reportName
+  delete payload.reportCode
+  return payload
+}
+
 function submitForm() {
-  proxy.$refs['formRef'].validate(valid => {
+  proxy.$refs.formRef.validate(valid => {
     if (!valid) return
+    const payload = buildSubmitPayload()
     if (form.value.interfaceId !== undefined) {
-      updateInterfaceInfo(form.value).then(() => {
+      updateInterfaceInfo(payload).then(() => {
         proxy.$modal.msgSuccess('修改成功')
         open.value = false
         getList()
       })
     } else {
-      addInterfaceInfo(form.value).then(() => {
+      addInterfaceInfo(payload).then(() => {
         proxy.$modal.msgSuccess('新增成功')
         open.value = false
         getList()
@@ -505,92 +472,41 @@ function submitForm() {
   })
 }
 
-function handleDelete(row) {
-  const idsParam = row?.interfaceId || ids.value
-  proxy.$modal.confirm('是否确认删除' + idsParam.length + '个数据项？').then(function() {
-    return delInterfaceInfo(idsParam)
+function handleChangeStatus(row) {
+  const targetEnable = row.enable === '1' ? '0' : '1'
+  const actionText = targetEnable === '1' ? '上线' : '下线'
+  proxy.$modal.confirm(`是否确认${actionText}接口“${row.interfaceName}”？`).then(() => {
+    return changeInterfaceStatus(row.interfaceId, targetEnable)
   }).then(() => {
+    proxy.$modal.msgSuccess(`${actionText}成功`)
     getList()
-    proxy.$modal.msgSuccess('删除成功')
   }).catch(() => {})
 }
 
-function openDetail(row) {
+function handleDelete(row) {
+  const selectedIds = row?.interfaceId ? [row.interfaceId] : ids.value
+  if (!selectedIds.length) return
+  const confirmText = row?.interfaceId
+    ? `是否确认删除接口“${row.interfaceName}”？删除前需先下线。`
+    : `是否确认删除已选择的 ${selectedIds.length} 个接口？删除前需先下线。`
+  proxy.$modal.confirm(confirmText).then(() => {
+    return delInterfaceInfo(selectedIds.join(','))
+  }).then(() => {
+    proxy.$modal.msgSuccess('删除成功')
+    getList()
+  }).catch(() => {})
+}
+
+function openDetail(row, activeTab = 'definition') {
   const id = row?.interfaceId
   if (!id) return
-    //   router.push('/dataservice/interface/detail/' + id)
-    router.push({ name: 'InterfaceDetail', params: { interfaceId: id } })
+  const query = activeTab === 'test' ? { tab: 'test' } : undefined
+  router.push({ name: 'InterfaceDetail', params: { interfaceId: id }, query })
 }
 
 function loadDatasourceOptions() {
   listDatasource().then(res => {
     datasourceOptions.value = res.rows || []
-  })
-}
-
-function openExecute(row) {
-  execRows.value = []
-  execColumns.value = []
-  execForm.value.interfaceId = row?.interfaceId
-  execOpen.value = true
-  execTitle.value = `执行查询 - ${row?.interfaceName || ''}`
-}
-
-function runExecute() {
-  const id = execForm.value.interfaceId
-  if (!id) return
-  let paramsObj = null
-  if (execForm.value.paramsJson && execForm.value.paramsJson.trim()) {
-    try {
-      paramsObj = JSON.parse(execForm.value.paramsJson)
-    } catch (e) {
-      proxy.$modal.msgError('参数JSON格式错误')
-      return
-    }
-  }
-  execLoading.value = true
-  executeInterfaceById(id, { params: paramsObj || {}, pageSize: execForm.value.pageSize, offset: execForm.value.offset }).then(res => {
-      const rows = res.data?.rows
-      execColumns.value = res.data?.columns || []
-      execRows.value = rows.map(item => {
-          const rowObj = {}
-          execColumns.value.forEach((col, index) => {
-              rowObj[col] = item[index]
-          })
-          return rowObj
-      })
-  }).catch(err => {
-    proxy.$modal.msgError(err?.msg || '执行失败')
-  }).finally(() => {
-    execLoading.value = false
-  })
-}
-
-function exportFromDialog() {
-  const id = execForm.value.interfaceId
-  if (!id) return
-  let paramsObj = null
-  if (execForm.value.paramsJson && execForm.value.paramsJson.trim()) {
-    try {
-      paramsObj = JSON.parse(execForm.value.paramsJson)
-    } catch (e) {
-      // 使用空参数
-      paramsObj = null
-    }
-  }
-  exportInterfaceById(id, { params: paramsObj || {}, pageSize: execForm.value.pageSize || 1000, offset: execForm.value.offset || 0 }).then(res => {
-    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `interface_${id}_export.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-    proxy.$modal.msgSuccess('导出成功')
-  }).catch(err => {
-    proxy.$modal.msgError(err?.msg || '导出失败')
   })
 }
 

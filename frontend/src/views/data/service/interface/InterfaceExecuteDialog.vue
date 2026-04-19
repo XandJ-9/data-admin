@@ -94,11 +94,14 @@ function handleExecute() {
     pageSize: execForm.value.pageSize,
     offset: execForm.value.offset
   }).then(res => {
-    const rows = res.data?.rows
-    execColumns.value = res.data?.columns || []
-    execRows.value = rows.map(item => {
+    const records = Array.isArray(res.data) ? res.data : (res.data?.list || [])
+    execColumns.value = Object.keys(records[0] || {})
+    execRows.value = records.map(item => {
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        return item
+      }
       const rowObj = {}
-      execColumns.value.forEach((col, index) => { rowObj[col] = item[index] })
+      execColumns.value.forEach((col, index) => { rowObj[col] = Array.isArray(item) ? item[index] : undefined })
       return rowObj
     })
   }).catch(err => {

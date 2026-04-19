@@ -74,7 +74,6 @@ import { listTables, listColumns, collectMetaTable, listDatabases,
          collectMetaAsync, getCollectStatus, cancelCollect } from '@/api/data/asset'
 import { onMounted } from 'vue'
 const { proxy } = getCurrentInstance()
-const route = useRoute()
 
 const dsId = ref()
 const dsList = ref([])
@@ -168,7 +167,7 @@ function startStatusPolling() {
                 statusPollTimer.value = null
                 asyncCollecting.value = false
 
-                if (status.status === 'completed') {
+                if (data.status === 'completed') {
                     proxy.$modal.msgSuccess('采集完成')
                     collectStatusText.value = '采集完成'
                     getTables()
@@ -225,11 +224,6 @@ onUnmounted(() => {
 
 onMounted(() => {
     getDsList()
-    // 从路由参数获取数据源ID
-    const dataSourceId = route.params.id || route.query.dataSourceId
-    if (dataSourceId) {
-        dsId.value = parseInt(dataSourceId)
-    }
 })
 
 watch(dsId, v => {

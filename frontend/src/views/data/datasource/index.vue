@@ -88,10 +88,26 @@
           <el-tag :type="getDbTypeTag(scope.row.dbType)">{{ scope.row.dbType }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="主机" prop="host" :show-overflow-tooltip="true" />
-      <el-table-column label="端口" prop="port" width="90" align="center" />
       <el-table-column label="数据库" prop="dbName" :show-overflow-tooltip="true" />
-      <el-table-column label="用户名" prop="username" width="120" :show-overflow-tooltip="true" />
+      <el-table-column label="连通性" min-width="140">
+        <template #default="scope">
+          <el-tooltip placement="top" effect="dark">
+            <template #content>
+              <div class="connectivity-tooltip">
+                <div class="connectivity-tooltip-title">{{ getConnectivityLabel(scope.row.connectivityStatus) }}</div>
+                <div class="connectivity-tooltip-item">最近测试：{{ getConnectivityTime(scope.row) }}</div>
+                <div class="connectivity-tooltip-item">结果说明：{{ getConnectivityMessage(scope.row) }}</div>
+              </div>
+            </template>
+            <div class="connectivity-trigger">
+              <el-tag :type="getConnectivityTag(scope.row.connectivityStatus)">
+                {{ getConnectivityLabel(scope.row.connectivityStatus) }}
+              </el-tag>
+              <span class="connectivity-hint">详情</span>
+            </div>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" prop="status" width="80" align="center">
         <template #default="scope">
           <el-tag :type="scope.row.status === '0' ? 'success' : 'danger'">
@@ -111,13 +127,6 @@
             @click="handleTest(scope.row)"
             v-hasPermi="['system:datasource:edit']"
           >测试</el-button>
-          <el-button
-            link
-            type="primary"
-            icon="View"
-            @click="handleView(scope.row)"
-            v-hasPermi="['system:datasource:query']"
-          >查看</el-button>
           <el-button
             link
             type="primary"
@@ -145,7 +154,7 @@
     />
 
     <!-- 添加/修改对话框 -->
-    <el-dialog :title="title" v-model="open" width="600px" append-to-body>
+    <el-dialog :title="title" v-model="open" width="min(600px, 90vw)" append-to-body>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="数据源名称" prop="dataSourceName">
           <el-input v-model="form.dataSourceName" placeholder="请输入数据源名称" maxlength="64" />
@@ -174,7 +183,7 @@
           <el-input v-model="form.username" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item label="密码" prop="password" v-if="form.dbType !== 'sqlite'">
-          <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password />
+          <el-input v-model="form.password" type="password" :placeholder="form.dataSourceId ? '留空则不修改密码' : '请输入密码'" show-password />
         </el-form-item>
         <el-form-item label="连接参数" prop="params">
           <el-input v-model="form.params" type="textarea" placeholder='请输入连接参数，格式：{"key":"value"}' />
@@ -258,6 +267,15 @@ function validateRequiredIfNotSqlite(rule, value, callback) {
   }
 }
 
+/** 条件验证：非SQLite且新增时必填，编辑时允许为空 */
+function validatePasswordRequired(rule, value, callback) {
+  if (form.value.dbType !== 'sqlite' && !form.value.dataSourceId && !value) {
+    callback(new Error('密码不能为空'))
+  } else {
+    callback()
+  }
+}
+
 const rules = ref({
   dataSourceName: [
     { required: true, message: '数据源名称不能为空', trigger: 'blur' }
@@ -278,7 +296,7 @@ const rules = ref({
     { validator: validateRequiredIfNotSqlite, trigger: 'blur', message: '用户名不能为空' }
   ],
   password: [
-    { validator: validateRequiredIfNotSqlite, trigger: 'blur', message: '密码不能为空' }
+    { validator: validatePasswordRequired, trigger: 'blur' }
   ],
   params: [
     { validator: validateParamsJson, trigger: 'blur' }
@@ -352,8 +370,8 @@ function handleUpdate(row) {
   getDatasource(id).then(response => {
     form.value = {
       ...response.data,
-      // 如果密码是加密的，在编辑时清空，用户可以选择不修改密码
-      password: response.data.password ? '' : ''
+      // 编辑时不回填密码，留空表示不修改
+      password: ''
     }
     open.value = true
     title.value = '修改数据源'
@@ -381,24 +399,29 @@ function submitForm() {
   })
 }
 
-/** 查看按钮操作 */
-function handleView(row) {
-  proxy.$router.push({
-    // name: 'DataSourceDetail',
-    name: 'DataSourceView',
-    params: { id: row.dataSourceId }
-  })
-}
-
 /** 删除按钮操作 */
 function handleDelete(row) {
   const deleteIds = row.dataSourceId || ids.value.join(',')
-  proxy.$modal.confirm('是否确认删除数据源编号为"' + deleteIds + '"的数据项？').then(() => {
+  let deleteName
+  if (row.dataSourceName) {
+    deleteName = row.dataSourceName
+  } else {
+    const selectedNames = dataList.value
+      .filter(item => ids.value.includes(item.dataSourceId))
+      .map(item => item.dataSourceName)
+    deleteName = selectedNames.join('、') || `编号 ${deleteIds}`
+  }
+  proxy.$modal.confirm('是否确认删除数据源"' + deleteName + '"？删除后不可恢复。').then(() => {
     return delDatasource(deleteIds)
   }).then(() => {
     getList()
     proxy.$modal.msgSuccess('删除成功')
-  }).catch(() => {})
+  }).catch((err) => {
+    // 仅当非用户取消操作时提示（错误对象有 __handled 标记已由拦截器显示）
+    if (err && err !== 'cancel' && !err.__handled) {
+      proxy.$modal.msgError(err.message || '删除失败')
+    }
+  })
 }
 
 /** 测试连接 - 按ID */
@@ -407,6 +430,8 @@ function handleTest(row) {
   proxy.$modal.confirm('是否测试连接数据源"' + row.dataSourceName + '"？').then(() => {
     testDatasource(id).then(response => {
       proxy.$modal.msgSuccess(response.msg || '连接成功')
+    }).catch(() => {}).finally(() => {
+      getList()
     })
   }).catch(() => {})
 }
@@ -427,7 +452,6 @@ function handleTestByBody() {
 
 /** 数据库类型变化 */
 function handleDbTypeChange(value) {
-  // 设置默认端口
   const portMap = {
     mysql: 3306,
     postgresql: 5432,
@@ -436,14 +460,27 @@ function handleDbTypeChange(value) {
     presto: 8080,
     starrocks: 9030
   }
-  if (value !== 'sqlite' && !form.value.port) {
-    form.value.port = portMap[value] || 3306
-  }
   if (value === 'sqlite') {
+    // 保存当前连接信息，切回时恢复
+    form.value._savedConn = {
+      host: form.value.host,
+      port: form.value.port,
+      username: form.value.username,
+      password: form.value.password
+    }
     form.value.host = ''
     form.value.port = 0
     form.value.username = ''
     form.value.password = ''
+  } else if (form.value._savedConn) {
+    // 从 SQLite 切回，恢复之前保存的连接信息
+    form.value.host = form.value._savedConn.host || 'localhost'
+    form.value.username = form.value._savedConn.username || ''
+    form.value.password = form.value._savedConn.password || ''
+    form.value.port = portMap[value] || 3306
+    form.value._savedConn = null
+  } else {
+    form.value.port = portMap[value] || 3306
   }
 }
 
@@ -461,5 +498,62 @@ function getDbTypeTag(dbType) {
   return tagMap[dbType] || ''
 }
 
+function getConnectivityTag(status) {
+  const tagMap = {
+    success: 'success',
+    failed: 'danger',
+    unknown: 'info'
+  }
+  return tagMap[status] || 'info'
+}
+
+function getConnectivityLabel(status) {
+  const labelMap = {
+    success: '已连通',
+    failed: '异常',
+    unknown: '未测试'
+  }
+  return labelMap[status] || '未测试'
+}
+
+function getConnectivityTime(row) {
+  return row.connectivityTestedAt || '尚未测试或配置已变更'
+}
+
+function getConnectivityMessage(row) {
+  if (row.connectivityMessage) {
+    return row.connectivityMessage
+  }
+  return row.connectivityStatus === 'unknown' ? '尚未测试或配置已变更' : '连接成功'
+}
+
 getList()
 </script>
+
+<style scoped>
+.connectivity-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.connectivity-hint {
+  font-size: 12px;
+  color: var(--el-color-primary);
+}
+
+.connectivity-tooltip {
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.connectivity-tooltip-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.connectivity-tooltip-item {
+  font-size: 12px;
+}
+</style>

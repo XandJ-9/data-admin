@@ -1,6 +1,8 @@
 import json
 import logging
 
+from django.db.models import ProtectedError
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 
@@ -12,7 +14,7 @@ from apps.common.encrypt import decrypt_password, encrypt_password
 from .models import DataSource
 from .serializers import (
     DataSourceSerializer, DataSourceQuerySerializer,
-    DataSourceUpdateSerializer, DataSourceCreateSerializer,
+    DataSourceUpdateSerializer, DataSourceCreateSerializer, DataSourceTestSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,13 @@ def _sanitize_db_error_message(exc):
     return '连接失败：请检查连接配置'
 
 
+def _update_connectivity_snapshot(instance, status, message=''):
+    instance.connectivity_status = status
+    instance.connectivity_message = message
+    instance.connectivity_tested_at = timezone.now()
+    instance.save(update_fields=['connectivity_status', 'connectivity_message', 'connectivity_tested_at', 'update_time'])
+
+
 class DataSourceViewSet(BaseViewSet):
     """数据源管理"""
     permission_classes = [IsAuthenticated, HasRolePermission]
@@ -70,6 +79,13 @@ class DataSourceViewSet(BaseViewSet):
             qs = qs.filter(status=vd['status'])
         return qs
 
+    def destroy(self, request, *args, **kwargs):
+        """删除数据源，捕获外键保护异常并返回友好提示"""
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return self.error(msg='无法删除：该数据源被数据集成任务引用，请先删除相关任务后再试')
+
     def create(self, request, *args, **kwargs):
         s = DataSourceCreateSerializer(data=request.data)
         s.is_valid(raise_exception=True)
@@ -81,18 +97,24 @@ class DataSourceViewSet(BaseViewSet):
         s = DataSourceUpdateSerializer(instance, data=request.data)
         s.is_valid(raise_exception=True)
 
-        # 处理密码：如果前端传来空密码或加密后的密码与原密码相同，则不更新密码
+        connection_fields = ('db_type', 'host', 'port', 'db_name', 'username', 'params')
+        connection_config_changed = any(
+            field in s.validated_data and s.validated_data[field] != getattr(instance, field)
+            for field in connection_fields
+        )
+
+        # 密码处理：空则不改，非空则加密新密码
         _password = s.validated_data.get('password', '')
         if _password:
-            try:
-                decrypted_pwd = decrypt_password(_password)
-                if decrypted_pwd == instance.password or decrypted_pwd == '':
-                    s.validated_data.pop('password', None)
-            except Exception:
-                # 如果解密失败，说明是新密码（未加密），保留它
-                pass
+            s.validated_data['password'] = encrypt_password(_password)
+            connection_config_changed = True
         else:
             s.validated_data.pop('password', None)
+
+        if connection_config_changed:
+            s.validated_data['connectivity_status'] = 'unknown'
+            s.validated_data['connectivity_message'] = ''
+            s.validated_data['connectivity_tested_at'] = None
 
         s.save()
         return self.ok(msg='更新成功')
@@ -116,7 +138,7 @@ class DataSourceViewSet(BaseViewSet):
             'host': obj.host,
             'port': obj.port,
             'username': obj.username,
-            'password': obj.password,
+            'password': decrypt_password(obj.password),
             'database': obj.db_name,
             'params': self._parse_params(obj.params),
         }
@@ -125,46 +147,43 @@ class DataSourceViewSet(BaseViewSet):
             ex = get_executor(db_info)
             try:
                 ex.test_connection()
+                _update_connectivity_snapshot(obj, 'success', '连接成功')
                 return self.ok('连接成功')
             except Exception as e:
                 logger.exception(f"数据源连接测试失败: {obj.name}, 错误: {str(e)}")
-                return self.error(msg=_sanitize_db_error_message(e))
+                message = _sanitize_db_error_message(e)
+                _update_connectivity_snapshot(obj, 'failed', message)
+                return self.error(msg=message)
             finally:
                 try:
                     ex.close()
                 except Exception:
                     pass
         except ValueError as e:
-            return self.error(msg=f'不支持的数据库类型: {str(e)}')
+            message = f'不支持的数据库类型: {str(e)}'
+            _update_connectivity_snapshot(obj, 'failed', message)
+            return self.error(msg=message)
 
     @action(detail=False, methods=['post'], url_path='test')
     def test_by_body(self, request):
         """测试数据源连接（按请求体，不落库）"""
-        if 'dataSourceId' in request.data and request.data['dataSourceId']:
-            instance = DataSource.objects.get(id=request.data['dataSourceId'])
-            s = DataSourceUpdateSerializer(instance, request.data)
-            s.is_valid(raise_exception=True)
-            vd = s.validated_data
+        s = DataSourceTestSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        vd = s.validated_data
 
-            # 处理密码：如果前端传来空值或加密密码，则使用原密码
-            _password = vd.get('password', '')
-            if not _password:
-                vd['password'] = instance.password
-            else:
-                try:
-                    decrypted_pwd = decrypt_password(_password)
-                    if decrypted_pwd == instance.password or decrypted_pwd == '':
-                        vd['password'] = instance.password
-                except Exception:
-                    # 如果解密失败，说明是新密码，直接使用
-                    pass
-        else:
-            s = DataSourceCreateSerializer(data=request.data)
-            s.is_valid(raise_exception=True)
-            vd = s.validated_data
+        # 如果带了 dataSourceId 且密码为空，从库里取已加密密码并解密
+        ds_id = request.data.get('dataSourceId')
+        if ds_id:
+            try:
+                instance = DataSource.objects.get(id=ds_id)
+                _password = vd.get('password', '')
+                if not _password:
+                    vd['password'] = decrypt_password(instance.password)
+            except DataSource.DoesNotExist:
+                pass
 
         db_info = {
-            'type': vd['db_type'],
+            'type': vd.get('db_type', ''),
             'host': vd.get('host', ''),
             'port': vd.get('port', 0),
             'username': vd.get('username', ''),

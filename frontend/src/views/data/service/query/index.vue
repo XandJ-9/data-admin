@@ -23,6 +23,7 @@
                   @update:templateParams="v => (t.templateParams = v)"
                   @run="(p) => runQuery(t, p)"
                   @export="(p) => exportRows(t, p)"
+                  @publish="() => openPublishDialog(t)"
                 />
               </div>
             </pane>
@@ -43,6 +44,79 @@
         </template>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-model="publishOpen" title="发布为数据接口" width="720px" append-to-body>
+      <el-alert
+        title="发布后会自动进入接口管理，并根据当前模板参数生成请求参数、根据当前查询结果生成响应字段。"
+        type="info"
+        :closable="false"
+        style="margin-bottom: 16px;"
+      />
+      <el-form ref="publishFormRef" :model="publishForm" :rules="publishRules" label-width="120px">
+        <el-form-item label="数据源">
+          <el-input :model-value="getDatasourceLabel(publishForm.dataSourceId)" disabled />
+        </el-form-item>
+        <el-form-item label="接口名称" prop="interfaceName">
+          <el-input v-model="publishForm.interfaceName" placeholder="请输入接口名称" @blur="syncPublishCode" />
+        </el-form-item>
+        <el-form-item label="接口编码" prop="interfaceCode">
+          <el-input v-model="publishForm.interfaceCode" placeholder="请输入接口编码，仅支持字母数字中划线下划线" @blur="normalizePublishCode" />
+        </el-form-item>
+        <el-form-item label="接口描述" prop="interfaceDesc">
+          <el-input v-model="publishForm.interfaceDesc" type="textarea" :rows="2" placeholder="可选：补充接口用途说明" />
+        </el-form-item>
+        <el-form-item label="是否合计" prop="isTotal">
+          <el-radio-group v-model="publishForm.isTotal">
+            <el-radio value="1">是</el-radio>
+            <el-radio value="0">否</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="合计SQL" prop="totalSql">
+          <el-input
+            v-model="publishForm.totalSql"
+            type="textarea"
+            :rows="3"
+            :placeholder="publishForm.isTotal === '1' ? '请输入合计 SQL' : '未启用合计时可留空'"
+          />
+        </el-form-item>
+        <el-form-item label="是否分页" prop="isPaging">
+          <el-radio-group v-model="publishForm.isPaging">
+            <el-radio value="1">是</el-radio>
+            <el-radio value="0">否</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="接口状态" prop="enable">
+          <el-radio-group v-model="publishForm.enable">
+            <el-radio value="1">启用</el-radio>
+            <el-radio value="0">禁用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="模板参数">
+          <div class="publish-tag-group">
+            <el-tag v-if="Object.keys(publishForm.params || {}).length === 0" type="info" effect="plain">无模板参数</el-tag>
+            <el-tag v-for="(value, key) in publishForm.params" :key="key" type="warning" effect="plain">
+              {{ key }}={{ value }}
+            </el-tag>
+          </div>
+        </el-form-item>
+        <el-form-item label="响应字段">
+          <div class="publish-tag-group">
+            <el-tag v-for="column in publishForm.outputColumns" :key="column" type="success" effect="plain">
+              {{ column }}
+            </el-tag>
+          </div>
+        </el-form-item>
+        <el-form-item label="接口SQL">
+          <el-input :model-value="publishForm.sql" type="textarea" :rows="6" readonly />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="publishOpen = false">取消</el-button>
+          <el-button type="primary" :loading="publishLoading" @click="submitPublish">发布</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -52,7 +126,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { Splitpanes, Pane } from 'splitpanes'
 import 'splitpanes/dist/splitpanes.css'
 import { listDatasource } from '@/api/data/datasource'
-import { executeQuery, exportQuery } from '@/api/data/service'
+import { executeQuery, exportQuery, publishQueryAsInterface } from '@/api/data/service'
 import QueryView from './queryView.vue'
 import QueryResult from './queryResult.vue'
 
@@ -62,8 +136,53 @@ const active = ref('')
 const tabs = ref([])
 const dsList = ref([])
 const addKey = '__add__'
+const publishOpen = ref(false)
+const publishLoading = ref(false)
+const publishFormRef = ref(null)
+const publishForm = ref(createPublishForm())
+function validatePublishTotalSql(rule, value, callback) {
+  if (publishForm.value.isTotal === '1' && !String(value || '').trim()) {
+    callback(new Error('启用合计时必须填写合计SQL'))
+    return
+  }
+  callback()
+}
+
+const publishRules = {
+  interfaceName: [{ required: true, message: '接口名称不能为空', trigger: 'blur' }],
+  interfaceCode: [
+    { required: true, message: '接口编码不能为空', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9_-]+$/, message: '接口编码仅支持字母、数字、中划线和下划线', trigger: 'blur' }
+  ],
+  totalSql: [{ validator: validatePublishTotalSql, trigger: 'blur' }]
+}
 
 const DEFAULT_SPLIT = 55
+
+function createPublishForm() {
+  return {
+    dataSourceId: undefined,
+    sql: '',
+    params: {},
+    outputColumns: [],
+    interfaceName: '',
+    interfaceCode: '',
+    interfaceDesc: '由 SQL 查询模块发布',
+    isTotal: '0',
+    totalSql: '',
+    isPaging: '1',
+    enable: '1'
+  }
+}
+
+function buildInterfaceCode(name) {
+  const normalized = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return normalized || `sql_interface_${Date.now()}`
+}
 
 function onPaneResized(tab, event) {
   const first = event?.[0]
@@ -162,6 +281,51 @@ function getDsList() {
   })
 }
 
+function getDatasourceLabel(dataSourceId) {
+  const dataSource = dsList.value.find(item => item.dataSourceId === dataSourceId)
+  if (!dataSource) return ''
+  return `${dataSource.dataSourceName} (${dataSource.dbType})`
+}
+
+function syncPublishCode() {
+  if (!publishForm.value.interfaceCode) {
+    publishForm.value.interfaceCode = buildInterfaceCode(publishForm.value.interfaceName)
+  }
+}
+
+function normalizePublishCode() {
+  publishForm.value.interfaceCode = buildInterfaceCode(publishForm.value.interfaceCode)
+}
+
+function openPublishDialog(tab) {
+  if (!tab.dataSourceId || !tab.sqlText || !tab.columns.length) {
+    proxy.$modal.msgError('请先执行 SQL，确保结果字段可识别后再发布接口')
+    return
+  }
+  publishForm.value = createPublishForm()
+  publishForm.value.dataSourceId = tab.dataSourceId
+  publishForm.value.sql = tab.sqlText
+  publishForm.value.params = { ...(tab.templateParams || {}) }
+  publishForm.value.outputColumns = [...(tab.columns || [])]
+  publishForm.value.interfaceName = `${getDatasourceLabel(tab.dataSourceId) || 'SQL 查询'}接口`
+  publishForm.value.interfaceCode = buildInterfaceCode(publishForm.value.interfaceName)
+  publishOpen.value = true
+  nextTick(() => proxy.resetForm('publishFormRef'))
+}
+
+function submitPublish() {
+  publishFormRef.value.validate(valid => {
+    if (!valid) return
+    publishLoading.value = true
+    publishQueryAsInterface(publishForm.value).then(() => {
+      proxy.$modal.msgSuccess('发布成功，已添加到接口管理')
+      publishOpen.value = false
+    }).finally(() => {
+      publishLoading.value = false
+    })
+  })
+}
+
 function onTabClick(tab) {
   if (tab.paneName === addKey) {
     addTab()
@@ -227,6 +391,12 @@ onMounted(() => {
   justify-content: center;
   height: 100%;
   color: #909399;
+}
+
+.publish-tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 :deep(.query-splitpanes > .splitpanes__splitter) {
