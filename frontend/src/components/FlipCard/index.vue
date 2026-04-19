@@ -1,10 +1,10 @@
 <template>
   <div class="flip-card" :style="{ minHeight: minHeight }">
     <div class="flip-card-inner" :class="{ flipped }">
-      <div class="flip-card-front">
+      <div class="flip-card-front" :class="{ active: !flipped, inactive: flipped }">
         <slot name="front" />
       </div>
-      <div class="flip-card-back">
+      <div class="flip-card-back" :class="{ active: flipped, inactive: !flipped }">
         <slot name="back" />
       </div>
     </div>
@@ -15,12 +15,12 @@
 defineProps({
   flipped: {
     type: Boolean,
-    default: false
+    default: false,
   },
   minHeight: {
     type: String,
-    default: '400px'
-  }
+    default: '400px',
+  },
 })
 </script>
 
@@ -57,7 +57,17 @@ defineProps({
     position: absolute;
     top: 0;
     left: 0;
-    transform: rotateY(180deg);
+    transform: rotateY(180deg) translateZ(1px);
+  }
+
+  .active {
+    pointer-events: auto;
+    z-index: 2;
+  }
+
+  .inactive {
+    pointer-events: none;
+    z-index: 1;
   }
 }
 </style>

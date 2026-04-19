@@ -407,10 +407,7 @@ function collapseAllDirectories() {
 
 function openScriptInIde(script) {
   if (!script?.scriptId) return
-  router.push({
-    path: '/datadev/ide',
-    query: { scriptId: String(script.scriptId) },
-  })
+  router.push(`/datadev/ide/detail/${script.scriptId}`)
 }
 
 async function loadTreeOptions(excludeId) {

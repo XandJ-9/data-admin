@@ -1,6 +1,223 @@
+# [v1.4.44] - 2026-04-20
+- [Fix] 已修复脚本详情页翻转进入编辑态后 SQL 编辑器无法正常编辑的问题。
+- [UX] 翻转卡片现仅允许当前可见面接收交互，并在进入编辑态后主动刷新并聚焦编辑器。
+
+# [v1.4.43] - 2026-04-20
+- [UX] 脚本详情页已调整为概览优先，列表进入后先展示脚本基本信息、版本与运维摘要，再按需翻转进入 SQL 编辑页。
+- [UX] “开始编辑 SQL”等操作已收敛到版本与运维卡片，翻转后的编辑页仅保留返回与执行等最小动作。
+
+# [v1.4.42] - 2026-04-20
+- [UX] 脚本详情辅助面已去掉顶部头部区，避免重复展示标题、状态与独立按钮栏。
+- [UX] 详情相关操作已合并到“版本与运维”卡片头部，页面层级更浅，干扰更少。
+
+# [v1.4.41] - 2026-04-20
+- [UX] 脚本详情页已调整为编辑优先，进入脚本后默认直接展示编辑器，详情治理信息退居翻转后的辅助面板。
+- [UX] 编辑页顶部动作继续收敛为“查看详情 + 执行脚本”，避免脚本开发模式被展示型信息打断。
+
+# [v1.4.40] - 2026-04-20
+- [UX] 脚本详情页的开发模式已改为页面内翻转效果，点击后直接在同页背面进入编辑视图，不再弹出多面板开发窗口。
+- [UX] 开发模式已收敛为单编辑页，仅保留返回和执行按钮，移除保存/发布/全屏/状态栏等附加信息。
+- [Compat] 执行前会自动保存当前草稿版本，确保脚本运行内容与当前编辑内容保持一致。
+
+# [v1.4.39] - 2026-04-20
+- [UX] 脚本开发列表页已移除顶部说明与摘要卡片，页面收敛为更轻的“筛选 + 列表”结构。
+- [UX] 脚本列表已取消方格卡片样式，改回标准表格浏览，降低视觉干扰并提升信息密度。
+- [Ops] 当前环境已同步最新菜单数据，脚本详情隐藏路由和新的数据开发菜单结构已可直接生效。
+
+# [v1.4.38] - 2026-04-20
+- [UX] 数据开发“脚本开发”子菜单已重构为“列表页 → 详情页”两段式结构，`/datadev/ide` 不再同屏堆叠脚本列表与详情信息。
+- [UX] 脚本列表已改为简洁方格卡片布局，保留检索、分页、新建与删除能力，同时减少常驻 IDE 带来的视觉干扰。
+- [Compat] 脚本详情页继续复用既有开发模式弹窗、版本历史与执行记录链路，数据目录、任务运维等入口现已统一跳转到脚本详情页。
+
 # 版本更新日志
 
 本文件用于记录 Data Admin 项目的所有版本变更、修复与新特性。
+
+# [v1.4.37] - 2026-04-19
+- [UX] 数据开发脚本页已移除左侧资源树，改为“脚本列表 + 详情页”结构，浏览与管理脚本时不再被常驻 IDE 挤压视野。
+- [UX] 脚本详情页右上角已新增【脚本开发模式】入口，脚本编写、保存、发布与执行调试统一收敛到弹窗式开发窗口。
+- [Compat] 开发模式窗口继续复用现有执行结果、版本历史、执行记录与执行日志链路，Spark SQL / Hive 调试反馈保持不变。
+
+# [v1.4.36] - 2026-04-19
+- [Bugfix] 修复数据开发脚本执行日志缺失问题：Spark SQL / Hive 的原始 stdout/stderr 现已随执行结果返回前端，并写入执行记录摘要。
+- [UX] 脚本开发页的“执行日志”区已可展示 Spark SQL 原始执行输出，不再只显示“开始执行 / 执行完成”这类摘要提示。
+
+# [v1.4.35] - 2026-04-19
+- [Bugfix] 修复数据开发 Spark SQL / Hive 脚本运行时的前端 10 秒超时问题，执行接口已改为单独放宽请求等待时间。
+- [UX] 当脚本执行等待超时时，前端会明确提示“任务可能仍在后端运行，请到执行记录查看”，避免误判为立即失败。
+
+# [v1.4.34] - 2026-04-19
+- [UX] 数据开发目录已新增真实子菜单【开发首页】，父级默认进入 `/datadev/home`，不再直接落到脚本 IDE。
+- [UX] 原“开发工作台”菜单已更名为【脚本开发】，开发首页负责分流进入脚本开发、数据目录、数据建模等功能。
+- [UX] 开发首页已支持通过快捷入口直接跳转到脚本开发，并通过 `quickCreate` 参数直达 SQL / Python 新建动作。
+- [UX] 脚本开发页已移除与首页重复的分流卡片，空白态重新聚焦为脚本研发入口，不再承担首页职责。
+
+# [v1.4.33] - 2026-04-19
+- [UX] 数据开发模块已新增首页化入口，用户进入后可先选择“新建 SQL 脚本 / 新建 Python 草稿 / 进入数据建模 / 浏览现有脚本”，再进入具体 IDE。
+- [UX] 数据开发工作台已从三列常驻布局收敛为“左侧资源树 + 中央主工作区”，版本历史与执行记录改为底部辅助区按需展开，整体更聚焦编辑主线。
+- [UX] 顶部信息区已压缩为紧凑工具条，避免大面积摘要卡片继续挤占研发空间。
+
+# [v1.4.32] - 2026-04-19
+- [UX] 数据开发工作台已新增顶部摘要区，当前脚本、执行环境、执行状态与最近反馈改为主界面集中展示，减少信息分散带来的认知负担。
+- [UX] 结果面板已新增页内反馈条与执行结果概览，执行成功、失败、预演三类结果都可直接看到状态、耗时和返回规模。
+- [Bugfix] 数据开发脚本的创建、打开、编辑、保存、发布、回滚、执行等关键操作已改为优先展示后端原始错误信息，不再统一退化成泛化失败提示。
+
+# [v1.4.31] - 2026-04-19
+- [Bugfix] 修复数据开发脚本前后端执行语义不一致：前端已去掉数据源选择后，新建 SQL 脚本不再一律落入 `mvp` 预演路径。
+- [Feature] `DataDevScript` 已新增执行引擎字段，SQL 脚本可声明 Spark SQL / Hive，后端执行分发改为“脚本执行引擎优先，数据源次之”。
+- [UX] 数据开发 IDE 的新建/编辑脚本弹窗已补充执行引擎选择，底部状态栏改为展示真实数据源或脚本执行引擎。
+- [Compat] 迁移已为历史脚本回填执行引擎：SQL 默认 `spark`，Python 默认 `mvp`。
+
+# [v1.4.30] - 2026-04-19
+- [Feature] 数据开发目录已新增【数据建模】模块，支持模型列表、模型详情、字段维护、DDL 预览与提交建表闭环。
+- [Feature] `apps.datadev` 已新增 `DataDevModel / DataDevModelField` 及 `/datadev/models` 接口，草稿建模定义正式从脚本 IDE 中独立出来。
+- [Compat] 模型提交建表继续复用统一 `Task / TaskInstance` 和 Spark/Hive 执行器，执行成功后自动回写模型状态与统一任务配置。
+- [UX] 数据开发 IDE 已移除临时“建模执行”按钮，手工建表统一收敛到专属数据建模入口。
+
+# [v1.4.29] - 2026-04-19
+- [Feature] 数据开发 IDE 新增“建模执行”入口，手工建表场景已收敛到数据开发内，不再依赖管理员 Web Terminal。
+- [Governance] 建模执行前新增最小治理卡点：执行引擎、数据层级、目标表名、表注释、负责人缺一不可。
+- [Feature] `TaskService.execute_datadev_script` 已支持无数据源的建模执行模式：对 `CREATE TABLE` 语句可直接调用 Spark/Hive 执行器，并继续纳入统一 `Task / TaskInstance` 链路。
+
+# [v1.4.28] - 2026-04-19
+- [UX] 数据开发模块已按本地 MVP 角色收敛：脚本未绑定数据源时，运行入口不再直接失败，而是返回一次开发预演摘要。
+- [Feature] `TaskService.execute_datadev_script` 已支持无数据源的 `mvp` 预演模式，照常创建 `TaskInstance / DataDevScriptExecution`，先承接脚本研发、版本管理与统一任务登记职责。
+- [UX] 数据开发 IDE 的运行日志已补充“MVP预演完成”提示，避免误解为真实数据查询结果。
+
+
+# [v1.4.27] - 2026-04-19
+- [Feature] `apps.executors` 已接通当前任务模型：`DataXConfigBuilder / DataXExecutor` 现可直接消费 `DataIntegrationTask` 的数据源、源资产、目标表与 `taskConfig`，开始支持真实 DataX 执行链路。
+- [Feature] `TaskService.execute_integration_task` 已取消对 `mock` 的硬编码限制，改为按 `executor_type` 动态校验并分发执行器，统一回写 `TaskInstance` 结果摘要。
+- [Feature] 数据开发 SQL 执行已新增 Spark/Hive 执行器分发：Spark/Hive 数据源通过 executors 调用 `spark-sql / hive` CLI，传统库仍保留 `dbutils` 查询执行路径。
+- [Compat] `dataintegration/task/validate` 已接入真实执行器校验，不再静态拦截 `datax`。
+
+
+# [v1.4.26] - 2026-04-19
+- [UX] `/datatask` 模块已统一对外更名为“任务运维”，继续承载统一 Task 中轴，但不再以“数据任务”命名暴露给用户。
+- [UX] 任务运维首页、任务详情、执行记录页与数据集成详情页的面包屑 / 返回文案已同步收敛，明确该模块纳管数据集成任务和数据开发任务。
+- [UX] 任务运维首页新增“进入数据开发”快捷入口，避免统一任务运维入口只偏向数据集成侧。
+
+
+# [v1.4.25] - 2026-04-19
+- [Feature] 新增统一任务调度执行底座 MVP：`apps.datatask.scheduler.TaskSchedulerService` 已支持 `cron` 扫描与依赖触发调度。
+- [Feature] 新增管理命令 `uv run python manage.py run_task_scheduler`，可单次执行调度扫描或以固定间隔轮询运行。
+- [Compat] `TaskService.execute_task` 已统一支持 `manual / schedule / dependency` 三种触发模式，调度器与人工执行共用同一分发链路。
+- [Test] 已补充 `datatask` 调度服务回归测试，覆盖 cron 触发、同分钟去重、依赖触发与依赖指纹去重。
+
+# [v1.4.24] - 2026-04-19
+- [Bugfix] 修复 `/system/terminal` 目录路由直达 404：前端动态路由注册不再拍平带 `redirect` 的 `ParentView` 节点，父级目录可正常承载重定向。
+- [Compat] 目录型菜单现支持“直接访问父路径 → 自动跳转到默认子页”的通用模式，`/system/terminal` 已恢复跳转到 `/system/terminal/index`。
+
+# [v1.4.23] - 2026-04-19
+- [Bugfix] 修复报表管理前后端未完全接通问题：当前开发库已补执行报表相关迁移，`dataservice_report_*` 表结构恢复可用。
+- [Bugfix] 补齐“报表管理”菜单的 `dataservice:report:add/edit/remove/view` 权限点，前端按钮显隐与接口权限重新对齐。
+- [Ops] 当前环境已同步最新菜单种子，报表管理页面现可完成列表、创建、修改、删除与详情查看闭环。
+
+# [v1.4.22] - 2026-04-19
+- [Feature] 数据服务“SQL查询”已新增“发布接口”能力，可将当前查询 SQL 直接发布到接口管理。
+- [Feature] `apps.dataservice` 已新增 `/dataservice/interface-info/publish`，自动复用现有 `InterfaceInfo / InterfaceField` 模型创建接口定义。
+- [UX] 发布弹窗会自动回填当前数据源、SQL、模板参数与查询结果列，只需补充接口名称、编码、描述即可完成发布。
+- [Guard] 接口管理新增/修改与 SQL 发布接口已统一校验：启用合计时必须填写合计SQL；接口详情页同步新增合计SQL查看入口。
+- [Feature] 接口管理列表已补齐接口生命周期操作，支持直接对接口执行上线 / 下线切换。
+- [Guard] 接口删除现收敛为“下线后软删除”：已上线接口不可直接删除，删除时会同步归档接口字段。
+- [Guard] 下线接口不可再试运行、查询或导出，避免接口资产状态与实际服务能力脱节。
+- [UX] 接口管理列表新增负责人列，并补齐负责人 / 接口状态检索，提升接口资产筛选与认领效率。
+- [UX] 接口新增 / 修改表单已支持负责人维护，留空时默认回填当前登录用户；接口详情页同步展示负责人。
+- [UX] 接口管理已取消列表页中的正式查询与独立测试按钮，统一通过“详情”进入详情页中的“接口定义 / 接口测试”标签页。
+- [UX] 接口测试详情页现已改为展示真实接口执行返回报文，除响应字段结构说明外同步展示原始响应 JSON，避免与实际调用结构不一致。
+- [UX] 接口测试页的响应报文区域已补充状态摘要、原始报文 / data 载荷双视图与复制能力，提升联调可读性。
+- [Feature] 接口 `/execute` 已对齐纯接口调用协议，新增 `reportName / interfaceName / isPaging / isTotal / property` 等业务语义字段，并按分页/非分页场景输出 `list/total/totalList` 或 `data/totaldata`。
+- [UX] 接口管理列表、详情页和编辑表单已移除报表名称 / 报表编码展示，避免在报表管理未上线前形成错误归属语义。
+
+# [v1.4.21] - 2026-04-19
+- [UX] 数据源管理列表已移除主机、端口、用户名三列，首页信息收敛到“数据源识别 + 连通性 + 启停状态”，更贴近平台资源总览视角。
+- [UX] 数据源管理列表的“连通性”列已改为 tooltip 详情展示，列表仅保留状态标签与详情提示，测试时间和异常原因改为悬浮查看。
+- [Feature] `apps.datasource` 已持久化最近连通性状态、说明与测试时间；按资源 ID 执行连接测试后会自动回写成功/失败结果。
+- [Guard] 数据源连接配置发生变更时，最近连通性状态会自动重置为“未测试”，避免旧测试结果继续误导后续集成与资产采集操作。
+
+
+# [v1.4.20] - 2026-04-18
+- [Docs] 已将“单轮单目标、故障优先、禁止扩 scope、文档与审查后置、分歧先停”等项目协作规则固化到根 `CLAUDE.md`，确保会话启动即自动加载。
+- [UX] 已继续优化数据资产、数据服务、数据任务、数据集成四个模块首页的空间利用：主内容卡片在常规桌面宽度即可并排展开，减少右侧留白与单列堆叠。
+- [UX] 数据资产与数据服务首页的核心能力、使用流程已改为更高密度排布，提升首屏可见信息量；并已移除数据资产首页“覆盖概览”区块与数据服务首页“最近查询动态”区块。
+- [UX] 数据任务首页已从“逐任务卡片浏览”重构为“任务运行总览台”，首页只保留运行态势、异常暴露与快捷入口，不再承担单任务列表职责。
+- [UX] 数据任务总览台进一步移除大块筛选区，改用轻量“观察周期”切换，避免首页重新退回列表页思路。
+- [UX] 数据任务总览台新增概览指标、执行趋势柱状图、来源/调度分布饼图、异常看板与最近动态，帮助用户先判断整体运行健康度，再进入任务详情治理。
+- [UX] 数据任务图表区已改为宽屏自适应布局：趋势图占主内容整行，来源/调度饼图在常规桌面宽度下即可并排展开，并跟随容器宽度自动重算尺寸。
+- [Bugfix] 修复当前开发库 `datatask` 迁移记录与真实 SQLite 表结构漂移问题：新增 `0002_repair_legacy_schema`，兼容旧版 `datatask_task` 遗留表并补建统一任务依赖/实例表。
+- [Bugfix] 恢复 `/data-api/datatask/task` 列表接口可用性，解决“数据任务”页面进入即因 `no such column: datatask_task.source_module` 返回 500 的问题。
+- [Feature] `datatask` 已补齐统一任务更新接口：任务详情页现在可以直接维护状态、负责人、调度方式与备注，不再只是只读概览。
+- [Feature] 统一任务中心新增 `/data-api/datatask/task/{id}/execute` 执行入口，可按来源模块分发到数据集成任务或数据开发脚本的真实执行链路。
+- [Compat] `DataIntegrationTaskViewSet.execute_task` 与 `ScriptViewSet.execute_script` 已复用统一任务执行服务，避免来源页和任务中心出现双套执行逻辑漂移。
+- [UX] 数据任务详情页升级为“概览 + 治理配置”布局，支持直接保存治理配置、触发执行，并按来源模块跳回数据集成详情或数据开发 IDE。
+- [Bugfix] 修正 `/datatask` 菜单种子下误写为 `dataintegration:*` 的权限点，当前环境已通过 `initdata` 同步为 `datatask:*` 权限集。
+- [Feature] 新增管理命令 `uv run python manage.py sync_menu_data`，支持将当前数据库 `sys_menu` 树同步回 `backend/apps/system/management/commands/menu_data.json`。
+- [Docs] 已按当前开发库真实菜单结构刷新 `menu_data.json`，补齐 `menuId/query/isFrame/isCache/redirect/activeMenu/isAffix/isBreadcrumb/alwaysShow` 等菜单字段。
+- [Refactor] `initdata` 已复用统一菜单转换逻辑，确保数据库导出的 `menu_data.json` 仍可直接用于新环境菜单初始化。
+- [Feature] 新增“数据任务”前端模块：补齐 `frontend/src/views/data/task/index.vue`、`taskDetail.vue`、`instances.vue`，开始以统一任务中心视角承接任务管理。
+- [UX] 数据任务中心保留统一任务入口定位，并继续提供“新建集成任务”直达入口与来源工作面跳转能力。
+- [UX] 数据集成任务创建/编辑已从抽屉切换为独立详情页 `frontend/src/views/data/integration/detail.vue`，任务中心可直接跳转到该页面完成配置。
+- [Compat] `DataIntegrationTaskViewSet` 的创建/更新接口现直接返回任务详情数据，便于前端保存后无缝切换到详情页继续编辑。
+- [Feature] 初始化菜单补齐 `/datatask`、`DataTaskDetail`、`DataIntegrationTaskCreate`、`DataIntegrationTaskDetail` 路由，并将 `/datatask` 纳入普通角色默认可见业务菜单范围。
+- [Bugfix] `dataintegration` 创建 / 更新 / 删除已补齐事务与依赖清理，避免配置模型、统一任务和任务依赖出现软删不同步。
+- [Bugfix] `system/getInfo` 现按用户角色聚合菜单权限，普通角色的 `v-hasPermi` 按钮显隐恢复正常工作。
+- [Bugfix] 数据集成详情页的数据源 / 源资产选项改为跨页拉取，避免后端分页上限 100 导致下拉项缺失。
+- [Bugfix] 请求拦截器与新页面错误提示已对齐，业务失败不再重复弹出两次错误提示。
+- [UX] “数据集成 > 同步任务”页面继续收敛信息层级：首页改为轻筛选 + 紧凑任务列表，配置/调度/运行记录迁入详情抽屉分 Tab 查看。
+- [Bugfix] 修复初始化菜单时 `menu_id` 仅由 `orderNum` 推导导致的顶级菜单 ID 冲突问题；`initdata` 现支持从 `menu_data.json` 显式读取 `menuId`。
+- [Bugfix] 为“数据集成”菜单分配独立菜单 ID，修复当前环境登录后 `getRouters` 缺失 `/data-integration`、浏览器无法进入新页面的问题。
+- [UX] “数据集成 > 同步任务”页面重构为工作台式布局：筛选卡片、任务卡片流、配置概览、执行快照与抽屉式编辑集中在同一视图内。
+- [UX] “任务编排 > 依赖编排”页面重构为任务卡片 + 上下游依赖泳道布局，弱化通用表格页形态，更贴近数据平台编排工作台。
+- [Frontend] 两个工作台页面已统一改用组件化图标引用，降低对全局图标注册方式的运行时耦合。
+- [Feature] `apps.datatask` 已补齐 `TaskDependency` 写接口，支持新增、修改、删除依赖关系，并为下游任务自动同步 `dependency/manual` 调度方式。
+- [Feature] 新增“任务编排 > 依赖编排”页面 `frontend/src/views/data/orchestration/index.vue`，支持查看统一任务清单与配置上下游依赖关系。
+- [Guard] `TaskDependency` 新增自依赖、重复依赖与环依赖校验，避免形成非法 DAG。
+- [Feature] 初始化菜单新增“任务编排”模块及 `datatask:dependency:*` 权限点，并纳入普通角色默认可见业务菜单范围。
+- [Frontend] 新增“数据集成 > 同步任务”页面 `frontend/src/views/data/integration/index.vue`，支持任务查询、创建、编辑、删除、手动执行和执行记录查看。
+- [Frontend] 数据集成页面已对接当前后端任务接口，并补充配置校验、源资产联动选择与执行详情展示。
+- [Feature] 初始化菜单新增“数据集成”模块及 `dataintegration:task:*` 权限点，普通角色默认可见范围同步纳入 `/data-integration`。
+- [Compat] 前端 `api/data/integration.js` 已对齐当前阶段执行器边界：`mock` 为可用执行器，`datax` 标记为待接入。
+- [Feature] 新增数据集成模块 `apps.dataintegration`，落地 `DataIntegrationTask` 配置模型，承载源/目标数据源、源资产、目标表、加载/写入模式与执行器配置。
+- [Feature] 新增数据集成接口：`/data-api/dataintegration/task`、`/task/{id}/execute`、`/task/{id}/executions`、`/executionlog`，开始承接遗留前端 `integration.js` 的核心路径。
+- [Feature] 数据集成任务已接入统一任务中心：创建/更新配置时同步 `DATA_SYNC` 任务定义，执行时创建 `TaskInstance`。
+- [Compat] 数据集成首期已用 `mock` 执行器打通执行闭环；`datax` 目前保留配置入口，执行时返回显式提示，等待后续适配器接入。
+- [ADR] 新增 ADR-009，明确数据集成模块采用“配置模型 + 统一任务映射”策略。
+- [Test] 新增 `apps.dataintegration` 测试，覆盖任务创建、mock 执行和执行日志详情接口。
+- [Feature] 新增统一任务中心模块 `apps.datatask`，落地 `Task`、`TaskDependency`、`TaskInstance` 三类核心模型，作为平台目标态的统一任务内核。
+- [Feature] 新增统一任务查询接口：`GET /data-api/datatask/task`、`GET /data-api/datatask/task-dependency`、`GET /data-api/datatask/task-instance`。
+- [Feature] `datadev` 脚本执行链已接入统一任务中心：执行时自动生成/刷新 `SQL_COMPUTE` 任务并创建 `TaskInstance`。
+- [Compat] `DataDevScriptExecution` 新增 `task_instance` 关联字段，保留原有脚本执行记录模型，同时与统一任务实例建立映射。
+- [ADR] 新增 ADR-008，明确统一任务内核与实例模型作为后续数据集成、数据开发、编排运维的统一中轴。
+- [Test] 新增 `apps.datatask` 测试与 `datadev -> datatask` 集成测试，覆盖任务复用、实例完结和脚本执行接入链路。
+- [Feature] 数据资产模块新增规范读接口：`GET /data-api/dataasset/asset-namespace`、`GET /data-api/dataasset/asset`、`GET /data-api/dataasset/asset-column`。
+- [Refactor] `meta-table` / `meta-column` 的 GET 查询已切换为从 `AssetNamespace`、`DataAsset`、`DataAssetColumn` 读取，采集写端与血缘写端保持现状不变。
+- [Compat] 兼容旧元数据页面响应结构：继续返回 `tableName / databaseName / dataSourceName` 等历史字段，并优先透出 `legacy_meta_*` 标识保证现有页面可继续工作。
+- [Test] 新增数据资产读端回归测试，覆盖规范接口详情查询与旧元数据查询兼容行为。
+- [Frontend] 前端 `api/data/asset.js` 补充规范资产查询封装，支持后续页面渐进切换到规范接口。
+- [Bugfix] 修复 `0004_backfill_standard_asset_models` 在旧库升级时把未落库命名空间对象送入 `bulk_update` 导致迁移失败的问题，数据资产规范模型迁移现已可在真实库完成升级。
+- [QA] 完成数据资产模块浏览器级联调，确认资产概览、元数据列表/筛选/详情与血缘表选择器在本地真实环境下可正常工作。
+
+# [v1.4.19] - 2026-04-17
+- [Refactor] 数据资产模块启动标准模型重构 Phase 1：新增 `AssetNamespace`、`DataAsset`、`DataAssetColumn` 三类规范资产模型。
+- [Refactor] 扩展 `MetaCollectionTask`，补齐采集范围与运行模式字段，为后续分层采集奠定模型基础。
+- [Refactor] 现有元数据采集链路已同步双写到规范资产模型，保留 `MetaTable` / `MetaColumn` 兼容现有接口。
+- [Bugfix] 补齐 Presto/Trino 的 `catalog.schema` 命名空间解析，并同步修正采集任务 `scope_catalog_name / scope_schema_name / scope_level` 的回填与运行时写入。
+- [Bugfix] 规范字段同步改为按列名原位更新并过滤软删除历史列，避免重采时 `DataAssetColumn` 主键抖动。
+- [Bugfix] 同步采集改为单表事务提交，避免外层长事务放大锁持有范围；异步采集启动前增加数据库级活动任务检查。
+- [Bugfix] 字段采集结果为空时显式中止同步，避免采集器异常降级为空列表时误删历史字段。
+- [Bugfix] 同步/异步采集统一接入活动任务占槽，补齐任务取消轮询、启动异常失败回写与数据库级单活动任务约束。
+- [Refactor] 数据资产标准模型回填迁移拆分为独立 `0004` 数据迁移，并新增 `0005` 活动任务约束迁移，降低发布失败时的恢复成本。
+- [Bugfix] `0004` 数据回填迁移改为可重跑写入，`0005` 在增加活动任务唯一约束前先清理历史重复活动任务。
+- [ADR] 新增 ADR-007，明确本阶段只做源数据模型标准化，血缘标准化延后。
+- [Docs] 修正数据资产模块文档状态：按当前代码主干确认 `dataasset` 模块仍保留，而非已完全移除。
+- [Docs] 新增 `docs/requirements/data-asset-module.md`，补齐数据资产模块的当前范围、入口、接口与实现边界说明。
+- [Docs] 更新 `docs/requirements/README.md`，将数据资产模块从“已归档”恢复为当前模块文档。
+- [Docs] 同步修正主 README 的数据资产能力矩阵、初始化命令、API 文档地址，并清理 requirements 索引中的失效链接。
+- [Docs] 继续修正主 README 的生产构建说明与监控模块状态描述，使部署步骤和能力矩阵与仓库实现一致。
+- [Docs] 补充前端开发默认绑定 `80` 端口的限制说明，避免本地启动时因端口权限报错。
+- [Docs] 收敛主 README 中未生效的生产环境变量模板，并将前端生产访问入口统一到 `/data-admin/` 子路径。
+- [Docs] 修正主 README 中的 Python 最低版本、`uv run` 部署命令与本地开发访问路径，使说明可按当前主干直接执行。
+- [Review] 启动数据资产模块设计评审，重点识别架构边界、元数据建模与采集任务架构问题；血缘标准化已明确延后。
 
 # [v1.4.18] - 2026-04-17
 - [Feature] 为“数据服务”模块补齐首页导航，新增子菜单 `服务概览`（`/data-service/index`）并指向组件 `data/service/index`。

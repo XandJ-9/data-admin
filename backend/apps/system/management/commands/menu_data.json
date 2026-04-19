@@ -23,12 +23,42 @@
         "perms": "system:user:list",
         "icon": "user",
         "children": [
-          { "menuName": "用户查询", "orderNum": 1, "menuType": "F", "perms": "system:user:query" },
-          { "menuName": "用户新增", "orderNum": 2, "menuType": "F", "perms": "system:user:add" },
-          { "menuName": "用户修改", "orderNum": 3, "menuType": "F", "perms": "system:user:edit" },
-          { "menuName": "用户删除", "orderNum": 4, "menuType": "F", "perms": "system:user:remove" },
-          { "menuName": "用户导出", "orderNum": 5, "menuType": "F", "perms": "system:user:export" },
-          { "menuName": "重置密码", "orderNum": 6, "menuType": "F", "perms": "system:user:resetPwd" }
+          {
+            "menuName": "用户查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "system:user:query"
+          },
+          {
+            "menuName": "用户新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "system:user:add"
+          },
+          {
+            "menuName": "用户修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "system:user:edit"
+          },
+          {
+            "menuName": "用户删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "system:user:remove"
+          },
+          {
+            "menuName": "用户导出",
+            "orderNum": 5,
+            "menuType": "F",
+            "perms": "system:user:export"
+          },
+          {
+            "menuName": "重置密码",
+            "orderNum": 6,
+            "menuType": "F",
+            "perms": "system:user:resetPwd"
+          }
         ]
       },
       {
@@ -43,10 +73,30 @@
         "perms": "system:role:list",
         "icon": "peoples",
         "children": [
-          { "menuName": "角色查询", "orderNum": 1, "menuType": "F", "perms": "system:role:query" },
-          { "menuName": "角色新增", "orderNum": 2, "menuType": "F", "perms": "system:role:add" },
-          { "menuName": "角色修改", "orderNum": 3, "menuType": "F", "perms": "system:role:edit" },
-          { "menuName": "角色删除", "orderNum": 4, "menuType": "F", "perms": "system:role:remove" }
+          {
+            "menuName": "角色查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "system:role:query"
+          },
+          {
+            "menuName": "角色新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "system:role:add"
+          },
+          {
+            "menuName": "角色修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "system:role:edit"
+          },
+          {
+            "menuName": "角色删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "system:role:remove"
+          }
         ]
       },
       {
@@ -61,10 +111,30 @@
         "perms": "system:dept:list",
         "icon": "tree-table",
         "children": [
-          { "menuName": "部门查询", "orderNum": 1, "menuType": "F", "perms": "system:dept:query" },
-          { "menuName": "部门新增", "orderNum": 2, "menuType": "F", "perms": "system:dept:add" },
-          { "menuName": "部门修改", "orderNum": 3, "menuType": "F", "perms": "system:dept:edit" },
-          { "menuName": "部门删除", "orderNum": 4, "menuType": "F", "perms": "system:dept:remove" }
+          {
+            "menuName": "部门查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "system:dept:query"
+          },
+          {
+            "menuName": "部门新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "system:dept:add"
+          },
+          {
+            "menuName": "部门修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "system:dept:edit"
+          },
+          {
+            "menuName": "部门删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "system:dept:remove"
+          }
         ]
       },
       {
@@ -79,10 +149,30 @@
         "perms": "system:menu:list",
         "icon": "tree",
         "children": [
-          { "menuName": "菜单查询", "orderNum": 1, "menuType": "F", "perms": "system:menu:query" },
-          { "menuName": "菜单新增", "orderNum": 2, "menuType": "F", "perms": "system:menu:add" },
-          { "menuName": "菜单修改", "orderNum": 3, "menuType": "F", "perms": "system:menu:edit" },
-          { "menuName": "菜单删除", "orderNum": 4, "menuType": "F", "perms": "system:menu:remove" }
+          {
+            "menuName": "菜单查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "system:menu:query"
+          },
+          {
+            "menuName": "菜单新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "system:menu:add"
+          },
+          {
+            "menuName": "菜单修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "system:menu:edit"
+          },
+          {
+            "menuName": "菜单删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "system:menu:remove"
+          }
         ]
       },
       {
@@ -97,10 +187,30 @@
         "perms": "system:dict:list",
         "icon": "dict",
         "children": [
-          { "menuName": "字典查询", "orderNum": 1, "menuType": "F", "perms": "system:dict:query" },
-          { "menuName": "字典新增", "orderNum": 2, "menuType": "F", "perms": "system:dict:add" },
-          { "menuName": "字典修改", "orderNum": 3, "menuType": "F", "perms": "system:dict:edit" },
-          { "menuName": "字典删除", "orderNum": 4, "menuType": "F", "perms": "system:dict:remove" }
+          {
+            "menuName": "字典查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "system:dict:query"
+          },
+          {
+            "menuName": "字典新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "system:dict:add"
+          },
+          {
+            "menuName": "字典修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "system:dict:edit"
+          },
+          {
+            "menuName": "字典删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "system:dict:remove"
+          }
         ]
       },
       {
@@ -115,10 +225,30 @@
         "perms": "system:config:list",
         "icon": "edit",
         "children": [
-          { "menuName": "配置查询", "orderNum": 1, "menuType": "F", "perms": "system:config:query" },
-          { "menuName": "配置新增", "orderNum": 2, "menuType": "F", "perms": "system:config:add" },
-          { "menuName": "配置修改", "orderNum": 3, "menuType": "F", "perms": "system:config:edit" },
-          { "menuName": "配置删除", "orderNum": 4, "menuType": "F", "perms": "system:config:remove" }
+          {
+            "menuName": "配置查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "system:config:query"
+          },
+          {
+            "menuName": "配置新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "system:config:add"
+          },
+          {
+            "menuName": "配置修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "system:config:edit"
+          },
+          {
+            "menuName": "配置删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "system:config:remove"
+          }
         ]
       },
       {
@@ -160,57 +290,77 @@
     ]
   },
   {
-        "menuName": "数据源管理",
-        "orderNum": 2,
-        "path": "/datasource",
-        "routeName": "DataSource",
-        "menuType": "M",
-        "icon": "datasource",
+    "menuName": "数据源管理",
+    "orderNum": 2,
+    "path": "/datasource",
+    "routeName": "DataSource",
+    "menuType": "M",
+    "icon": "datasource",
+    "children": [
+      {
+        "menuName": "数据源列表",
+        "orderNum": 0,
+        "path": "list",
+        "component": "data/datasource/index",
+        "routeName": "DataSourceManage",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "system:datasource:list",
+        "icon": "datasource"
+      },
+      {
+        "menuName": "数据源详情",
+        "orderNum": 1,
+        "path": "detail/:id(\\d+)",
+        "component": "data/datasource/detail",
+        "routeName": "DataSourceDetail",
+        "menuType": "C",
+        "visible": "1",
+        "status": "0",
+        "perms": "system:datasource:query",
+        "icon": "",
         "children": [
           {
-            "menuName": "数据源列表",
-            "orderNum": 0,
-            "path": "list",
-            "component": "data/datasource/index",
-            "routeName": "DataSourceManage",
-            "menuType": "C",
-            "visible": "0",
-            "status": "0",
-            "perms": "system:datasource:list",
-            "icon": "datasource"
-          },
-          {
-            "menuName": "数据源详情",
+            "menuName": "数据源查询",
             "orderNum": 1,
-            "path": "detail/:id(\\d+)",
-            "component": "data/datasource/detail",
-            "routeName": "DataSourceDetail",
-            "menuType": "C",
-            "visible": "1",
-            "status": "0",
-            "perms": "system:datasource:query",
-            "icon": "",
-            "children":[
-                { "menuName": "数据源查询", "orderNum": 1, "menuType": "F", "perms": "system:datasource:query" },
-                { "menuName": "数据源新增", "orderNum": 2, "menuType": "F", "perms": "system:datasource:add" },
-                { "menuName": "数据源修改", "orderNum": 3, "menuType": "F", "perms": "system:datasource:edit" },
-                { "menuName": "数据源删除", "orderNum": 4, "menuType": "F", "perms": "system:datasource:remove" }
-            ]
+            "menuType": "F",
+            "perms": "system:datasource:query"
           },
           {
-            "menuName": "源数据查看",
+            "menuName": "数据源新增",
             "orderNum": 2,
-            "path": "view",
-            "component": "data/datasource/view",
-            "routeName": "DataSourceView",
-            "menuType": "C",
-            "visible": "0",
-            "status": "0",
-            "perms": "system:datasource:view",
-            "icon": "list"
+            "menuType": "F",
+            "perms": "system:datasource:add"
+          },
+          {
+            "menuName": "数据源修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "system:datasource:edit"
+          },
+          {
+            "menuName": "数据源删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "system:datasource:remove"
           }
         ]
       },
+      {
+        "menuName": "源数据查看",
+        "orderNum": 2,
+        "path": "view",
+        "component": "data/datasource/view",
+        "routeName": "DataSourceView",
+        "menuType": "C",
+        "visible": "0",
+        "status": "0",
+        "perms": "system:datasource:view",
+        "icon": "list"
+      }
+    ]
+  },
   {
     "menuName": "数据资产",
     "orderNum": 3,
@@ -309,10 +459,30 @@
         "perms": "dataservice:interface:query",
         "icon": "guide",
         "children": [
-          { "menuName": "接口查询", "orderNum": 1, "menuType": "F", "perms": "dataservice:interface:query" },
-          { "menuName": "接口新增", "orderNum": 2, "menuType": "F", "perms": "dataservice:interface:add" },
-          { "menuName": "接口修改", "orderNum": 3, "menuType": "F", "perms": "dataservice:interface:edit" },
-          { "menuName": "接口删除", "orderNum": 4, "menuType": "F", "perms": "dataservice:interface:remove" }
+          {
+            "menuName": "接口查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "dataservice:interface:query"
+          },
+          {
+            "menuName": "接口新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "dataservice:interface:add"
+          },
+          {
+            "menuName": "接口修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "dataservice:interface:edit"
+          },
+          {
+            "menuName": "接口删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "dataservice:interface:remove"
+          }
         ]
       },
       {
@@ -402,6 +572,28 @@
         "icon": "code"
       },
       {
+        "menuId": 1106,
+        "menuName": "脚本详情",
+        "orderNum": 3,
+        "path": "ide/detail/:scriptId(\\d+)",
+        "component": "data/dev/detail",
+        "routeName": "DataDevScriptDetail",
+        "query": "",
+        "isFrame": "1",
+        "isCache": "0",
+        "menuType": "C",
+        "visible": "1",
+        "status": "0",
+        "perms": "datadev:ide:view",
+        "icon": "",
+        "redirect": "",
+        "activeMenu": "/datadev/ide",
+        "isAffix": false,
+        "isBreadcrumb": true,
+        "alwaysShow": true,
+        "remark": ""
+      },
+      {
         "menuName": "数据目录",
         "orderNum": 2,
         "path": "catalog",
@@ -413,13 +605,32 @@
         "icon": "tree",
         "component": "data/dev/catalog/index",
         "children": [
-          { "menuName": "目录查询", "orderNum": 1, "menuType": "F", "perms": "datadev:catalog:query" },
-          { "menuName": "目录新增", "orderNum": 2, "menuType": "F", "perms": "datadev:catalog:add" },
-          { "menuName": "目录修改", "orderNum": 3, "menuType": "F", "perms": "datadev:catalog:edit" },
-          { "menuName": "目录删除", "orderNum": 4, "menuType": "F", "perms": "datadev:catalog:remove" }
+          {
+            "menuName": "目录查询",
+            "orderNum": 1,
+            "menuType": "F",
+            "perms": "datadev:catalog:query"
+          },
+          {
+            "menuName": "目录新增",
+            "orderNum": 2,
+            "menuType": "F",
+            "perms": "datadev:catalog:add"
+          },
+          {
+            "menuName": "目录修改",
+            "orderNum": 3,
+            "menuType": "F",
+            "perms": "datadev:catalog:edit"
+          },
+          {
+            "menuName": "目录删除",
+            "orderNum": 4,
+            "menuType": "F",
+            "perms": "datadev:catalog:remove"
+          }
         ]
       }
     ]
-
   }
 ]
