@@ -1,8 +1,5 @@
 import hashlib
 import logging
-import time
-import uuid
-from datetime import timedelta
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -17,8 +14,9 @@ from apps.system.views.core import BaseViewSet
 from apps.system.permission import HasRolePermission
 from apps.common.pagination import StandardPagination
 from apps.dbutils.factory import get_executor
+from apps.datatask.services import TaskService
 
-from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory
+from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory, DataDevModel, DataDevModelField
 from .serializers import (
     ScriptListSerializer,
     ScriptCreateSerializer,
@@ -31,6 +29,10 @@ from .serializers import (
     DataDevDirectorySerializer,
     DataDevDirectoryCreateSerializer,
     DataDevDirectoryUpdateSerializer,
+    DataModelListSerializer,
+    DataModelDetailSerializer,
+    DataModelCreateUpdateSerializer,
+    DataModelQuerySerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -234,29 +236,31 @@ class ScriptViewSet(BaseViewSet):
 
         # 解析目录：未指定时自动取默认（order_num 最小的正常目录）
         directory = self._resolve_directory(directory_id)
-
-        script = DataDevScript.objects.create(
-            script_name=vd['scriptName'],
-            script_code=vd['scriptCode'],
-            script_type=vd['scriptType'],
-            description=vd.get('description', ''),
-            tags=vd.get('tags', []),
-            remark=vd.get('remark', ''),
-            directory=directory,
-            owner=username,
-            create_by=username,
-        )
-
-        if content:
-            DataDevScriptVersion.objects.create(
-                script=script,
-                version_number=1,
-                content=content,
-                content_hash=hashlib.sha256(content.encode()).hexdigest(),
-                is_current=True,
-                is_released=False,
+        with transaction.atomic():
+            script = DataDevScript.objects.create(
+                script_name=vd['scriptName'],
+                script_code=vd['scriptCode'],
+                script_type=vd['scriptType'],
+                engine_type='mvp' if vd['scriptType'] == 'python' else vd.get('engineType', 'spark'),
+                description=vd.get('description', ''),
+                tags=vd.get('tags', []),
+                remark=vd.get('remark', ''),
+                directory=directory,
+                owner=username,
                 create_by=username,
             )
+
+            if content:
+                DataDevScriptVersion.objects.create(
+                    script=script,
+                    version_number=1,
+                    content=content,
+                    content_hash=hashlib.sha256(content.encode()).hexdigest(),
+                    is_current=True,
+                    is_released=False,
+                    create_by=username,
+                )
+            TaskService.sync_datadev_source_task(script, username=username)
         return self.ok(msg='创建成功')
 
     def _resolve_directory(self, directory_id):
@@ -276,29 +280,45 @@ class ScriptViewSet(BaseViewSet):
         s = ScriptUpdateSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         vd = s.validated_data
-
-        if 'scriptName' in vd:
-            instance.script_name = vd['scriptName']
-        if 'scriptType' in vd:
-            instance.script_type = vd['scriptType']
-        if 'description' in vd:
-            instance.description = vd['description']
-        if 'status' in vd:
-            instance.status = vd['status']
-        if 'tags' in vd:
-            instance.tags = vd['tags']
-        if 'remark' in vd:
-            instance.remark = vd['remark']
-        if 'directoryId' in vd:
-            instance.directory = self._resolve_directory(vd['directoryId'])
-        instance.update_by = getattr(request.user, 'username', '')
-        instance.save()
+        username = getattr(request.user, 'username', '')
+        with transaction.atomic():
+            if 'scriptName' in vd:
+                instance.script_name = vd['scriptName']
+            if 'scriptType' in vd:
+                instance.script_type = vd['scriptType']
+            if 'engineType' in vd:
+                instance.engine_type = vd['engineType']
+            if 'description' in vd:
+                instance.description = vd['description']
+            if 'status' in vd:
+                instance.status = vd['status']
+            if 'tags' in vd:
+                instance.tags = vd['tags']
+            if 'remark' in vd:
+                instance.remark = vd['remark']
+            if 'directoryId' in vd:
+                instance.directory = self._resolve_directory(vd['directoryId'])
+            if instance.script_type != 'sql':
+                instance.engine_type = 'mvp'
+            elif not instance.engine_type:
+                instance.engine_type = 'spark'
+            instance.update_by = username
+            instance.save()
+            TaskService.sync_datadev_source_task(instance, username=username)
         return self.ok(msg='更新成功')
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.del_flag = '1'
-        instance.save(update_fields=['del_flag'])
+        username = getattr(request.user, 'username', '')
+        with transaction.atomic():
+            instance.del_flag = '1'
+            instance.update_by = username
+            instance.save(update_fields=['del_flag', 'update_by', 'update_time'])
+            TaskService.soft_delete_source_task(
+                source_module='datadev.script',
+                source_record_id=instance.id,
+                username=username,
+            )
         return self.ok(msg='删除成功')
 
     # ── 版本管理 ──────────────────────────────
@@ -396,6 +416,7 @@ class ScriptViewSet(BaseViewSet):
             script.status = 'published' if is_released else 'draft'
             script.update_by = username
             script.save(update_fields=['status', 'update_by', 'update_time'])
+            TaskService.sync_datadev_source_task(script, username=username)
 
     @action(detail=True, methods=['post'], url_path=r'versions/(?P<version_id>\d+)/rollback')
     def rollback_version(self, request, pk=None, version_id=None):
@@ -414,6 +435,7 @@ class ScriptViewSet(BaseViewSet):
             script.status = 'published'
             script.update_by = request.user.username if hasattr(request, 'user') else ''
             script.save(update_fields=['status', 'update_by', 'update_time'])
+            TaskService.sync_datadev_source_task(script, username=script.update_by)
         return self.ok(msg='回滚成功')
 
     # ── 执行管理 ──────────────────────────────
@@ -422,94 +444,24 @@ class ScriptViewSet(BaseViewSet):
     def execute_script(self, request, pk=None):
         """触发脚本执行并返回结果"""
         script = self.get_object()
-        current_version = script.versions.filter(is_current=True).first()
-
-        if not script.datasource:
-            return self.error(msg='脚本未关联数据源，无法执行')
-        if not current_version:
-            return self.error(msg='脚本没有当前版本')
-
-        sql = current_version.content
-        if not sql or not sql.strip():
-            return self.error(msg='脚本内容为空')
-
-        ds = script.datasource
-        info = {
-            'type': ds.db_type,
-            'host': ds.host,
-            'port': ds.port,
-            'username': ds.username,
-            'password': ds.password,
-            'database': ds.db_name,
-            'params': ds.params or {},
-        }
-
-        start_time = timezone.now()
-        start_perf = time.perf_counter()
-        executor = None
-        status = 'success'
-        error_msg = ''
-        columns = []
-        rows = []
-
-        try:
-            executor = get_executor(info)
-            result = executor.execute_query(sql=sql)
-            columns = result.get('columns', [])
-            raw_rows = result.get('rows', [])
-            rows = [dict(zip(columns, row)) for row in raw_rows]
-        except Exception as e:
-            status = 'failed'
-            error_msg = str(e)
-            logger.exception('脚本执行失败: script_id=%s, error=%s', script.id, e)
-        finally:
-            if executor:
-                try:
-                    executor.close()
-                except Exception:
-                    pass
-
-        duration = round(time.perf_counter() - start_perf, 2)
-        end_time = start_time + timedelta(seconds=duration)
-
-        execution = DataDevScriptExecution.objects.create(
-            script=script,
-            version=current_version,
-            execution_id=uuid.uuid4().hex,
-            status=status,
-            executor_type=ds.db_type,
-            executor_params=request.data.get('params'),
-            start_time=start_time,
-            end_time=end_time,
-            duration_seconds=duration,
-            result_summary={
-                'columns': columns,
-                'rows': rows,
-                'rowCount': len(rows),
-                'error': error_msg,
-            },
-            executed_by=request.user.username if hasattr(request, 'user') else '',
+        username = request.user.username if hasattr(request, 'user') else ''
+        runtime_params = request.data.get('params') or {}
+        result = TaskService.execute_datadev_script(
+            script,
+            username=username,
+            runtime_params=runtime_params,
         )
-
-        if status == 'failed':
-            return self.error(msg=f'执行失败: {error_msg}', data={
-                'executionId': execution.execution_id,
-                'status': 'failed',
-            })
-
-        return self.data({
-            'executionId': execution.execution_id,
-            'status': 'success',
-            'columns': columns,
-            'rows': rows,
-            'duration': duration,
-        }, msg='执行成功')
+        if result['ok']:
+            return self.data(result['data'], msg=result['msg'])
+        if result['data'] is None:
+            return self.error(msg=result['msg'])
+        return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
 
     @action(detail=True, methods=['get'], url_path='executions')
     def list_executions(self, request, pk=None):
         """获取脚本执行记录"""
         script = self.get_object()
-        qs = script.executions.all()
+        qs = script.executions.select_related('version', 'task_instance').all()
 
         s = ScriptExecutionQuerySerializer(data=request.query_params)
         s.is_valid(raise_exception=False)
@@ -530,7 +482,7 @@ class ScriptViewSet(BaseViewSet):
 class ScriptExecutionViewSet(BaseViewSet):
     """脚本执行记录（全局查询）"""
     permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = DataDevScriptExecution.objects.select_related('script', 'version').all()
+    queryset = DataDevScriptExecution.objects.select_related('script', 'version', 'task_instance').all()
     serializer_class = ScriptExecutionSerializer
     pagination_class = StandardPagination
     http_method_names = ['get']
@@ -559,3 +511,122 @@ class ScriptExecutionViewSet(BaseViewSet):
         instance = self.get_object()
         serializer = ScriptExecutionSerializer(instance)
         return self.data(serializer.data)
+
+
+class DataModelViewSet(BaseViewSet):
+    """数据建模模块。"""
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    queryset = DataDevModel.objects.prefetch_related('model_fields').all()
+    serializer_class = DataModelListSerializer
+    pagination_class = StandardPagination
+
+    def get_queryset(self):
+        qs = super().get_queryset().prefetch_related('model_fields')
+        s = DataModelQuerySerializer(data=self.request.query_params)
+        s.is_valid(raise_exception=False)
+        vd = getattr(s, 'validated_data', {})
+        if vd.get('modelName'):
+            qs = qs.filter(model_name__icontains=vd['modelName'])
+        if vd.get('layer'):
+            qs = qs.filter(layer=vd['layer'])
+        if vd.get('status'):
+            qs = qs.filter(status=vd['status'])
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        page = self.paginate_queryset(qs)
+        serializer = self.get_serializer(page if page is not None else qs, many=True)
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+        return self.data(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = DataModelDetailSerializer(instance)
+        result = serializer.data
+        result['fields'] = result.get('fields', [])
+        result['generatedSql'] = TaskService.build_datamodel_create_sql(instance)
+        return self.data(result)
+
+    def create(self, request, *args, **kwargs):
+        serializer = DataModelCreateUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        username = request.user.username if hasattr(request, 'user') else ''
+        with transaction.atomic():
+            model = DataDevModel.objects.create(
+                model_name=vd['modelName'],
+                model_code=vd['modelCode'],
+                layer=vd['layer'],
+                table_name=vd['tableName'],
+                schema_name=vd.get('schemaName', ''),
+                table_comment=vd['tableComment'],
+                engine_type=vd['engineType'],
+                owner=vd['owner'],
+                description=vd.get('description', ''),
+                remark=vd.get('remark', ''),
+                create_by=username,
+                update_by=username,
+            )
+            self._replace_fields(model, vd['fields'], username)
+            TaskService.sync_datamodel_source_task(model, username=username)
+        return self.data({'modelId': model.id}, msg='创建成功')
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = DataModelCreateUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        username = request.user.username if hasattr(request, 'user') else ''
+        with transaction.atomic():
+            instance.model_name = vd['modelName']
+            instance.model_code = vd['modelCode']
+            instance.layer = vd['layer']
+            instance.table_name = vd['tableName']
+            instance.schema_name = vd.get('schemaName', '')
+            instance.table_comment = vd['tableComment']
+            instance.engine_type = vd['engineType']
+            instance.owner = vd['owner']
+            instance.description = vd.get('description', '')
+            instance.remark = vd.get('remark', '')
+            instance.update_by = username
+            instance.save()
+            self._replace_fields(instance, vd['fields'], username)
+            TaskService.sync_datamodel_source_task(instance, username=username)
+        return self.data({'modelId': instance.id}, msg='保存成功')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        with transaction.atomic():
+            DataDevModelField.objects.filter(model=instance, del_flag='0').update(del_flag='1')
+            DataDevModel.objects.filter(pk=instance.pk).update(del_flag='1')
+            TaskService.soft_delete_source_task(source_module='datadev.model', source_record_id=instance.id, username=request.user.username)
+        return self.ok(msg='删除成功')
+
+    @action(detail=True, methods=['post'], url_path='submit')
+    def submit_model(self, request, pk=None):
+        model = self.get_object()
+        username = request.user.username if hasattr(request, 'user') else ''
+        result = TaskService.execute_datamodel_task(model, username=username)
+        if result['ok']:
+            return self.data(result['data'], msg=result['msg'])
+        if result['data'] is None:
+            return self.error(msg=result['msg'])
+        return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
+
+    def _replace_fields(self, model, fields_payload, username):
+        DataDevModelField.objects.filter(model=model, del_flag='0').update(del_flag='1')
+        field_objects = []
+        for index, item in enumerate(fields_payload, start=1):
+            field_objects.append(DataDevModelField(
+                model=model,
+                field_name=item['fieldName'],
+                field_type=item['fieldType'],
+                field_comment=item['fieldComment'],
+                is_nullable=item.get('isNullable', True),
+                ordinal_position=item.get('ordinalPosition') or index,
+                create_by=username,
+                update_by=username,
+            ))
+        DataDevModelField.objects.bulk_create(field_objects)

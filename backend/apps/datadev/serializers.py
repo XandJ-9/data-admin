@@ -2,7 +2,7 @@ import hashlib
 
 from rest_framework import serializers
 from apps.system.serializers import BaseModelSerializer
-from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory
+from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory, DataDevModel, DataDevModelField
 
 
 # ── Script ──────────────────────────────────────
@@ -13,6 +13,7 @@ class ScriptListSerializer(BaseModelSerializer):
     scriptName = serializers.CharField(source='script_name')
     scriptCode = serializers.CharField(source='script_code')
     scriptType = serializers.CharField(source='script_type')
+    engineType = serializers.CharField(source='engine_type')
     datasourceId = serializers.PrimaryKeyRelatedField(
         source='datasource', read_only=True
     )
@@ -29,7 +30,7 @@ class ScriptListSerializer(BaseModelSerializer):
     class Meta:
         model = DataDevScript
         fields = [
-            'scriptId', 'scriptName', 'scriptCode', 'scriptType',
+            'scriptId', 'scriptName', 'scriptCode', 'scriptType', 'engineType',
             'description', 'status', 'datasourceId', 'datasourceName',
             'directoryId', 'directoryName',
             'tags', 'owner', 'remark',
@@ -41,6 +42,7 @@ class ScriptCreateSerializer(serializers.Serializer):
     scriptName = serializers.CharField(max_length=128)
     scriptCode = serializers.CharField(max_length=64)
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], default='sql')
+    engineType = serializers.ChoiceField(choices=['spark', 'hive', 'mvp'], required=False, default='spark')
     description = serializers.CharField(required=False, allow_blank=True, default='')
     directoryId = serializers.IntegerField(required=False, allow_null=True, default=None)
     tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
@@ -52,6 +54,7 @@ class ScriptUpdateSerializer(serializers.Serializer):
     """脚本更新序列化器"""
     scriptName = serializers.CharField(max_length=128, required=False)
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], required=False)
+    engineType = serializers.ChoiceField(choices=['spark', 'hive', 'mvp'], required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=['draft', 'published', 'archived'], required=False)
     directoryId = serializers.IntegerField(required=False, allow_null=True)
@@ -102,6 +105,8 @@ class ScriptVersionCreateSerializer(serializers.Serializer):
 
 class ScriptExecutionSerializer(serializers.ModelSerializer):
     """脚本执行记录序列化器"""
+    taskId = serializers.IntegerField(source='task_instance.task_id', read_only=True, allow_null=True)
+    taskInstanceId = serializers.IntegerField(source='task_instance_id', read_only=True, allow_null=True)
     executionId = serializers.CharField(source='execution_id', read_only=True)
     scriptId = serializers.IntegerField(source='script_id', read_only=True)
     scriptName = serializers.CharField(source='script.script_name', read_only=True, default='')
@@ -127,6 +132,7 @@ class ScriptExecutionSerializer(serializers.ModelSerializer):
     class Meta:
         model = DataDevScriptExecution
         fields = [
+            'taskId', 'taskInstanceId',
             'executionId', 'scriptId', 'scriptName', 'status',
             'versionNumber', 'executorType', 'executorParams',
             'startTime', 'endTime', 'durationSeconds',
@@ -180,3 +186,94 @@ class DataDevDirectoryUpdateSerializer(serializers.Serializer):
     orderNum = serializers.IntegerField(required=False)
     status = serializers.ChoiceField(choices=['0', '1'], required=False)
     remark = serializers.CharField(required=False, allow_blank=True)
+
+
+class DataModelFieldPayloadSerializer(serializers.Serializer):
+    fieldId = serializers.IntegerField(required=False)
+    fieldName = serializers.CharField(max_length=128)
+    fieldType = serializers.CharField(max_length=64)
+    fieldComment = serializers.CharField(max_length=512)
+    isNullable = serializers.BooleanField(required=False, default=True)
+    ordinalPosition = serializers.IntegerField(required=False, default=1)
+
+
+class DataModelFieldSerializer(BaseModelSerializer):
+    fieldId = serializers.IntegerField(source='id', read_only=True)
+    fieldName = serializers.CharField(source='field_name')
+    fieldType = serializers.CharField(source='field_type')
+    fieldComment = serializers.CharField(source='field_comment')
+    isNullable = serializers.BooleanField(source='is_nullable')
+    ordinalPosition = serializers.IntegerField(source='ordinal_position')
+
+    class Meta:
+        model = DataDevModelField
+        fields = ['fieldId', 'fieldName', 'fieldType', 'fieldComment', 'isNullable', 'ordinalPosition']
+
+
+class DataModelListSerializer(BaseModelSerializer):
+    modelId = serializers.IntegerField(source='id', read_only=True)
+    modelName = serializers.CharField(source='model_name')
+    modelCode = serializers.CharField(source='model_code')
+    layer = serializers.CharField()
+    tableName = serializers.CharField(source='table_name')
+    schemaName = serializers.CharField(source='schema_name')
+    tableComment = serializers.CharField(source='table_comment')
+    engineType = serializers.CharField(source='engine_type')
+    owner = serializers.CharField()
+    description = serializers.CharField()
+    fieldCount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DataDevModel
+        fields = [
+            'modelId', 'modelName', 'modelCode', 'layer', 'tableName', 'schemaName',
+            'tableComment', 'engineType', 'owner', 'description', 'status', 'fieldCount',
+            'remark', 'createBy', 'updateBy', 'createTime', 'updateTime',
+        ]
+
+    def get_fieldCount(self, obj):
+        prefetched = getattr(obj, 'active_field_count', None)
+        if prefetched is not None:
+            return prefetched
+        return obj.model_fields.filter(del_flag='0').count()
+
+
+class DataModelDetailSerializer(DataModelListSerializer):
+    fields = DataModelFieldSerializer(source='model_fields', many=True, read_only=True)
+
+    class Meta(DataModelListSerializer.Meta):
+        fields = DataModelListSerializer.Meta.fields + ['fields']
+
+
+class DataModelCreateUpdateSerializer(serializers.Serializer):
+    modelName = serializers.CharField(max_length=128)
+    modelCode = serializers.CharField(max_length=64)
+    layer = serializers.ChoiceField(choices=['ODS', 'DWD', 'DWS', 'ADS'])
+    tableName = serializers.CharField(max_length=255)
+    schemaName = serializers.CharField(required=False, allow_blank=True, default='')
+    tableComment = serializers.CharField(max_length=1024)
+    engineType = serializers.ChoiceField(choices=['spark', 'hive'], default='spark')
+    owner = serializers.CharField(max_length=64)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+    fields = DataModelFieldPayloadSerializer(many=True, allow_empty=False)
+
+    def validate_fields(self, value):
+        names = set()
+        for index, item in enumerate(value, start=1):
+            field_name = str(item.get('fieldName') or '').strip()
+            field_comment = str(item.get('fieldComment') or '').strip()
+            if not field_name:
+                raise serializers.ValidationError(f'第 {index} 个字段缺少字段名称')
+            if field_name.lower() in names:
+                raise serializers.ValidationError(f'字段名称重复: {field_name}')
+            if not field_comment:
+                raise serializers.ValidationError(f'字段 {field_name} 必须填写字段注释')
+            names.add(field_name.lower())
+        return value
+
+
+class DataModelQuerySerializer(serializers.Serializer):
+    modelName = serializers.CharField(required=False, allow_blank=True)
+    layer = serializers.ChoiceField(required=False, choices=['ODS', 'DWD', 'DWS', 'ADS'])
+    status = serializers.ChoiceField(required=False, choices=['draft', 'deployed'])

@@ -137,3 +137,44 @@ class InterfaceField(BaseModel):
 
     def __str__(self):
         return f"{self.interface_para_name}({self.interface_para_code})"
+
+
+class ReportInfo(BaseModel):
+    report_name = models.CharField(max_length=255, verbose_name='报表名称')
+    report_code = models.CharField(max_length=255, unique=True, verbose_name='报表编码')
+    report_desc = models.TextField(verbose_name='报表描述', null=True, blank=True)
+    user_name = models.CharField(max_length=255, verbose_name='负责人', null=True, blank=True)
+
+    class Meta:
+        db_table = 'dataservice_report_info'
+        verbose_name = '报表信息'
+        verbose_name_plural = '报表信息'
+        indexes = [
+            models.Index(fields=['report_code']),
+            models.Index(fields=['del_flag']),
+        ]
+
+    def __str__(self):
+        return self.report_name
+
+
+class ReportInterfaceRelation(BaseModel):
+    report = models.ForeignKey(ReportInfo, related_name='report_interfaces', on_delete=models.CASCADE, verbose_name='报表')
+    interface = models.ForeignKey(InterfaceInfo, related_name='interface_reports', on_delete=models.CASCADE, verbose_name='接口')
+    interface_position = models.IntegerField(default=1, verbose_name='接口顺序')
+
+    class Meta:
+        db_table = 'dataservice_report_interface_relation'
+        verbose_name = '报表接口关联'
+        verbose_name_plural = '报表接口关联'
+        indexes = [
+            models.Index(fields=['report']),
+            models.Index(fields=['interface']),
+            models.Index(fields=['del_flag']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['report', 'interface', 'del_flag'], name='uniq_report_interface_active'),
+        ]
+
+    def __str__(self):
+        return f'{self.report.report_name} -> {self.interface.interface_name}'

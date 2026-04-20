@@ -1,5 +1,32 @@
 <template>
   <div class="result-panel">
+    <div v-if="feedback?.message" class="feedback-strip">
+      <el-alert
+        :type="feedback.type || 'info'"
+        :title="feedback.title || statusLabel"
+        :description="feedback.message"
+        show-icon
+        :closable="false"
+      />
+    </div>
+    <div class="result-overview">
+      <div class="overview-item">
+        <span class="overview-label">执行状态</span>
+        <strong class="overview-value">{{ statusLabel }}</strong>
+      </div>
+      <div class="overview-item">
+        <span class="overview-label">返回行数</span>
+        <strong class="overview-value">{{ rows.length }}</strong>
+      </div>
+      <div class="overview-item">
+        <span class="overview-label">返回列数</span>
+        <strong class="overview-value">{{ columns.length }}</strong>
+      </div>
+      <div class="overview-item">
+        <span class="overview-label">执行耗时</span>
+        <strong class="overview-value">{{ duration !== null ? `${duration}s` : '-' }}</strong>
+      </div>
+    </div>
     <el-tabs v-model="activeTab" class="panel-tabs">
       <!-- 数据预览 -->
       <el-tab-pane label="数据预览" name="preview">
@@ -80,17 +107,27 @@ import { Coin, Document, ArrowDown, ArrowRight } from '@element-plus/icons-vue'
 
 defineOptions({ name: 'DevResultPanel' })
 
-defineProps({
+const props = defineProps({
   columns: { type: Array, default: () => [] },
   rows: { type: Array, default: () => [] },
   duration: { type: Number, default: null },
   lineageData: { type: Object, default: null },
   executionPlan: { type: Array, default: null },
   logs: { type: Array, default: () => [] },
+  status: { type: String, default: 'idle' },
+  feedback: { type: Object, default: () => ({}) },
 })
 
 const activeTab = ref('preview')
 const logExpand = ref(true)
+const statusLabel = computed(() => ({
+  idle: '就绪',
+  running: '执行中',
+  pending: '已提交',
+  success: '执行成功',
+  failed: '执行失败',
+  cancelled: '已取消',
+}[props.status] || '就绪'))
 </script>
 
 <style lang="scss" scoped>
@@ -99,6 +136,37 @@ const logExpand = ref(true)
   flex-direction: column;
   height: 100%;
   background: #fff;
+}
+
+.feedback-strip {
+  padding: 10px 10px 0;
+}
+
+.result-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.overview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f7f9fc;
+}
+
+.overview-label {
+  font-size: 12px;
+  color: #909399;
+}
+
+.overview-value {
+  font-size: 14px;
+  color: #303133;
 }
 
 .panel-tabs {

@@ -4,8 +4,11 @@
 
 - 例如：PRD、功能拆解、用例说明等。
 
+## 当前模块文档
+
+- [data-asset-module.md](data-asset-module.md) - 数据资产管理模块说明（当前代码主干仍保留：元数据采集、元数据浏览、表级血缘）
+- 数据服务模块说明文档：待补充
+
 ## 已归档文档
 
-- [data-asset-module.md](data-asset-module.md) - 数据资产管理模块说明（已下线 2026-04-16：模块已完全移除）
-- [data-service-module.md](data-service-module.md) - 数据服务模块说明
-- 历史：[data-etl-module.md](data-etl-module.md) - ETL 模块说明（已于 2026-04-16 下线并删除）
+- 历史：ETL 模块说明文档已于 2026-04-16 随模块下线一并删除

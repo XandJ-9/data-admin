@@ -42,17 +42,18 @@ def custom_exception_handler(exc, context):
             message = '请求错误'
         response.data = {
             'code': response.status_code,
-            'message': message,
+            'msg': message,
         }
         # return response
         return Response(response.data, status=status.HTTP_200_OK)
     elif isinstance(exc, (ProtectedError, RestrictedError)):
         set_rollback()
-        msg = "无法删除:该条数据与其他数据有相关绑定"
+        msg = "无法删除：该数据被其他模块引用，请先解除关联后再删除"
+        return Response({'code': 400, 'msg': msg}, status=status.HTTP_200_OK)
     elif isinstance(exc, DatabaseError):
         set_rollback()
         msg = "数据库错误:" + str(exc)
     elif isinstance(exc, Exception):
         msg = str(exc)
     # Non-DRF or unhandled exceptions → 500
-    return Response({'code': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response({'code': status.HTTP_500_INTERNAL_SERVER_ERROR, 'msg': msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

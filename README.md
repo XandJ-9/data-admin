@@ -12,13 +12,13 @@ Data Admin 是面向数据团队的统一管理平台，覆盖从数据接入到
 |------|------|------|
 | **数据源管理** | 多数据库接入（MySQL / PostgreSQL / Presto / Trino / StarRocks 等），连通性测试，连接信息加密存储 | ✅ |
 | **元数据管理** | 异步采集数据库/表/字段元信息，增量更新，进度追踪 | ✅ |
-| **表血缘追踪** | 配置表级上下游关系，多层递归查询，可视化血缘图谱 | ❌ |
+| **表血缘追踪** | 配置表级上下游关系，多层递归查询，可视化血缘图谱（当前为轻量级表级血缘） | ✅ |
 | **数据查询** | 在线 SQL 编辑执行，参数化查询，结果分页与 CSV 导出 | ✅ |
 | **数据接口** | SQL 封装为标准化 API，定义输入/输出字段，支持 Excel 批量管理 | ✅ |
 | **数据开发** | Web IDE（三栏布局）、资源导航树、多页签脚本编辑、草稿/发布版本管理、执行记录追踪 | ✅ |
 | **Web 终端** | 浏览器内交互式 Shell，多标签页，跨平台 PTY，命令审计 | ✅ |
 | **系统管理** | 用户、角色、部门、菜单、字典、参数，完整 RBAC 权限 | ✅ |
-| **监控运维** | 服务器状态监控，操作日志，登录日志，在线用户管理 | ❌ |
+| **监控运维** | 已具备服务器状态监控、在线用户与操作日志能力，登录日志与统一菜单入口仍待补齐 | ❌ |
 
 ## 技术栈
 
@@ -35,7 +35,8 @@ cd backend
 uv venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 python manage.py migrate
-python manage.py init_system    # 初始化 admin 用户、角色、菜单
+python manage.py initdata       # 初始化 admin 用户、角色、菜单
+python manage.py sync_menu_data # 将当前数据库菜单同步回 menu_data.json
 python manage.py runserver 0.0.0.0:8000
 ```
 
@@ -47,9 +48,11 @@ pnpm install
 pnpm dev
 ```
 
+> 说明：开发环境默认使用 `80` 端口；在 macOS / Linux 上若当前用户无法绑定特权端口，请使用具备权限的方式启动，或自行调整 Vite 开发端口配置。
+
 ### 访问
 
-- 前端：`http://localhost:80`
+- 前端：`http://localhost:80/data-admin/`
 - API：`http://localhost:8000/data-api/`
 - API 文档：`http://localhost:8000/api/docs/`
 - 默认账号：`admin` / `admin123`
@@ -84,7 +87,7 @@ data-admin/
 ### 系统要求
 
 - **操作系统**：Linux （推荐 CentOS 7+, Ubuntu 18.04+）
-- **Python**：3.11+
+- **Python**：3.12+
 - **Node.js**：18+
 - **数据库**：SQLite（开发）、MySQL 5.7+ 或 PostgreSQL 12+（生产）
 - **内存**：最小 2GB，推荐 4GB+
@@ -116,29 +119,20 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 cd backend
 uv sync
 
-# 配置生产环境变量
-cat > .env.production << EOF
-DEBUG=False
-ALLOWED_HOSTS=your.domain.com,localhost
-SECRET_KEY=your-secret-key-here
-DATABASE_ENGINE=django.db.backends.mysql
-DATABASE_NAME=dataadmin
-DATABASE_USER=dataadmin_user
-DATABASE_PASSWORD=your-db-password
-DATABASE_HOST=localhost
-DATABASE_PORT=3306
-REDIS_URL=redis://localhost:6379/0
-EOF
+# 说明：当前主干尚未接入 .env.production 自动加载。
+# 如需生产化配置，请先按实际环境修改 backend/config/settings.py 与 backend/config/env.py。
+# 当前默认配置仍以 settings.py 为准（DEBUG=True、ALLOWED_HOSTS=["*"]、SQLite、InMemoryChannelLayer）。
 
 # 数据库初始化（首次部署）
-python manage.py migrate
-python manage.py init_system     # 创建 admin 用户和初始数据
+uv run python manage.py migrate
+uv run python manage.py initdata        # 创建 admin 用户和初始数据
+uv run python manage.py sync_menu_data  # 将当前数据库菜单同步回 menu_data.json
 
 # 收集静态文件
-python manage.py collectstatic --noinput
+uv run python manage.py collectstatic --noinput
 
 # 启动 Daphne（本项目使用 Django Channels，必须使用 Daphne）
-daphne -b 127.0.0.1 -p 8000 config.asgi:application
+uv run daphne -b 127.0.0.1 -p 8000 config.asgi:application
 
 # 注意：Gunicorn + Uvicorn Worker 无法正确处理 Django Channels 的 WebSocket 路由，不可使用
 ```
@@ -149,7 +143,7 @@ daphne -b 127.0.0.1 -p 8000 config.asgi:application
 cd ../frontend
 
 # 安装依赖
-pnpm install --prod
+pnpm install --frozen-lockfile
 
 # 构建生产包
 pnpm build:prod
@@ -175,10 +169,10 @@ server {
     
     client_max_body_size 100M;
     
-    # 前端静态文件
-    location / {
-        root /opt/dataadmin/frontend/dist;
-        try_files $uri $uri/ /index.html;
+    # 前端静态文件（当前构建基路径为 /data-admin/）
+    location /data-admin/ {
+        alias /opt/dataadmin/frontend/dist/;
+        try_files $uri $uri/ /data-admin/index.html;
         expires 1d;
         add_header Cache-Control "public, immutable";
     }
@@ -195,6 +189,16 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
         proxy_read_timeout 30s;
+    }
+
+    # API 文档
+    location /api/ {
+        proxy_pass http://dataadmin_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
     
     # WebSocket 支持（Web 终端）
@@ -228,8 +232,8 @@ Type=notify
 User=dataadmin
 Group=dataadmin
 WorkingDirectory=/opt/dataadmin/backend
-Environment="PATH=/home/dataadmin/.local/bin"
-ExecStart=/home/dataadmin/.local/bin/daphne -b 127.0.0.1 -p 8000 config.asgi:application
+Environment="PATH=/home/dataadmin/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/dataadmin/.local/bin/uv run daphne -b 127.0.0.1 -p 8000 config.asgi:application
 Restart=always
 RestartSec=10
 
@@ -249,15 +253,15 @@ sudo systemctl status dataadmin
 #### 6. 验证部署
 
 ```bash
-# 检查后端健康状态
-curl http://localhost:8000/data-api/system/health/
+# 检查 API 文档页
+curl -I http://localhost:8000/api/docs/
 
 # 检查前端
-curl http://your.domain.com/
+curl http://your.domain.com/data-admin/
 
 # 访问应用
-# 前端：http://your.domain.com
-# API 文档：http://your.domain.com/data-api/docs/
+# 前端：http://your.domain.com/data-admin/
+# API 文档：http://your.domain.com/api/docs/
 # 默认账号：admin / admin123
 ```
 

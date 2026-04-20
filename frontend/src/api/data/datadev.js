@@ -89,6 +89,7 @@ export function executeScript(scriptId, data) {
     url: `/datadev/scripts/${scriptId}/execute`,
     method: 'post',
     data,
+    timeout: 30 * 60 * 1000,
   })
 }
 
@@ -152,5 +153,53 @@ export function delDirectory(id) {
   return request({
     url: `/datadev/directories/${id}`,
     method: 'delete',
+  })
+}
+
+
+// ── 数据建模 ─────────────────────────────────
+
+export function listModels(query) {
+  return request({
+    url: '/datadev/models',
+    method: 'get',
+    params: query,
+  })
+}
+
+export function getModel(id) {
+  return request({
+    url: `/datadev/models/${id}`,
+    method: 'get',
+  })
+}
+
+export function addModel(data) {
+  return request({
+    url: '/datadev/models',
+    method: 'post',
+    data,
+  })
+}
+
+export function updateModel(id, data) {
+  return request({
+    url: `/datadev/models/${id}`,
+    method: 'put',
+    data,
+  })
+}
+
+export function delModel(id) {
+  return request({
+    url: `/datadev/models/${id}`,
+    method: 'delete',
+  })
+}
+
+export function submitModel(id) {
+  return request({
+    url: `/datadev/models/${id}/submit`,
+    method: 'post',
   })
 }

@@ -46,7 +46,7 @@
     </el-row>
 
     <el-row :gutter="16" class="content-row">
-      <el-col :xs="24" :xl="15">
+      <el-col :xs="24" :lg="15">
         <el-card class="content-card capability-card" shadow="hover">
           <template #header>
             <div class="section-head">
@@ -73,7 +73,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :xl="9">
+      <el-col :xs="24" :lg="9">
         <el-card class="content-card workflow-card" shadow="hover">
           <template #header>
             <div class="section-head">
@@ -97,47 +97,13 @@
     </el-row>
 
     <el-row :gutter="16" class="content-row">
-      <el-col :xs="24" :xl="12">
+      <el-col :xs="24">
         <el-card class="content-card" shadow="hover">
           <template #header>
             <div class="section-head">
               <div>
-                <h2>最近查询动态</h2>
-                <p>帮助用户快速判断最近谁在用、执行是否稳定。</p>
-              </div>
-              <el-button text type="primary" @click="goTo('/data-service/query-log')">查看全部</el-button>
-            </div>
-          </template>
-          <div v-if="recentLogs.length" class="activity-list">
-            <article v-for="item in recentLogs" :key="item.logId || item.createTime + item.sqlText" class="activity-item">
-              <div class="activity-main">
-                <div class="activity-topline">
-                  <span class="activity-user">{{ item.userName || '未知用户' }}</span>
-                  <el-tag size="small" :type="item.status === 'success' ? 'success' : 'danger'">
-                    {{ item.status === 'success' ? '成功' : '失败' }}
-                  </el-tag>
-                </div>
-                <p>
-                  {{ queryTypeLabel(item.queryType) }}
-                  <span v-if="item.dataSourceName">· {{ item.dataSourceName }}</span>
-                </p>
-              </div>
-              <div class="activity-side">
-                <span>{{ formatDuration(item.durationMs) }}</span>
-                <small>{{ formatTime(item.createTime) }}</small>
-              </div>
-            </article>
-          </div>
-          <el-empty v-else description="暂无查询记录" :image-size="68" />
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :xl="12">
-        <el-card class="content-card" shadow="hover">
-          <template #header>
-            <div class="section-head">
-              <div>
-                <h2>最近接口定义</h2>
-                <p>已沉淀的数据接口会在这里展示，便于快速进入维护。</p>
+                <h2>接口定义概览</h2>
+                <p>首页只保留接口信息，便于快速判断当前已沉淀了哪些服务接口。</p>
               </div>
               <el-button text type="primary" @click="goTo('/data-service/interface')">进入接口管理</el-button>
             </div>
@@ -177,7 +143,6 @@ const overview = reactive({
   successRate: '--',
 })
 
-const recentLogs = ref([])
 const recentInterfaces = ref([])
 
 const overviewCards = computed(() => [
@@ -265,29 +230,6 @@ function goTo(path) {
   router.push(path)
 }
 
-function formatTime(value) {
-  if (!value) return '--'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatDuration(value) {
-  if (value === undefined || value === null || value === '') return '--'
-  return `${value} ms`
-}
-
-function queryTypeLabel(value) {
-  if (value === 'interface') return '接口查询'
-  if (value === 'sql') return 'SQL 查询'
-  return '查询记录'
-}
-
 function resolveTotal(response) {
   if (typeof response?.total === 'number') return response.total
   if (Array.isArray(response?.rows)) return response.rows.length
@@ -311,7 +253,6 @@ async function loadOverview() {
     overview.logCount = resolveTotal(logRes)
     overview.successRate = logRows.length ? `${Math.round((successCount / logRows.length) * 100)}%` : '--'
 
-    recentLogs.value = logRows.slice(0, 5)
     recentInterfaces.value = (interfaceRes?.rows || []).slice(0, 5)
   } catch (error) {
     ElMessage.error(error?.msg || '加载数据服务概览失败，请稍后重试')
@@ -512,17 +453,22 @@ onMounted(() => {
 
 .capability-grid {
   display: grid;
-  gap: 12px;
+  gap: 18px;
 }
 
 .capability-item {
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   gap: 14px;
-  padding: 16px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #fff;
+  padding: 0 0 18px;
+  border: none;
+  border-bottom: 1px solid #ebeef5;
+  background: transparent;
+}
+
+.capability-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .capability-icon {
@@ -563,7 +509,7 @@ onMounted(() => {
 
 .workflow-list {
   display: grid;
-  gap: 12px;
+  gap: 16px;
 }
 
 .workflow-item {
@@ -571,6 +517,14 @@ onMounted(() => {
   grid-template-columns: 56px minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+  padding: 0 0 16px;
+  border: none;
+  border-bottom: 1px dashed #dcdfe6;
+}
+
+.workflow-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .workflow-order {
@@ -585,13 +539,11 @@ onMounted(() => {
   font-weight: 700;
 }
 
-.activity-list,
 .interface-list {
   display: grid;
   gap: 10px;
 }
 
-.activity-item,
 .interface-item {
   display: flex;
   align-items: center;
@@ -603,39 +555,8 @@ onMounted(() => {
   background: #fff;
 }
 
-.activity-main,
 .interface-main {
   min-width: 0;
-}
-
-.activity-topline {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.activity-user {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.activity-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  color: #909399;
-  white-space: nowrap;
-}
-
-.activity-side span {
-  font-weight: 600;
-  color: #303133;
-}
-
-.activity-side small {
-  font-size: 12px;
 }
 
 .interface-meta {
@@ -667,13 +588,11 @@ onMounted(() => {
   }
 
   .section-head,
-  .activity-item,
   .interface-item {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .activity-side,
   .interface-meta {
     align-items: flex-start;
   }

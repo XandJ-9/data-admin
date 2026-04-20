@@ -1,22 +1,211 @@
+import logging
+
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django.db import transaction
-
+from django.db.models import OuterRef, Prefetch, Q, Subquery
+from django.utils import timezone
 from apps.system.views.core import BaseViewSet
+from apps.system.common import audit_log
 from apps.system.permission import HasRolePermission
-from apps.dbutils.factory import get_executor
-from apps.dbutils import list_tables, get_table_schema, get_table_info, list_tables_info, get_databases
+from apps.dbutils import list_tables, get_table_schema, list_tables_info, get_databases
 
 from apps.datasource.models import DataSource
-from .models import MetaTable, MetaColumn, MetaCollectionTask, TableLineage
+from .models import (
+    AssetNamespace,
+    DataAsset,
+    DataAssetColumn,
+    MetaTable,
+    MetaColumn,
+    MetaCollectionTask,
+    TableLineage,
+)
 from .serializers import (
+    AssetNamespaceSerializer,
+    AssetNamespaceQuerySerializer,
+    CanonicalMetaColumnSerializer,
+    CanonicalMetaTableSerializer,
+    DataAssetColumnQuerySerializer,
+    DataAssetColumnSerializer,
+    DataAssetDetailSerializer,
+    DataAssetQuerySerializer,
+    DataAssetSerializer,
     MetaTableSerializer, MetaTableQuerySerializer,
     MetaColumnSerializer, MetaColumnQuerySerializer,
     MetaCollectionTaskSerializer, MetaCollectionTaskCreateSerializer,
     TableLineageSerializer, TableLineageCreateSerializer, TableLineageUpdateSerializer,
     TableLineageQuerySerializer, TableLineageGraphSerializer
 )
-from .collectors import start_collection_task, cancel_collection_task, get_task_status
+from .collectors import create_collection_task, start_collection_task, cancel_collection_task, get_task_status
+from .services import collect_table_metadata, sync_standard_asset_from_meta_table
+from .utils import sanitize_collection_error_message
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_datetime_param(value):
+    from datetime import datetime
+
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).rstrip('Z'))
+    except Exception:
+        return None
+
+
+def _filter_canonical_database(queryset, database_name, namespace_prefix='namespace__'):
+    if not database_name:
+        return queryset
+    return queryset.filter(
+        Q(**{f'{namespace_prefix}display_name__icontains': database_name})
+        | Q(**{f'{namespace_prefix}catalog_name__icontains': database_name})
+        | Q(**{f'{namespace_prefix}schema_name__icontains': database_name})
+    )
+
+
+class AssetNamespaceViewSet(BaseViewSet):
+    """规范资产命名空间查询接口"""
+
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    http_method_names = ['get', 'head', 'options']
+    queryset = AssetNamespace.objects.filter(del_flag='0').select_related('data_source').order_by('data_source_id', 'catalog_name', 'schema_name')
+    serializer_class = AssetNamespaceSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        data_source_id = self.request.query_params.get('dataSourceId')
+        if data_source_id:
+            try:
+                qs = qs.filter(data_source_id=int(data_source_id))
+            except Exception:
+                pass
+        data_source_name = self.request.query_params.get('dataSourceName')
+        if data_source_name:
+            qs = qs.filter(data_source__name__icontains=data_source_name)
+        environment = self.request.query_params.get('environment')
+        if environment:
+            qs = qs.filter(environment=environment)
+        catalog_name = self.request.query_params.get('catalogName')
+        if catalog_name:
+            qs = qs.filter(catalog_name__icontains=catalog_name)
+        schema_name = self.request.query_params.get('schemaName')
+        if schema_name:
+            qs = qs.filter(schema_name__icontains=schema_name)
+        keyword = self.request.query_params.get('keyword')
+        if keyword:
+            qs = qs.filter(
+                Q(display_name__icontains=keyword)
+                | Q(namespace_key__icontains=keyword)
+                | Q(catalog_name__icontains=keyword)
+                | Q(schema_name__icontains=keyword)
+            )
+        return qs
+
+
+class DataAssetViewSet(BaseViewSet):
+    """规范数据资产查询接口"""
+
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    http_method_names = ['get', 'head', 'options']
+    queryset = DataAsset.objects.filter(del_flag='0').select_related('namespace', 'namespace__data_source').prefetch_related(
+        Prefetch(
+            'asset_columns',
+            queryset=DataAssetColumn.objects.filter(del_flag='0').order_by('ordinal_position', 'column_name'),
+        )
+    ).order_by('object_name')
+    serializer_class = DataAssetSerializer
+    retrieve_serializer_class = DataAssetDetailSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        data_source_id = self.request.query_params.get('dataSourceId')
+        if data_source_id:
+            try:
+                qs = qs.filter(namespace__data_source_id=int(data_source_id))
+            except Exception:
+                pass
+        data_source_name = self.request.query_params.get('dataSourceName')
+        if data_source_name:
+            qs = qs.filter(namespace__data_source__name__icontains=data_source_name)
+        namespace_id = self.request.query_params.get('namespaceId')
+        if namespace_id:
+            try:
+                qs = qs.filter(namespace_id=int(namespace_id))
+            except Exception:
+                pass
+        asset_type = self.request.query_params.get('assetType')
+        if asset_type:
+            qs = qs.filter(asset_type=asset_type)
+        object_name = self.request.query_params.get('objectName')
+        if object_name:
+            qs = qs.filter(object_name__icontains=object_name)
+        database_name = self.request.query_params.get('databaseName')
+        if database_name:
+            qs = _filter_canonical_database(qs, database_name)
+        catalog_name = self.request.query_params.get('catalogName')
+        if catalog_name:
+            qs = qs.filter(namespace__catalog_name__icontains=catalog_name)
+        schema_name = self.request.query_params.get('schemaName')
+        if schema_name:
+            qs = qs.filter(namespace__schema_name__icontains=schema_name)
+        keyword = self.request.query_params.get('keyword')
+        if keyword:
+            qs = qs.filter(
+                Q(object_name__icontains=keyword)
+                | Q(display_name__icontains=keyword)
+                | Q(comment__icontains=keyword)
+                | Q(qualified_name__icontains=keyword)
+            )
+        return qs
+
+
+class DataAssetColumnViewSet(BaseViewSet):
+    """规范数据资产字段查询接口"""
+
+    permission_classes = [IsAuthenticated, HasRolePermission]
+    http_method_names = ['get', 'head', 'options']
+    queryset = DataAssetColumn.objects.filter(del_flag='0').select_related(
+        'asset', 'asset__namespace', 'asset__namespace__data_source'
+    ).order_by('asset__object_name', 'ordinal_position', 'column_name')
+    serializer_class = DataAssetColumnSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        data_source_id = self.request.query_params.get('dataSourceId')
+        if data_source_id:
+            try:
+                qs = qs.filter(asset__namespace__data_source_id=int(data_source_id))
+            except Exception:
+                pass
+        data_source_name = self.request.query_params.get('dataSourceName')
+        if data_source_name:
+            qs = qs.filter(asset__namespace__data_source__name__icontains=data_source_name)
+        asset_id = self.request.query_params.get('assetId')
+        if asset_id:
+            try:
+                qs = qs.filter(asset_id=int(asset_id))
+            except Exception:
+                pass
+        table_id = self.request.query_params.get('tableId')
+        if table_id:
+            try:
+                qs = qs.filter(asset__legacy_meta_table_id=int(table_id))
+            except Exception:
+                pass
+        table_name = self.request.query_params.get('tableName')
+        if table_name:
+            qs = qs.filter(asset__object_name=table_name)
+        database_name = self.request.query_params.get('databaseName')
+        if database_name:
+            qs = _filter_canonical_database(qs, database_name, namespace_prefix='asset__namespace__')
+        column_name = self.request.query_params.get('columnName')
+        if column_name:
+            qs = qs.filter(column_name__icontains=column_name)
+        column_comment = self.request.query_params.get('columnComment')
+        if column_comment:
+            qs = qs.filter(comment__icontains=column_comment)
+        return qs
 
 
 # ==================== MetaTable ViewSet ====================
@@ -24,7 +213,7 @@ from .collectors import start_collection_task, cancel_collection_task, get_task_
 class MetaTableViewSet(BaseViewSet):
     """元数据表管理"""
     permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = MetaTable.objects.filter(del_flag='0').order_by('table_name')
+    queryset = MetaTable.objects.filter(del_flag='0').select_related('data_source').order_by('table_name')
     serializer_class = MetaTableSerializer
 
     def get_queryset(self):
@@ -68,6 +257,97 @@ class MetaTableViewSet(BaseViewSet):
             qs = qs.filter(update_time__lte=u_end)
         return qs
 
+    def _get_canonical_queryset(self):
+        legacy_meta_table_qs = MetaTable.objects.filter(pk=OuterRef('legacy_meta_table_id'))
+        qs = DataAsset.objects.filter(del_flag='0', legacy_meta_table_id__isnull=False).select_related('namespace', 'namespace__data_source').annotate(
+            legacy_create_by=Subquery(legacy_meta_table_qs.values('create_by')[:1]),
+            legacy_create_time=Subquery(legacy_meta_table_qs.values('create_time')[:1]),
+            legacy_update_by=Subquery(legacy_meta_table_qs.values('update_by')[:1]),
+            legacy_update_time=Subquery(legacy_meta_table_qs.values('update_time')[:1]),
+        ).order_by('object_name')
+        data_source_id = self.request.query_params.get('dataSourceId')
+        if data_source_id:
+            try:
+                qs = qs.filter(namespace__data_source_id=int(data_source_id))
+            except Exception:
+                pass
+        data_source_name = self.request.query_params.get('dataSourceName')
+        if data_source_name:
+            qs = qs.filter(namespace__data_source__name__icontains=data_source_name)
+        table_name = self.request.query_params.get('tableName')
+        if table_name:
+            qs = qs.filter(object_name__icontains=table_name)
+        database_name = self.request.query_params.get('databaseName')
+        if database_name:
+            qs = _filter_canonical_database(qs, database_name)
+
+        c_start = _parse_datetime_param(self.request.query_params.get('createTimeStart'))
+        c_end = _parse_datetime_param(self.request.query_params.get('createTimeEnd'))
+        u_start = _parse_datetime_param(self.request.query_params.get('updateTimeStart'))
+        u_end = _parse_datetime_param(self.request.query_params.get('updateTimeEnd'))
+        if any([c_start, c_end, u_start, u_end]):
+            legacy_qs = MetaTable.objects.filter(del_flag='0')
+            if c_start:
+                legacy_qs = legacy_qs.filter(create_time__gte=c_start)
+            if c_end:
+                legacy_qs = legacy_qs.filter(create_time__lte=c_end)
+            if u_start:
+                legacy_qs = legacy_qs.filter(update_time__gte=u_start)
+            if u_end:
+                legacy_qs = legacy_qs.filter(update_time__lte=u_end)
+            qs = qs.filter(legacy_meta_table_id__in=legacy_qs.values('id'))
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        queryset = self._get_canonical_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = CanonicalMetaTableSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = CanonicalMetaTableSerializer(queryset, many=True)
+        return self.raw_response({'total': len(serializer.data), 'rows': serializer.data, 'code': 200, 'msg': '操作成功'})
+
+    def retrieve(self, request, *args, **kwargs):
+        lookup_value = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        queryset = self._get_canonical_queryset()
+        instance = queryset.filter(legacy_meta_table_id=lookup_value).first()
+        if not instance:
+            return self.not_found('资源不存在')
+        self.check_object_permissions(request, instance)
+        serializer = CanonicalMetaTableSerializer(instance)
+        return self.data(serializer.data)
+
+    @audit_log
+    def create(self, request, *args, **kwargs):
+        with transaction.atomic():
+            serializer = MetaTableSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            sync_standard_asset_from_meta_table(serializer.instance, user=request.user)
+        return self.ok()
+
+    @audit_log
+    def update(self, request, *args, **kwargs):
+        with transaction.atomic():
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            serializer = MetaTableSerializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            if 'dataSourceId' in request.data:
+                MetaColumn.objects.filter(table=serializer.instance).update(data_source_id=serializer.instance.data_source_id)
+            sync_standard_asset_from_meta_table(serializer.instance, user=request.user)
+        return self.ok()
+
+    @audit_log
+    def destroy(self, request, *args, **kwargs):
+        with transaction.atomic():
+            instance = self.get_object()
+            legacy_ids = [obj.id for obj in instance] if isinstance(instance, list) else [instance.id]
+            response = super().destroy(request, *args, **kwargs)
+            DataAsset.objects.filter(legacy_meta_table_id__in=legacy_ids).delete()
+        return response
+
 
 # ==================== MetaColumn ViewSet ====================
 
@@ -107,11 +387,152 @@ class MetaColumnViewSet(BaseViewSet):
 
     def list(self, request, *args, **kwargs):
         """支持大分页的列表接口"""
-        # 字段查找模式可能需要返回所有数据，允许更大的 pageSize
-        page_size = int(request.query_params.get('pageSize') or 10000)
-        if page_size > 10000:
-            page_size = 10000
-        return super().list(request, *args, **kwargs)
+        queryset = self._get_canonical_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = CanonicalMetaColumnSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = CanonicalMetaColumnSerializer(queryset, many=True)
+        return self.raw_response({'total': len(serializer.data), 'rows': serializer.data, 'code': 200, 'msg': '操作成功'})
+
+    def _get_canonical_queryset(self):
+        legacy_meta_column_qs = MetaColumn.objects.filter(pk=OuterRef('legacy_meta_column_id'))
+        qs = DataAssetColumn.objects.filter(
+            del_flag='0',
+            legacy_meta_column_id__isnull=False,
+            asset__legacy_meta_table_id__isnull=False,
+        ).select_related(
+            'asset', 'asset__namespace', 'asset__namespace__data_source'
+        ).annotate(
+            legacy_create_by=Subquery(legacy_meta_column_qs.values('create_by')[:1]),
+            legacy_update_by=Subquery(legacy_meta_column_qs.values('update_by')[:1]),
+        ).order_by('asset__object_name', 'ordinal_position', 'column_name')
+        data_source_id = self.request.query_params.get('dataSourceId')
+        if data_source_id:
+            try:
+                qs = qs.filter(asset__namespace__data_source_id=int(data_source_id))
+            except Exception:
+                pass
+        table_name = self.request.query_params.get('tableName')
+        if table_name:
+            qs = qs.filter(asset__object_name=table_name)
+        table_id = self.request.query_params.get('tableId')
+        if table_id:
+            try:
+                qs = qs.filter(asset__legacy_meta_table_id=int(table_id))
+            except Exception:
+                pass
+        database_name = self.request.query_params.get('databaseName')
+        if database_name:
+            qs = _filter_canonical_database(qs, database_name, namespace_prefix='asset__namespace__')
+        column_name = self.request.query_params.get('columnName')
+        if column_name:
+            qs = qs.filter(column_name__icontains=column_name)
+        column_comment = self.request.query_params.get('columnComment')
+        if column_comment:
+            qs = qs.filter(comment__icontains=column_comment)
+        data_source_name = self.request.query_params.get('dataSourceName')
+        if data_source_name:
+            qs = qs.filter(asset__namespace__data_source__name__icontains=data_source_name)
+        return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        lookup_value = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
+        queryset = self._get_canonical_queryset()
+        instance = queryset.filter(legacy_meta_column_id=lookup_value).first()
+        if not instance:
+            return self.not_found('资源不存在')
+        self.check_object_permissions(request, instance)
+        serializer = CanonicalMetaColumnSerializer(instance)
+        return self.data(serializer.data)
+
+    @audit_log
+    def create(self, request, *args, **kwargs):
+        with transaction.atomic():
+            table_id = request.data.get('tableId')
+            column_name = request.data.get('columnName')
+            if not table_id or not column_name:
+                return self.error('缺少参数 tableId 或 columnName')
+            table = MetaTable.objects.filter(pk=table_id, del_flag='0').first()
+            if not table:
+                return self.not_found('元数据表不存在')
+
+            column, created = MetaColumn.objects.update_or_create(
+                data_source_id=table.data_source_id,
+                table=table,
+                name=column_name,
+                defaults={
+                    'order': request.data.get('columnIndex') or 0,
+                    'type': request.data.get('dataType') or '',
+                    'notnull': not bool(request.data.get('isNullable')),
+                    'default': str(request.data.get('defaultValue') or ''),
+                    'primary': bool(request.data.get('isPrimary')),
+                    'comment': request.data.get('columnComment') or '',
+                    'del_flag': '0',
+                },
+            )
+            username = request.user.username if hasattr(request.user, 'username') else ''
+            if created and username:
+                column.create_by = username
+            if username:
+                column.update_by = username
+            if created and username:
+                column.save(update_fields=['create_by', 'update_by'])
+            elif username:
+                column.save(update_fields=['update_by'])
+            else:
+                column.save()
+            sync_standard_asset_from_meta_table(column.table, user=request.user)
+        return self.ok()
+
+    @audit_log
+    def update(self, request, *args, **kwargs):
+        with transaction.atomic():
+            instance = self.get_object()
+            if isinstance(instance, list):
+                return self.error('字段更新仅支持单条记录')
+
+            original_table = instance.table
+            table_id = request.data.get('tableId')
+            if table_id:
+                table = MetaTable.objects.filter(pk=table_id, del_flag='0').first()
+                if not table:
+                    return self.not_found('元数据表不存在')
+                instance.table = table
+            instance.data_source_id = instance.table.data_source_id
+            if request.data.get('columnIndex') is not None:
+                instance.order = request.data.get('columnIndex') or 0
+            if request.data.get('columnName'):
+                instance.name = request.data.get('columnName')
+            if request.data.get('dataType') is not None:
+                instance.type = request.data.get('dataType') or ''
+            if 'isNullable' in request.data:
+                instance.notnull = not bool(request.data.get('isNullable'))
+            if 'defaultValue' in request.data:
+                instance.default = str(request.data.get('defaultValue') or '')
+            if 'isPrimary' in request.data:
+                instance.primary = bool(request.data.get('isPrimary'))
+            if 'columnComment' in request.data:
+                instance.comment = request.data.get('columnComment') or ''
+            if hasattr(request.user, 'username'):
+                instance.update_by = request.user.username
+            instance.save()
+            if original_table.id != instance.table_id:
+                sync_standard_asset_from_meta_table(original_table, user=request.user)
+            sync_standard_asset_from_meta_table(instance.table, user=request.user)
+        return self.ok()
+
+    @audit_log
+    def destroy(self, request, *args, **kwargs):
+        with transaction.atomic():
+            instance = self.get_object()
+            table_ids = [obj.table_id for obj in instance] if isinstance(instance, list) else [instance.table_id]
+            response = super().destroy(request, *args, **kwargs)
+            for table_id in set(table_ids):
+                meta_table = MetaTable.objects.filter(pk=table_id, del_flag='0').first()
+                if meta_table:
+                    sync_standard_asset_from_meta_table(meta_table, user=request.user)
+        return response
 
 
 # ==================== MetadataCollection ViewSet ====================
@@ -119,8 +540,14 @@ class MetaColumnViewSet(BaseViewSet):
 class MetadataCollectionViewSet(BaseViewSet):
     """元数据采集接口"""
     permission_classes = [IsAuthenticated, HasRolePermission]
+    queryset = MetaCollectionTask.objects.filter(del_flag='0').select_related('data_source').order_by('-create_time')
     serializer_class = MetaCollectionTaskSerializer
     lookup_field = 'id'
+
+    def _raise_if_task_cancelled(self, task):
+        task.refresh_from_db(fields=['status'])
+        if task.status == 'cancelled':
+            raise InterruptedError('采集任务已取消')
 
     def _load_ds(self, ds_id):
         try:
@@ -140,52 +567,8 @@ class MetadataCollectionViewSet(BaseViewSet):
         }
 
     def _collect_table(self, info, ds_id, table):
-        # 获取表级详细信息
-        tinfo = get_table_info(info, table) or {}
-        comment = tinfo.get('comment') or ''
-        database_name = tinfo.get('databaseName') or ''
-
-        obj, created = MetaTable.objects.update_or_create(
-            data_source_id=ds_id,
-            table_name=table,
-            database=database_name,
-            defaults={'comment': comment, 'del_flag': '0'}
-        )
-
         user = getattr(getattr(self, 'request', None), 'user', None)
-        if user and getattr(user, 'username', None):
-            if created:
-                obj.create_by = user.username
-                obj.save(update_fields=['create_by'])
-            else:
-                obj.update_by = user.username
-                obj.save(update_fields=['update_by', 'update_time'])
-
-        MetaColumn.objects.filter(data_source_id=ds_id, table=obj).delete()
-
-        cols = get_table_schema(info, table)
-        for c in cols:
-            col, c_created = MetaColumn.objects.update_or_create(
-                data_source_id=ds_id,
-                table=obj,
-                name=c.get('name'),
-                defaults={
-                    'order': c.get('order') or 0,
-                    'type': c.get('type') or '',
-                    'notnull': bool(c.get('notnull')),
-                    'default': str(c.get('default') or ''),
-                    'primary': bool(c.get('primary')),
-                    'comment': c.get('comment') or '',
-                    'del_flag': '0'
-                }
-            )
-            if user and getattr(user, 'username', None):
-                if c_created:
-                    col.create_by = user.username
-                    col.save(update_fields=['create_by'])
-                else:
-                    col.update_by = user.username
-                    col.save(update_fields=['update_by', 'update_time'])
+        collect_table_metadata(info, ds_id, table, user=user)
 
     @action(detail=False, methods=['post'], url_path='databases')
     def databases(self, request):
@@ -201,7 +584,8 @@ class MetadataCollectionViewSet(BaseViewSet):
             dbs = get_databases(info)
             return self.raw_response({'data': dbs})
         except Exception as e:
-            return self.error(str(e))
+            logger.exception('获取数据库列表失败: data_source_id=%s, error=%s', ds_id, e)
+            return self.error(sanitize_collection_error_message(e))
 
     @action(detail=False, methods=['post'], url_path='tables')
     def tables(self, request):
@@ -220,7 +604,8 @@ class MetadataCollectionViewSet(BaseViewSet):
             rows = list_tables_info(info)
             return self.raw_response({'rows': rows, 'total': len(rows)})
         except Exception as e:
-            return self.error(str(e))
+            logger.exception('获取表列表失败: data_source_id=%s, database=%s, error=%s', ds_id, dbname or '', e)
+            return self.error(sanitize_collection_error_message(e))
 
     @action(detail=False, methods=['post'], url_path='columns')
     def columns(self, request):
@@ -252,7 +637,14 @@ class MetadataCollectionViewSet(BaseViewSet):
             ]
             return self.raw_response({'rows': rows, 'total': len(rows)})
         except Exception as e:
-            return self.error(str(e))
+            logger.exception(
+                '获取字段列表失败: data_source_id=%s, database=%s, table=%s, error=%s',
+                ds_id,
+                dbname or '',
+                table,
+                e,
+            )
+            return self.error(sanitize_collection_error_message(e))
 
     @action(detail=False, methods=['post'], url_path='collect')
     def collect(self, request):
@@ -267,14 +659,61 @@ class MetadataCollectionViewSet(BaseViewSet):
         info = self._build_info(ds)
         if dbname:
             info['database'] = dbname
+        user = getattr(request, 'user', None)
+        task = create_collection_task(ds.id, dbname or '', user)
+        if not task:
+            return self.error('启动采集任务失败，该数据源可能已有任务在运行')
         try:
             tbls = list_tables(info)
-            with transaction.atomic():
-                for t in tbls:
+            updated = MetaCollectionTask.objects.filter(pk=task.pk, status='pending').update(
+                status='running',
+                started_at=timezone.now(),
+                total_tables=len(tbls),
+            )
+            task.refresh_from_db(fields=['status', 'started_at', 'total_tables'])
+            if not updated:
+                self._raise_if_task_cancelled(task)
+            for t in tbls:
+                self._raise_if_task_cancelled(task)
+                task.current_table = t
+                try:
                     self._collect_table(info, ds.id, t)
+                    task.collected_tables += 1
+                except Exception as exc:
+                    logger.exception(
+                        '同步采集单表失败: data_source_id=%s, database=%s, table=%s, error=%s',
+                        ds.id,
+                        dbname or '',
+                        t,
+                        exc,
+                    )
+                    task.failed_tables += 1
+                    task.error_message = '部分表采集失败，请查看服务端日志'
+                self._raise_if_task_cancelled(task)
+                task.progress = int((task.collected_tables / len(tbls)) * 100) if tbls else 100
+                task.save(update_fields=['current_table', 'collected_tables', 'failed_tables', 'progress', 'error_message'])
+            task.refresh_from_db(fields=['status'])
+            if task.status != 'cancelled':
+                task.status = 'completed' if task.failed_tables == 0 else 'failed'
+                task.progress = 100
+            task.completed_at = timezone.now()
+            task.save(update_fields=['status', 'progress', 'completed_at'])
+            if task.failed_tables:
+                return self.error(f'采集完成，但有 {task.failed_tables} 张表失败')
             return self.ok('采集完成')
-        except Exception as e:
+        except InterruptedError as e:
+            task.completed_at = timezone.now()
+            task.save(update_fields=['completed_at'])
             return self.error(str(e))
+        except Exception as e:
+            task.refresh_from_db(fields=['status'])
+            if task.status != 'cancelled':
+                task.status = 'failed'
+                task.error_message = '采集失败，请查看服务端日志'
+            task.completed_at = timezone.now()
+            task.save(update_fields=['status', 'error_message', 'completed_at'])
+            logger.exception('同步整库采集失败: data_source_id=%s, database=%s, error=%s', ds.id, dbname or '', e)
+            return self.error(sanitize_collection_error_message(e))
 
     @action(detail=False, methods=['post'], url_path='collect-table')
     def collect_table(self, request):
@@ -290,12 +729,50 @@ class MetadataCollectionViewSet(BaseViewSet):
         info = self._build_info(ds)
         if dbname:
             info['database'] = dbname
+        user = getattr(request, 'user', None)
+        task = create_collection_task(ds.id, dbname or '', user)
+        if not task:
+            return self.error('启动采集任务失败，该数据源可能已有任务在运行')
         try:
-            with transaction.atomic():
-                self._collect_table(info, ds.id, table)
+            updated = MetaCollectionTask.objects.filter(pk=task.pk, status='pending').update(
+                status='running',
+                started_at=timezone.now(),
+                total_tables=1,
+                current_table=table,
+            )
+            task.refresh_from_db(fields=['status', 'started_at', 'total_tables', 'current_table'])
+            if not updated:
+                self._raise_if_task_cancelled(task)
+            self._raise_if_task_cancelled(task)
+            self._collect_table(info, ds.id, table)
+            self._raise_if_task_cancelled(task)
+            task.refresh_from_db(fields=['status'])
+            if task.status != 'cancelled':
+                task.status = 'completed'
+                task.collected_tables = 1
+                task.progress = 100
+            task.completed_at = timezone.now()
+            task.save(update_fields=['status', 'collected_tables', 'progress', 'completed_at'])
             return self.ok('采集完成')
-        except Exception as e:
+        except InterruptedError as e:
+            task.completed_at = timezone.now()
+            task.save(update_fields=['completed_at'])
             return self.error(str(e))
+        except Exception as e:
+            task.refresh_from_db(fields=['status'])
+            if task.status != 'cancelled':
+                task.status = 'failed'
+                task.error_message = '采集失败，请查看服务端日志'
+            task.completed_at = timezone.now()
+            task.save(update_fields=['status', 'error_message', 'completed_at'])
+            logger.exception(
+                '同步单表采集失败: data_source_id=%s, database=%s, table=%s, error=%s',
+                ds.id,
+                dbname or '',
+                table,
+                e,
+            )
+            return self.error(sanitize_collection_error_message(e))
 
     @action(detail=False, methods=['post'], url_path='collect-async')
     def collect_async(self, request):

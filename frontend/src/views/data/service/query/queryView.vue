@@ -40,6 +40,7 @@
       <el-button type="info" @click="emitPrev" :disabled="innerOffset <= 0 || running" icon="ArrowLeft" size="small">上一页</el-button>
       <el-button type="success" @click="emitNext" :disabled="!next || running" icon="ArrowRight" size="small">下一页</el-button>
       <el-button type="warning" @click="emitExport" :disabled="!innerDsId || !innerSql || running" icon="Download" size="small">导出</el-button>
+      <el-button type="primary" plain @click="emitPublish" :disabled="!innerDsId || !innerSql || running" icon="Upload" size="small">发布接口</el-button>
       <span class="toolbar-label">偏移 {{ innerOffset }}</span>
       <el-button @click="innerOffset = 0" icon="Refresh" :disabled="innerOffset === 0" size="small" text title="重置偏移量" />
     </div>
@@ -102,7 +103,7 @@ const props = defineProps({
   hasResult: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:dataSourceId', 'update:sqlText', 'update:pageSize', 'update:offset', 'update:templateParams', 'run', 'export'])
+const emit = defineEmits(['update:dataSourceId', 'update:sqlText', 'update:pageSize', 'update:offset', 'update:templateParams', 'run', 'export', 'publish'])
 
 const editorWrapperRef = ref(null)
 const aceInstance = ref(null)
@@ -178,6 +179,10 @@ function emitRun() {
 
 function emitExport() {
   emit('export', { pageSize: innerPageSize.value, offset: innerOffset.value, params: toParams() })
+}
+
+function emitPublish() {
+  emit('publish', { params: toParams() })
 }
 
 function emitPrev() {

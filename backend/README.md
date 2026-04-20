@@ -44,8 +44,9 @@ backend/
 │   ├── datasource/                # 数据源管理
 │   │   └── models.py              #   DataSource（连接信息 + 加密密码）
 │   ├── dataasset/                 # 数据资产管理
-│   │   ├── models.py              #   MetaTable, MetaColumn, MetaCollectionTask, TableLineage
+│   │   ├── models.py              #   AssetNamespace, DataAsset, DataAssetColumn, MetaTable, MetaColumn, MetaCollectionTask, TableLineage
 │   │   ├── collectors.py          #   异步元数据采集执行器（线程）
+│   │   ├── services.py            #   规范资产双写与元数据同步
 │   │   └── views.py               #   元数据浏览, 采集管理, 血缘查询
 │   ├── dataservice/               # 数据服务
 │   │   ├── models.py              #   QueryLog, InterfaceInfo, InterfaceField
@@ -160,17 +161,33 @@ backend/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/dataasset/meta-table/` | 元数据表列表 |
-| GET | `/dataasset/meta-column/` | 元数据字段列表 |
-| POST | `/dataasset/collection/databases/` | 获取数据库列表 |
-| POST | `/dataasset/collection/tables/` | 获取表列表 |
-| POST | `/dataasset/collection/collect-async/` | 启动异步采集（返回 taskId） |
-| GET | `/dataasset/collection/collect-status/` | 采集进度查询（轮询） |
-| POST | `/dataasset/collection/collect-cancel/` | 取消采集任务 |
-| GET | `/dataasset/lineage/` | 血缘关系列表 |
-| GET | `/dataasset/lineage/upstream/` | 上游血缘查询 |
-| GET | `/dataasset/lineage/downstream/` | 下游血缘查询 |
-| GET | `/dataasset/lineage/graph/` | 血缘图谱可视化 |
+| GET | `/dataasset/asset-namespace` | 规范资产命名空间列表 |
+| GET | `/dataasset/asset` | 规范资产列表 |
+| GET | `/dataasset/asset/{id}` | 规范资产详情 |
+| GET | `/dataasset/asset-column` | 规范资产字段列表 |
+| GET | `/dataasset/asset-column/{id}` | 规范资产字段详情 |
+| GET | `/dataasset/meta-table` | 兼容元数据表列表 |
+| GET | `/dataasset/meta-table/{id}` | 兼容元数据表详情 |
+| POST | `/dataasset/meta-table` | 新增元数据表 |
+| PUT | `/dataasset/meta-table/{id}` | 修改元数据表 |
+| DELETE | `/dataasset/meta-table/{id}` | 删除元数据表 |
+| GET | `/dataasset/meta-column` | 兼容元数据字段列表 |
+| GET | `/dataasset/meta-column/{id}` | 兼容元数据字段详情 |
+| POST | `/dataasset/meta-column` | 新增元数据字段 |
+| PUT | `/dataasset/meta-column/{id}` | 修改元数据字段 |
+| DELETE | `/dataasset/meta-column/{id}` | 删除元数据字段 |
+| POST | `/dataasset/collection/databases` | 获取数据库列表 |
+| POST | `/dataasset/collection/tables` | 获取表列表 |
+| POST | `/dataasset/collection/columns` | 获取字段列表 |
+| POST | `/dataasset/collection/collect` | 同步整库采集 |
+| POST | `/dataasset/collection/collect-table` | 同步单表采集 |
+| POST | `/dataasset/collection/collect-async` | 启动异步采集（返回 taskId） |
+| GET | `/dataasset/collection/collect-status` | 采集进度查询（轮询） |
+| POST | `/dataasset/collection/collect-cancel` | 取消采集任务 |
+| GET | `/dataasset/lineage` | 血缘关系列表 |
+| GET | `/dataasset/lineage/upstream` | 上游血缘查询 |
+| GET | `/dataasset/lineage/downstream` | 下游血缘查询 |
+| GET | `/dataasset/lineage/graph` | 血缘图谱可视化 |
 
 ### 数据服务 (`/data-api/dataservice/`)
 
@@ -228,5 +245,3 @@ backend/
 执行器统一接口：`connect()`, `execute_query()`, `list_tables()`, `get_table_schema()`, `get_table_info()`, `list_tables_info()`, `get_databases()`
 
 查询流程：自动 SELECT 校验 → 方言分页 SQL → 执行 → 格式化结果（datetime/Decimal 转字符串） → 返回 `{columns, rows, next}`
-
-

@@ -23,11 +23,12 @@ export function addTask(data) {
   })
 }
 
-export function updateTask(taskId, data) {
+export function updateTask(data) {
+  const { taskId, ...payload } = data
   return request({
     url: '/dataintegration/task/' + taskId,
     method: 'put',
-    data: { ...data, taskId }
+    data: payload
   })
 }
 
@@ -89,66 +90,13 @@ export function getExecutionLogDetail(logId) {
   })
 }
 
-// ==================== 数据血缘 ====================
-
-/**
- * 查询数据血缘
- * @param {object} query - 查询参数 {table, direction}
- * @param {string} query.table - 表名
- * @param {string} query.direction - 方向: upstream|downstream
- */
-export function getLineage(query) {
-  return request({
-    url: '/dataintegration/lineage',
-    method: 'get',
-    params: query
-  })
-}
-
-// ==================== 版本管理 ====================
-
-/**
- * 查询任务版本列表
- * @param {object} query - 查询参数 {pageNum, pageSize, taskId}
- */
-export function listTaskVersions(query) {
-  return request({
-    url: '/dataintegration/version',
-    method: 'get',
-    params: query
-  })
-}
-
-/**
- * 激活指定版本
- * @param {number} versionId - 版本ID
- */
-export function activateTaskVersion(versionId) {
-  return request({
-    url: '/dataintegration/version/' + versionId + '/activate',
-    method: 'post'
-  })
-}
-
-/**
- * 版本对比
- * @param {object} query - 查询参数 {version1, version2}
- */
-export function compareTaskVersions(version1, version2) {
-  return request({
-    url: '/dataintegration/version/compare',
-    method: 'get',
-    params: { version1, version2 }
-  })
-}
-
 /**
  * 获取支持的执行器类型列表
  */
 export function getSupportedExecutors() {
   return [
-    { value: 'datax', label: 'DataX执行器', description: '用于数据同步，支持多种数据源' },
-    { value: 'spark_sql', label: 'Spark SQL执行器', description: '用于大数据处理和复杂转换' }
+    { value: 'mock', label: 'Mock执行器', description: '用于开发联调或无真实执行环境时的闭环验证' },
+    { value: 'datax', label: 'DataX执行器', description: '用于真实数据同步执行，依赖后端 DataX 环境配置' }
   ]
 }
 

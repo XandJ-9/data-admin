@@ -1,4 +1,6 @@
+import axios from 'axios'
 import request from '@/utils/request'
+import { getToken } from '@/utils/auth'
 
 // 执行数据查询（请求体需包含 dataSourceId, sql, params, pageSize, offset）
 export function executeQuery(data) {
@@ -54,6 +56,15 @@ export function addInterfaceInfo(data) {
   })
 }
 
+// SQL查询：发布为数据接口
+export function publishQueryAsInterface(data) {
+  return request({
+    url: '/dataservice/interface-info/publish',
+    method: 'post',
+    data: data
+  })
+}
+
 // 接口信息：修改（REST，按资源ID）
 export function updateInterfaceInfo(data) {
   return request({
@@ -68,6 +79,15 @@ export function delInterfaceInfo(interfaceId) {
   return request({
     url: '/dataservice/interface-info/' + interfaceId,
     method: 'delete'
+  })
+}
+
+// 接口信息：上线/下线
+export function changeInterfaceStatus(interfaceId, enable) {
+  return request({
+    url: '/dataservice/interface-info/changeStatus',
+    method: 'put',
+    data: { interfaceId, enable }
   })
 }
 
@@ -115,20 +135,36 @@ export function delInterfaceField(fieldId) {
 }
 
 // 接口：测试连接（按ID）
-export function testInterfaceById(interfaceId) {
+export function testInterfaceById(interfaceId, data = {}) {
   return request({
     url: '/dataservice/interface-info/' + interfaceId + '/test',
-    method: 'post'
+    method: 'post',
+    data: data
   })
 }
 
 
-// 接口：执行查询（按ID）
+// 接口：执行查询（按ID，返回对外接口协议）
 export function executeInterfaceById(interfaceId, data) {
-  return request({
-    url: '/dataservice/interface-info/' + interfaceId + '/execute',
+  const headers = { 'Content-Type': 'application/json;charset=utf-8' }
+  const token = getToken()
+  if (token) {
+    headers.Authorization = 'Bearer ' + token
+  }
+  return axios({
+    url: import.meta.env.VITE_APP_BASE_API + '/dataservice/interface-info/' + interfaceId + '/execute',
     method: 'post',
-    data: data
+    data: data,
+    timeout: 10000,
+    headers,
+  }).then(response => {
+    const payload = response.data || {}
+    if (payload.code !== '0') {
+      const error = new Error(payload.message || '接口执行失败')
+      error.msg = payload.message || '接口执行失败'
+      return Promise.reject(error)
+    }
+    return payload
   })
 }
 
@@ -156,7 +192,7 @@ export function exportInterfaceByBody(data) {
 export function exportInterfaceMeta(interfaceId) {
   return request({
     url: '/dataservice/interface-info/' + interfaceId + '/export-meta',
-    method: 'get',
+    method: 'post',
     responseType: 'blob'
   })
 }
@@ -168,5 +204,48 @@ export function importInterfaceMeta(data) {
     method: 'post',
     data: data,
     headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+// 报表信息：列表
+export function listReportInfo(query) {
+  return request({
+    url: '/dataservice/report-info',
+    method: 'get',
+    params: query
+  })
+}
+
+// 报表信息：详情
+export function getReportInfo(reportId) {
+  return request({
+    url: '/dataservice/report-info/' + reportId,
+    method: 'get'
+  })
+}
+
+// 报表信息：新增
+export function addReportInfo(data) {
+  return request({
+    url: '/dataservice/report-info',
+    method: 'post',
+    data: data
+  })
+}
+
+// 报表信息：修改
+export function updateReportInfo(data) {
+  return request({
+    url: '/dataservice/report-info/' + data.reportId,
+    method: 'put',
+    data: data
+  })
+}
+
+// 报表信息：删除
+export function delReportInfo(reportId) {
+  return request({
+    url: '/dataservice/report-info/' + reportId,
+    method: 'delete'
   })
 }
