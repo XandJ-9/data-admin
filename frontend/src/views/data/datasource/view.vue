@@ -74,6 +74,7 @@ import { listTables, listColumns, collectMetaTable, listDatabases,
          collectMetaAsync, getCollectStatus, cancelCollect } from '@/api/data/asset'
 import { onMounted } from 'vue'
 const { proxy } = getCurrentInstance()
+const route = useRoute()
 
 const dsId = ref()
 const dsList = ref([])
@@ -222,8 +223,11 @@ onUnmounted(() => {
     }
 })
 
-onMounted(() => {
+onMounted(async () => {
     getDsList()
+    if (route.query.dataSourceId) {
+        dsId.value = Number(route.query.dataSourceId) || route.query.dataSourceId
+    }
 })
 
 watch(dsId, v => {

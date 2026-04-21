@@ -1,5 +1,6 @@
 <template>
   <div class="app-container">
+    <el-alert class="mb8" type="info" :closable="false" show-icon title="步骤 1：连接与发现" description="数据源管理只负责维护连接、测试连通性与进入源数据发现；真正的元数据采集和后续集成/服务配置继续在其他工作面完成。" />
     <!-- 搜索表单 -->
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
       <el-form-item label="数据源名称" prop="dataSourceName">
@@ -69,6 +70,15 @@
           v-hasPermi="['system:datasource:remove']"
         >删除</el-button>
       </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="warning"
+          plain
+          icon="View"
+          @click="handleOpenSourceView()"
+          v-hasPermi="['system:datasource:view']"
+        >源数据查看</el-button>
+      </el-col>
       <right-toolbar
         v-model:showSearch="showSearch"
         @queryTable="getList"
@@ -80,6 +90,7 @@
       v-loading="loading"
       :data="dataList"
       @selection-change="handleSelectionChange"
+      @row-dblclick="handleViewDetail"
     >
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="数据源名称" prop="dataSourceName" :show-overflow-tooltip="true" />
@@ -116,8 +127,8 @@
         </template>
       </el-table-column>
       <el-table-column label="创建时间" prop="createTime" width="180" align="center" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="280"
-      v-hasPermi="['system:datasource:edit','system:datasource:query']"
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="360"
+      v-hasPermi="['system:datasource:edit','system:datasource:query','system:datasource:view']"
       >
         <template #default="scope">
           <el-button
@@ -127,6 +138,19 @@
             @click="handleTest(scope.row)"
             v-hasPermi="['system:datasource:edit']"
           >测试</el-button>
+          <el-button
+            link
+            type="primary"
+            icon="View"
+            @click="handleViewDetail(scope.row)"
+            v-hasPermi="['system:datasource:query']"
+          >详情</el-button>
+          <el-button
+            link
+            type="primary"
+            @click="handleOpenSourceView(scope.row)"
+            v-hasPermi="['system:datasource:view']"
+          >源数据</el-button>
           <el-button
             link
             type="primary"
@@ -221,6 +245,8 @@ import {
 } from '@/api/data/datasource'
 
 const { proxy } = getCurrentInstance()
+const route = useRoute()
+const router = useRouter()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
 
 const dataList = ref([])
@@ -484,6 +510,16 @@ function handleDbTypeChange(value) {
   }
 }
 
+function handleViewDetail(row) {
+  if (!row?.dataSourceId) return
+  router.push({ name: 'DataSourceDetail', params: { id: row.dataSourceId } })
+}
+
+function handleOpenSourceView(row) {
+  const query = row?.dataSourceId ? { dataSourceId: row.dataSourceId } : undefined
+  router.push({ name: 'DataSourceView', query })
+}
+
 /** 获取数据库类型标签颜色 */
 function getDbTypeTag(dbType) {
   const tagMap = {
@@ -527,7 +563,15 @@ function getConnectivityMessage(row) {
   return row.connectivityStatus === 'unknown' ? '尚未测试或配置已变更' : '连接成功'
 }
 
-getList()
+onMounted(() => {
+  getList()
+  if (route.query.action === 'create') {
+    handleAdd()
+    const nextQuery = { ...route.query }
+    delete nextQuery.action
+    router.replace({ query: nextQuery })
+  }
+})
 </script>
 
 <style scoped>
