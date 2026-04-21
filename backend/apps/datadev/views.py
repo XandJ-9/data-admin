@@ -3,43 +3,49 @@ import logging
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Count, Max, Q
-from django.utils import timezone
+from django.db.models import Max
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.system.views.core import BaseViewSet
-from apps.system.permission import HasRolePermission
 from apps.common.pagination import StandardPagination
-from apps.dbutils.factory import get_executor
 from apps.datatask.services import TaskService
+from apps.system.permission import HasRolePermission
+from apps.system.views.core import BaseViewSet
 
-from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory, DataDevModel, DataDevModelField
+from .models import (
+    DataDevDirectory,
+    DataDevModel,
+    DataDevModelField,
+    DataDevScript,
+    DataDevScriptExecution,
+    DataDevScriptVersion,
+)
 from .serializers import (
-    ScriptListSerializer,
-    ScriptCreateSerializer,
-    ScriptUpdateSerializer,
-    ScriptQuerySerializer,
-    ScriptVersionSerializer,
-    ScriptVersionCreateSerializer,
-    ScriptExecutionSerializer,
-    ScriptExecutionQuerySerializer,
-    DataDevDirectorySerializer,
     DataDevDirectoryCreateSerializer,
+    DataDevDirectorySerializer,
     DataDevDirectoryUpdateSerializer,
-    DataModelListSerializer,
-    DataModelDetailSerializer,
     DataModelCreateUpdateSerializer,
+    DataModelDetailSerializer,
+    DataModelListSerializer,
     DataModelQuerySerializer,
+    ScriptCreateSerializer,
+    ScriptExecutionQuerySerializer,
+    ScriptExecutionSerializer,
+    ScriptListSerializer,
+    ScriptQuerySerializer,
+    ScriptUpdateSerializer,
+    ScriptVersionCreateSerializer,
+    ScriptVersionSerializer,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class DataDevDirectoryViewSet(BaseViewSet):
-    """数据目录管理"""
+    """数据目录管理（兼容保留，不再作为主工作流）。"""
+
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DataDevDirectory.objects.order_by('order_num', 'directory_id')
     serializer_class = DataDevDirectorySerializer
@@ -63,9 +69,9 @@ class DataDevDirectoryViewSet(BaseViewSet):
         return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
 
     def create(self, request, *args, **kwargs):
-        s = DataDevDirectoryCreateSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        vd = s.validated_data
+        serializer = DataDevDirectoryCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
         username = getattr(request.user, 'username', '')
         try:
             DataDevDirectory.objects.create(
@@ -78,15 +84,15 @@ class DataDevDirectoryViewSet(BaseViewSet):
                 create_by=username,
                 update_by=username,
             )
-        except DjangoValidationError as e:
-            raise DRFValidationError({'detail': e.messages})
+        except DjangoValidationError as exc:
+            raise DRFValidationError({'detail': exc.messages})
         return self.ok(msg='创建成功')
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        s = DataDevDirectoryUpdateSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        vd = s.validated_data
+        serializer = DataDevDirectoryUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
         if 'parentId' in vd:
             self._validate_parent_assignment(instance, vd['parentId'])
             instance.parent_id = vd['parentId']
@@ -103,52 +109,29 @@ class DataDevDirectoryViewSet(BaseViewSet):
         instance.update_by = getattr(request.user, 'username', '')
         try:
             instance.save()
-        except DjangoValidationError as e:
-            raise DRFValidationError({'detail': e.messages})
+        except DjangoValidationError as exc:
+            raise DRFValidationError({'detail': exc.messages})
         return self.ok(msg='更新成功')
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        has_children = DataDevDirectory.objects.filter(
-            parent_id=instance.directory_id,
-            del_flag='0',
-        ).exists()
+        has_children = DataDevDirectory.objects.filter(parent_id=instance.directory_id, del_flag='0').exists()
         if has_children:
             return self.error(msg='当前目录存在子目录，无法删除')
-
-        has_scripts = DataDevScript.objects.filter(
-            directory_id=instance.directory_id,
-            del_flag='0',
-        ).exists()
-        if has_scripts:
-            return self.error(msg='当前目录下存在脚本，无法删除')
-
-        # 直接 UPDATE 跳过 save() 覆写，避免触发 full_clean()
         DataDevDirectory.objects.filter(pk=instance.pk).update(del_flag='1')
         return self.ok(msg='删除成功')
 
     @action(detail=False, methods=['get'], url_path='tree')
     def tree(self, request):
-        """返回嵌套树形结构，包含每个目录下的脚本数量"""
-        qs = list(self.get_queryset().annotate(
-            script_count=Count('scripts', filter=Q(scripts__del_flag='0'))
-        ))
-        tree_data = self._build_tree(qs, DataDevDirectory.ROOT_PARENT_ID)
-        unassigned_count = DataDevScript.objects.filter(
-            directory_id__isnull=True, del_flag='0'
-        ).count()
-        return Response({
-            'code': 200, 'msg': '操作成功',
-            'data': tree_data,
-            'unassignedScriptCount': unassigned_count,
-        })
+        tree_data = self._build_tree(list(self.get_queryset()), DataDevDirectory.ROOT_PARENT_ID)
+        return Response({'code': 200, 'msg': '操作成功', 'data': tree_data, 'unassignedScriptCount': 0})
 
     def _build_tree(self, items, parent_id):
         result = []
         for item in items:
             if item.parent_id == parent_id:
                 node = DataDevDirectorySerializer(item).data
-                node['scriptCount'] = getattr(item, 'script_count', 0)
+                node['scriptCount'] = 0
                 children = self._build_tree(items, item.directory_id)
                 if children:
                     node['children'] = children
@@ -160,47 +143,41 @@ class DataDevDirectoryViewSet(BaseViewSet):
             raise DRFValidationError({'parentId': '数据目录不能将自身设置为父目录'})
         if parent_id == DataDevDirectory.ROOT_PARENT_ID:
             return
-
-        target_parent = DataDevDirectory.objects.filter(
-            directory_id=parent_id,
-            del_flag='0',
-        ).first()
+        target_parent = DataDevDirectory.objects.filter(directory_id=parent_id, del_flag='0').first()
         if target_parent is None:
             raise DRFValidationError({'parentId': '父目录不存在'})
-
         ancestor_path = instance.ancestors or DataDevDirectory.ROOT_ANCESTORS
         descendant_prefix = f"{ancestor_path},{instance.directory_id}"
-        if (
-            target_parent.ancestors == descendant_prefix
-            or target_parent.ancestors.startswith(f"{descendant_prefix},")
-        ):
+        if target_parent.ancestors == descendant_prefix or target_parent.ancestors.startswith(f"{descendant_prefix},"):
             raise DRFValidationError({'parentId': '父目录不能选择当前目录或其子目录'})
 
 
 class ScriptViewSet(BaseViewSet):
-    """数据开发脚本管理"""
+    """加工作业管理。"""
+
     permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = DataDevScript.objects.select_related('datasource', 'directory').all()
+    queryset = DataDevScript.objects.select_related('datasource', 'target_model').all()
     serializer_class = ScriptListSerializer
     pagination_class = StandardPagination
 
     def get_queryset(self):
         qs = super().get_queryset()
-        s = ScriptQuerySerializer(data=self.request.query_params)
-        s.is_valid(raise_exception=False)
-        vd = getattr(s, 'validated_data', {})
+        serializer = ScriptQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=False)
+        vd = getattr(serializer, 'validated_data', {})
         if vd.get('scriptName'):
             qs = qs.filter(script_name__icontains=vd['scriptName'])
         if vd.get('scriptType'):
             qs = qs.filter(script_type=vd['scriptType'])
+        if vd.get('scriptRole'):
+            qs = qs.filter(script_role=vd['scriptRole'])
         if vd.get('status'):
             qs = qs.filter(status=vd['status'])
-        directory_id = vd.get('directoryId')
-        if directory_id is not None:
-            if directory_id == 0:
-                qs = qs.filter(directory_id__isnull=True)
+        if 'targetModelId' in vd:
+            if vd['targetModelId'] is None:
+                qs = qs.filter(target_model_id__isnull=True)
             else:
-                qs = qs.filter(directory_id=directory_id)
+                qs = qs.filter(target_model_id=vd['targetModelId'])
         return qs
 
     def list(self, request, *args, **kwargs):
@@ -216,40 +193,34 @@ class ScriptViewSet(BaseViewSet):
         instance = self.get_object()
         serializer = ScriptListSerializer(instance)
         result = serializer.data
-        # 附带当前版本内容
         current_version = instance.versions.filter(is_current=True).first()
-        if current_version:
-            result['content'] = current_version.content
-            result['versionNumber'] = current_version.version_number
-        else:
-            result['content'] = ''
-            result['versionNumber'] = 0
+        result['content'] = current_version.content if current_version else ''
+        result['versionNumber'] = current_version.version_number if current_version else 0
         return self.data(result)
 
     def create(self, request, *args, **kwargs):
-        s = ScriptCreateSerializer(data=request.data, context={'request': request})
-        s.is_valid(raise_exception=True)
-        vd = s.validated_data
+        serializer = ScriptCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
         content = vd.pop('content', '')
-        directory_id = vd.pop('directoryId', None)
         username = getattr(request.user, 'username', '')
-
-        # 解析目录：未指定时自动取默认（order_num 最小的正常目录）
-        directory = self._resolve_directory(directory_id)
+        target_model = self._resolve_target_model(vd.get('targetModelId'))
+        script_role = vd.get('scriptRole') or ('python_job' if vd['scriptType'] == 'python' else 'transform')
         with transaction.atomic():
             script = DataDevScript.objects.create(
                 script_name=vd['scriptName'],
                 script_code=vd['scriptCode'],
                 script_type=vd['scriptType'],
+                script_role=script_role,
                 engine_type='mvp' if vd['scriptType'] == 'python' else vd.get('engineType', 'spark'),
                 description=vd.get('description', ''),
+                target_model=target_model,
                 tags=vd.get('tags', []),
                 remark=vd.get('remark', ''),
-                directory=directory,
                 owner=username,
                 create_by=username,
+                update_by=username,
             )
-
             if content:
                 DataDevScriptVersion.objects.create(
                     script=script,
@@ -260,51 +231,39 @@ class ScriptViewSet(BaseViewSet):
                     is_released=False,
                     create_by=username,
                 )
-            TaskService.sync_datadev_source_task(script, username=username)
-        return self.ok(msg='创建成功')
-
-    def _resolve_directory(self, directory_id):
-        """解析目录对象：有 ID 则查找，无 ID 则取默认（order_num 最小的目录）"""
-        if directory_id is not None:
-            directory = DataDevDirectory.objects.filter(
-                directory_id=directory_id, del_flag='0'
-            ).first()
-            if directory is None:
-                from rest_framework.exceptions import ValidationError as DRFValidationError
-                raise DRFValidationError({'directoryId': '指定的数据目录不存在'})
-            return directory
-        return DataDevDirectory.objects.filter(del_flag='0').order_by('order_num', 'directory_id').first()
+        return self.data({'scriptId': script.id}, msg='创建成功')
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        s = ScriptUpdateSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        vd = s.validated_data
+        serializer = ScriptUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
         username = getattr(request.user, 'username', '')
         with transaction.atomic():
             if 'scriptName' in vd:
                 instance.script_name = vd['scriptName']
             if 'scriptType' in vd:
                 instance.script_type = vd['scriptType']
+            if 'scriptRole' in vd:
+                instance.script_role = vd['scriptRole']
             if 'engineType' in vd:
                 instance.engine_type = vd['engineType']
             if 'description' in vd:
                 instance.description = vd['description']
             if 'status' in vd:
                 instance.status = vd['status']
+            if 'targetModelId' in vd:
+                instance.target_model = self._resolve_target_model(vd['targetModelId'])
             if 'tags' in vd:
                 instance.tags = vd['tags']
             if 'remark' in vd:
                 instance.remark = vd['remark']
-            if 'directoryId' in vd:
-                instance.directory = self._resolve_directory(vd['directoryId'])
             if instance.script_type != 'sql':
                 instance.engine_type = 'mvp'
             elif not instance.engine_type:
                 instance.engine_type = 'spark'
             instance.update_by = username
             instance.save()
-            TaskService.sync_datadev_source_task(instance, username=username)
         return self.ok(msg='更新成功')
 
     def destroy(self, request, *args, **kwargs):
@@ -321,29 +280,21 @@ class ScriptViewSet(BaseViewSet):
             )
         return self.ok(msg='删除成功')
 
-    # ── 版本管理 ──────────────────────────────
-
     @action(detail=True, methods=['get'], url_path='versions')
     def list_versions(self, request, pk=None):
-        """获取脚本所有版本"""
         script = self.get_object()
-        versions = script.versions.all()
-        serializer = ScriptVersionSerializer(versions, many=True)
+        serializer = ScriptVersionSerializer(script.versions.all(), many=True)
         return self.data(serializer.data)
 
     @action(detail=True, methods=['post'], url_path='versions/create')
     def create_version(self, request, pk=None):
-        """创建新版本（默认草稿版本）"""
         script = self.get_object()
-        s = ScriptVersionCreateSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        content = s.validated_data['content']
-        change_log = s.validated_data.get('changeLog', '')
-
+        serializer = ScriptVersionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         self._create_version_snapshot(
             script=script,
-            content=content,
-            change_log=change_log,
+            content=serializer.validated_data['content'],
+            change_log=serializer.validated_data.get('changeLog', ''),
             is_released=False,
             username=request.user.username if hasattr(request, 'user') else '',
         )
@@ -351,27 +302,21 @@ class ScriptViewSet(BaseViewSet):
 
     @action(detail=True, methods=['post'], url_path='versions/publish')
     def publish_version(self, request, pk=None):
-        """发布新版本（正式可用）"""
         script = self.get_object()
-        s = ScriptVersionCreateSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        content = s.validated_data['content']
-        change_log = s.validated_data.get('changeLog', '')
-
+        serializer = ScriptVersionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         self._create_version_snapshot(
             script=script,
-            content=content,
-            change_log=change_log,
+            content=serializer.validated_data['content'],
+            change_log=serializer.validated_data.get('changeLog', ''),
             is_released=True,
             username=request.user.username if hasattr(request, 'user') else '',
         )
         return self.ok(msg='发布成功')
 
     def _create_version_snapshot(self, script, content, change_log, is_released, username):
-        """创建版本快照，并维护当前版本与脚本发布状态。"""
         with transaction.atomic():
             script.versions.filter(is_current=True).update(is_current=False)
-
             if is_released:
                 max_ver = script.versions.aggregate(max_v=Max('version_number'))['max_v'] or 0
                 DataDevScriptVersion.objects.create(
@@ -385,21 +330,13 @@ class ScriptViewSet(BaseViewSet):
                     create_by=username,
                 )
             else:
-                # 草稿版本单例：存在则更新，不存在则创建。
                 draft_version = script.versions.filter(is_released=False).order_by('-version_number').first()
                 if draft_version:
                     draft_version.content = content
                     draft_version.content_hash = hashlib.sha256(content.encode()).hexdigest()
                     draft_version.change_log = change_log
                     draft_version.is_current = True
-                    draft_version.save(
-                        update_fields=[
-                            'content',
-                            'content_hash',
-                            'change_log',
-                            'is_current',
-                        ]
-                    )
+                    draft_version.save(update_fields=['content', 'content_hash', 'change_log', 'is_current'])
                 else:
                     max_ver = script.versions.aggregate(max_v=Max('version_number'))['max_v'] or 0
                     DataDevScriptVersion.objects.create(
@@ -412,22 +349,18 @@ class ScriptViewSet(BaseViewSet):
                         is_released=False,
                         create_by=username,
                     )
-
             script.status = 'published' if is_released else 'draft'
             script.update_by = username
             script.save(update_fields=['status', 'update_by', 'update_time'])
-            TaskService.sync_datadev_source_task(script, username=username)
 
     @action(detail=True, methods=['post'], url_path=r'versions/(?P<version_id>\d+)/rollback')
     def rollback_version(self, request, pk=None, version_id=None):
-        """回滚到指定版本"""
         script = self.get_object()
         target = script.versions.filter(id=version_id).first()
         if not target:
             return self.error(msg='版本不存在')
         if not target.is_released:
             return self.error(msg='只能回滚到正式版本')
-
         with transaction.atomic():
             script.versions.filter(is_current=True).update(is_current=False)
             target.is_current = True
@@ -435,14 +368,29 @@ class ScriptViewSet(BaseViewSet):
             script.status = 'published'
             script.update_by = request.user.username if hasattr(request, 'user') else ''
             script.save(update_fields=['status', 'update_by', 'update_time'])
-            TaskService.sync_datadev_source_task(script, username=script.update_by)
         return self.ok(msg='回滚成功')
 
-    # ── 执行管理 ──────────────────────────────
+    @action(detail=True, methods=['post'], url_path='publish-task')
+    def publish_task(self, request, pk=None):
+        script = self.get_object()
+        try:
+            self._validate_publishable(script)
+        except DRFValidationError as exc:
+            detail = exc.detail
+            if isinstance(detail, dict):
+                first_value = next(iter(detail.values()), '发布任务前请先完成必要治理信息')
+                if isinstance(first_value, (list, tuple)):
+                    message = str(first_value[0]) if first_value else '发布任务前请先完成必要治理信息'
+                else:
+                    message = str(first_value)
+                return Response({'code': 400, 'msg': message, 'errors': detail})
+            return Response({'code': 400, 'msg': str(detail), 'errors': detail})
+        username = request.user.username if hasattr(request, 'user') else ''
+        task = TaskService.sync_datadev_source_task(script, username=username)
+        return self.data({'taskId': task.id, 'taskCode': task.task_code}, msg='已发布到任务运维')
 
     @action(detail=True, methods=['post'], url_path='execute')
     def execute_script(self, request, pk=None):
-        """触发脚本执行并返回结果"""
         script = self.get_object()
         username = request.user.username if hasattr(request, 'user') else ''
         runtime_params = request.data.get('params') or {}
@@ -459,28 +407,50 @@ class ScriptViewSet(BaseViewSet):
 
     @action(detail=True, methods=['get'], url_path='executions')
     def list_executions(self, request, pk=None):
-        """获取脚本执行记录"""
         script = self.get_object()
         qs = script.executions.select_related('version', 'task_instance').all()
-
-        s = ScriptExecutionQuerySerializer(data=request.query_params)
-        s.is_valid(raise_exception=False)
-        vd = getattr(s, 'validated_data', {})
+        serializer = ScriptExecutionQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=False)
+        vd = getattr(serializer, 'validated_data', {})
         if vd.get('status'):
             qs = qs.filter(status=vd['status'])
         if vd.get('executedBy'):
             qs = qs.filter(executed_by=vd['executedBy'])
-
         page = self.paginate_queryset(qs)
         if page is not None:
-            serializer = ScriptExecutionSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = ScriptExecutionSerializer(qs, many=True)
-        return self.data(serializer.data)
+            return self.get_paginated_response(ScriptExecutionSerializer(page, many=True).data)
+        return self.data(ScriptExecutionSerializer(qs, many=True).data)
+
+    def _resolve_target_model(self, target_model_id):
+        if target_model_id in (None, ''):
+            return None
+        target_model = DataDevModel.objects.filter(id=target_model_id, del_flag='0').first()
+        if target_model is None:
+            raise DRFValidationError({'targetModelId': '指定的目标模型不存在'})
+        return target_model
+
+    def _validate_publishable(self, script):
+        current_version = script.versions.filter(is_current=True).first()
+        if current_version is None or not current_version.content.strip():
+            raise DRFValidationError({'detail': '发布任务前请先保存加工作业内容'})
+        if script.script_role != 'explore' and script.target_model_id is None:
+            raise DRFValidationError({'targetModelId': '当前作业类型发布前必须绑定目标模型'})
+        if script.target_model_id is None:
+            return
+        target_model = script.target_model
+        if not target_model.owner:
+            raise DRFValidationError({'targetModelId': '目标模型缺少负责人，无法发布任务'})
+        if not target_model.table_comment:
+            raise DRFValidationError({'targetModelId': '目标模型缺少表注释，无法发布任务'})
+        active_fields = list(target_model.model_fields.filter(del_flag='0').order_by('ordinal_position', 'id'))
+        if not active_fields:
+            raise DRFValidationError({'targetModelId': '目标模型至少需要定义一个字段'})
+        missing_comment = next((field.field_name for field in active_fields if not field.field_comment), None)
+        if missing_comment:
+            raise DRFValidationError({'targetModelId': f'目标模型字段 {missing_comment} 缺少字段注释'})
 
 
 class ScriptExecutionViewSet(BaseViewSet):
-    """脚本执行记录（全局查询）"""
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DataDevScriptExecution.objects.select_related('script', 'version', 'task_instance').all()
     serializer_class = ScriptExecutionSerializer
@@ -489,9 +459,9 @@ class ScriptExecutionViewSet(BaseViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        s = ScriptExecutionQuerySerializer(data=self.request.query_params)
-        s.is_valid(raise_exception=False)
-        vd = getattr(s, 'validated_data', {})
+        serializer = ScriptExecutionQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=False)
+        vd = getattr(serializer, 'validated_data', {})
         if vd.get('status'):
             qs = qs.filter(status=vd['status'])
         if vd.get('executedBy'):
@@ -502,19 +472,16 @@ class ScriptExecutionViewSet(BaseViewSet):
         qs = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(qs)
         if page is not None:
-            serializer = ScriptExecutionSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = ScriptExecutionSerializer(qs, many=True)
-        return self.data(serializer.data)
+            return self.get_paginated_response(ScriptExecutionSerializer(page, many=True).data)
+        return self.data(ScriptExecutionSerializer(qs, many=True).data)
 
     def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = ScriptExecutionSerializer(instance)
-        return self.data(serializer.data)
+        return self.data(ScriptExecutionSerializer(self.get_object()).data)
 
 
 class DataModelViewSet(BaseViewSet):
     """数据建模模块。"""
+
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DataDevModel.objects.prefetch_related('model_fields').all()
     serializer_class = DataModelListSerializer
@@ -522,9 +489,9 @@ class DataModelViewSet(BaseViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset().prefetch_related('model_fields')
-        s = DataModelQuerySerializer(data=self.request.query_params)
-        s.is_valid(raise_exception=False)
-        vd = getattr(s, 'validated_data', {})
+        serializer = DataModelQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=False)
+        vd = getattr(serializer, 'validated_data', {})
         if vd.get('modelName'):
             qs = qs.filter(model_name__icontains=vd['modelName'])
         if vd.get('layer'):

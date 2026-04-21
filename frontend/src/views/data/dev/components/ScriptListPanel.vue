@@ -2,8 +2,8 @@
   <div class="script-list-panel">
     <div class="panel-header">
       <div class="panel-actions">
-        <el-button plain @click="$emit('create', 'python')">新建 Python</el-button>
-        <el-button type="primary" @click="$emit('create', 'sql')">新建 SQL</el-button>
+        <el-button plain @click="$emit('create', 'python')">新建 Python 作业</el-button>
+        <el-button type="primary" @click="$emit('create', 'sql')">新建 SQL 作业</el-button>
         <el-button circle :icon="Refresh" @click="$emit('refresh')" />
       </div>
     </div>
@@ -13,25 +13,24 @@
         <el-input
           v-model="localQuery.scriptName"
           clearable
-          placeholder="搜索脚本名称"
+          placeholder="搜索作业名称"
           @keyup.enter="handleSearch"
         />
       </el-form-item>
       <el-form-item>
-        <el-select v-model="localQuery.scriptType" clearable placeholder="脚本类型" style="width: 120px">
+        <el-select v-model="localQuery.scriptType" clearable placeholder="作业类型" style="width: 120px">
           <el-option label="SQL" value="sql" />
           <el-option label="Python" value="python" />
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-select v-model="localQuery.directoryId" clearable placeholder="所属目录" style="width: 180px">
-          <el-option label="未分配目录" :value="0" />
-          <el-option
-            v-for="directory in directories"
-            :key="directory.directoryId"
-            :label="directory.directoryName"
-            :value="directory.directoryId"
-          />
+        <el-select v-model="localQuery.scriptRole" clearable placeholder="作业用途" style="width: 150px">
+          <el-option v-for="item in roleOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-select v-model="localQuery.targetModelId" clearable placeholder="目标模型" style="width: 220px">
+          <el-option v-for="model in models" :key="model.modelId" :label="model.modelName" :value="model.modelId" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -48,7 +47,7 @@
       highlight-current-row
       @row-click="row => $emit('select', row)"
     >
-      <el-table-column label="脚本名称" min-width="220" show-overflow-tooltip>
+      <el-table-column label="作业名称" min-width="220" show-overflow-tooltip>
         <template #default="{ row }">
           <el-button link type="primary" @click.stop="$emit('select', row)">{{ row.scriptName }}</el-button>
           <div class="script-code">{{ row.scriptCode }}</div>
@@ -59,16 +58,27 @@
           <el-tag size="small" effect="plain">{{ (row.scriptType || 'sql').toUpperCase() }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="用途" width="120">
+        <template #default="{ row }">{{ roleLabel(row.scriptRole) }}</template>
+      </el-table-column>
+      <el-table-column label="目标模型" min-width="180" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span>{{ row.targetModelName || '未绑定' }}</span>
+          <span v-if="row.targetLayer" class="sub-text">{{ row.targetLayer }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="执行环境" min-width="140" show-overflow-tooltip>
         <template #default="{ row }">{{ getRuntimeLabel(row) }}</template>
       </el-table-column>
-      <el-table-column label="所属目录" min-width="140" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.directoryName || '未分配目录' }}</template>
+      <el-table-column label="任务运维" width="120">
+        <template #default="{ row }">
+          <el-tag size="small" :type="taskStatusTag(row.taskStatus)" effect="plain">{{ taskStatusLabel(row.taskStatus) }}</el-tag>
+        </template>
       </el-table-column>
       <el-table-column label="负责人" width="140" show-overflow-tooltip>
         <template #default="{ row }">{{ row.owner || '-' }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="100">
+      <el-table-column label="版本状态" width="100">
         <template #default="{ row }">
           <el-tag size="small" :type="statusTagType(row.status)" effect="plain">{{ statusLabel(row.status) }}</el-tag>
         </template>
@@ -103,10 +113,10 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   scripts: { type: Array, default: () => [] },
   total: { type: Number, default: 0 },
-  directories: { type: Array, default: () => [] },
+  models: { type: Array, default: () => [] },
   query: {
     type: Object,
-    default: () => ({ pageNum: 1, pageSize: 10, scriptName: '', scriptType: '', directoryId: undefined }),
+    default: () => ({ pageNum: 1, pageSize: 10, scriptName: '', scriptType: '', scriptRole: '', targetModelId: undefined }),
   },
 })
 
@@ -117,17 +127,30 @@ const localQuery = reactive({
   pageSize: 10,
   scriptName: '',
   scriptType: '',
-  directoryId: undefined,
+  scriptRole: '',
+  targetModelId: undefined,
 })
 
-const engineLabelMap = { spark: 'Spark SQL', hive: 'Hive', mvp: 'MVP预演' }
+const roleOptions = [
+  { label: '探索分析', value: 'explore' },
+  { label: '模型加工', value: 'transform' },
+  { label: '质量校验', value: 'quality' },
+  { label: '数据回刷', value: 'backfill' },
+  { label: 'Python 作业', value: 'python_job' },
+]
+const engineLabelMap = { spark: 'Spark SQL', hive: 'Hive', mvp: 'MVP 预演' }
 
 function syncLocalQuery() {
   localQuery.pageNum = props.query.pageNum || 1
   localQuery.pageSize = props.query.pageSize || 10
   localQuery.scriptName = props.query.scriptName || ''
   localQuery.scriptType = props.query.scriptType || ''
-  localQuery.directoryId = props.query.directoryId ?? undefined
+  localQuery.scriptRole = props.query.scriptRole || ''
+  localQuery.targetModelId = props.query.targetModelId ?? undefined
+}
+
+function roleLabel(value) {
+  return roleOptions.find(item => item.value === value)?.label || '未设置'
 }
 
 function statusLabel(status) {
@@ -138,38 +161,46 @@ function statusTagType(status) {
   return { draft: 'info', published: 'success', archived: 'warning' }[status] || 'info'
 }
 
+function taskStatusLabel(status) {
+  return { active: '已纳管', paused: '已暂停', draft: '草稿', archived: '已归档' }[status] || '未发布'
+}
+
+function taskStatusTag(status) {
+  return status ? ({ active: 'success', paused: 'warning', draft: 'info', archived: 'danger' }[status] || 'info') : 'info'
+}
+
 function getRuntimeLabel(script) {
   if (script?.datasourceName) return script.datasourceName
   return engineLabelMap[script?.engineType] || '未配置'
 }
 
-function handleSearch() {
-  emit('search', {
-    pageNum: 1,
+function buildQueryPayload() {
+  return {
+    pageNum: localQuery.pageNum,
     pageSize: localQuery.pageSize,
     scriptName: localQuery.scriptName.trim(),
     scriptType: localQuery.scriptType || '',
-    directoryId: localQuery.directoryId,
-  })
+    scriptRole: localQuery.scriptRole || '',
+    targetModelId: localQuery.targetModelId,
+  }
+}
+
+function handleSearch() {
+  emit('search', { ...buildQueryPayload(), pageNum: 1 })
 }
 
 function handleReset() {
   syncLocalQuery()
   localQuery.scriptName = ''
   localQuery.scriptType = ''
-  localQuery.directoryId = undefined
+  localQuery.scriptRole = ''
+  localQuery.targetModelId = undefined
   localQuery.pageNum = 1
   emit('reset')
 }
 
 function handlePagination() {
-  emit('page-change', {
-    pageNum: localQuery.pageNum,
-    pageSize: localQuery.pageSize,
-    scriptName: localQuery.scriptName.trim(),
-    scriptType: localQuery.scriptType || '',
-    directoryId: localQuery.directoryId,
-  })
+  emit('page-change', buildQueryPayload())
 }
 
 watch(
@@ -212,10 +243,15 @@ watch(
   min-height: 0;
 }
 
-.script-code {
+.script-code,
+.sub-text {
   font-size: 12px;
   line-height: 1.5;
   color: #8a97a8;
+}
+
+.sub-text {
+  display: block;
 }
 
 @media (max-width: 768px) {

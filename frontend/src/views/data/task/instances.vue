@@ -4,7 +4,7 @@
       <div class="hero-layout">
         <div>
           <span class="hero-eyebrow">任务运维实例</span>
-          <h1>集中查看数据集成与数据开发任务的执行记录</h1>
+          <h1>集中查看数据集成与建模加工任务的执行记录</h1>
           <p>这里聚焦实例层：谁触发、什么时候跑、跑得怎么样。需要改配置时回到对应任务详情页。</p>
         </div>
         <div class="hero-actions">

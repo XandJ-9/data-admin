@@ -1,131 +1,165 @@
 <template>
-  <div class="script-detail-page" v-loading="detailLoading">
+  <div class="job-detail-page" v-loading="detailLoading">
+    <el-alert
+      v-if="workspaceFeedback.title"
+      class="page-feedback"
+      :type="workspaceFeedback.type"
+      :title="workspaceFeedback.title"
+      :description="workspaceFeedback.message"
+      :closable="false"
+      show-icon
+    />
+
     <template v-if="currentScript">
-      <el-alert
-        v-if="workspaceFeedback.title"
-        class="page-feedback"
-        :type="workspaceFeedback.type"
-        :title="workspaceFeedback.title"
-        :description="workspaceFeedback.message"
-        :closable="false"
-        show-icon
-      />
+      <section class="page-header">
+        <div>
+          <p class="page-path">建模与加工 / 加工作业</p>
+          <h1>{{ form.scriptName || currentScript.scriptName }}</h1>
+          <p>在这里完成作业定义、脚本编写、版本管理与调试执行；确认后发布到任务运维继续编排和调度。</p>
+        </div>
+        <div class="header-actions">
+          <el-button @click="goBack">返回列表</el-button>
+          <el-button @click="handleSaveMeta" :loading="savingMeta">保存定义</el-button>
+          <el-button type="primary" plain @click="handleSaveDraft" :loading="savingDraft">保存草稿</el-button>
+          <el-button type="success" @click="handlePublishVersion" :loading="publishingVersion">发布版本</el-button>
+          <el-button type="warning" @click="handlePublishTask" :loading="publishingTask">发布到任务运维</el-button>
+        </div>
+      </section>
 
-      <flip-card :flipped="isEditing" min-height="720px">
-        <template #front>
-          <section class="content-grid">
-            <div class="info-card">
-              <div class="section-head section-head--stacked">
-                <div class="script-overview">
-                  <div class="script-overview__title">
-                    <h2>{{ currentScript.scriptName }}</h2>
-                    <div class="script-overview__tags">
-                      <el-tag size="small" effect="plain">{{ currentScript.scriptType?.toUpperCase() }}</el-tag>
-                      <el-tag size="small" type="success" effect="plain">{{ currentRuntimeLabel || '未配置执行能力' }}</el-tag>
-                      <el-tag size="small" :type="scriptStatusTagType(currentScript.status)" effect="plain">{{ scriptStatusLabel(currentScript.status) }}</el-tag>
-                    </div>
-                  </div>
-                  <p>先确认脚本上下文、负责人和当前运行状态，再按需进入 SQL 编辑页。</p>
-                </div>
-              </div>
-              <el-descriptions :column="2" border>
-                <el-descriptions-item label="脚本编码">{{ currentScript.scriptCode || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="所属目录">{{ currentScript.directoryName || '未分配目录' }}</el-descriptions-item>
-                <el-descriptions-item label="脚本类型">{{ currentScript.scriptType?.toUpperCase() || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="执行引擎">{{ currentRuntimeLabel || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="负责人">{{ currentScript.owner || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="当前状态">{{ scriptStatusLabel(currentScript.status) }}</el-descriptions-item>
-                <el-descriptions-item label="当前版本">v{{ currentScript.versionNumber || 0 }}</el-descriptions-item>
-                <el-descriptions-item label="最近执行">{{ latestExecutionSummary }}</el-descriptions-item>
-                <el-descriptions-item label="脚本说明" :span="2">{{ currentScript.description || '暂无描述' }}</el-descriptions-item>
-              </el-descriptions>
-            </div>
-
-            <div class="activity-card">
-              <div class="section-head">
+      <section class="content-grid">
+        <div class="main-column">
+          <el-card shadow="never" class="detail-card">
+            <template #header>
+              <div class="card-header">
                 <div>
-                  <h3>版本与运维</h3>
-                  <p>版本回溯、执行记录与日常运维统一放在这里；确定无误后再进入编辑态修改 SQL。</p>
+                  <h3>作业定义</h3>
+                  <p>模型驱动开发：模型加工类作业建议绑定目标模型，并在发布前补齐治理信息。</p>
                 </div>
-                <div class="section-actions">
-                  <el-button type="primary" @click="openEditor">开始编辑 SQL</el-button>
-                  <el-button @click="goBack">返回列表</el-button>
-                  <el-button @click="handleEditScript(currentScript)">编辑信息</el-button>
-                  <el-button type="danger" plain @click="handleDeleteScript(currentScript)">删除脚本</el-button>
+                <div class="meta-tags">
+                  <el-tag effect="plain">{{ (currentScript.scriptType || 'sql').toUpperCase() }}</el-tag>
+                  <el-tag effect="plain" type="success">{{ runtimeLabel }}</el-tag>
+                  <el-tag effect="plain" :type="statusTagType(currentScript.status)">{{ statusLabel(currentScript.status) }}</el-tag>
+                  <el-tag effect="plain" :type="currentScript.taskId ? 'success' : 'info'">{{ taskStatusLabel(currentScript.taskStatus) }}</el-tag>
                 </div>
               </div>
-              <activity-panel
-                v-model:active-tab="activityTab"
-                v-model:version-view="versionView"
-                :filtered-versions="filteredVersions"
-                :selected-version-id="selectedVersionId"
-                :version-empty-text="versionEmptyText"
-                :executions="executions"
-                @preview-version="handlePreviewVersion"
-                @rollback-version="handleRollback"
-              />
-            </div>
-          </section>
-        </template>
+            </template>
 
-        <template #back>
-          <section class="dev-mode-page">
-            <div class="dev-mode-actions">
-              <el-button @click="closeEditor">返回详情</el-button>
-              <div class="dev-mode-buttons">
-                <el-button text @click="goBack">返回列表</el-button>
-                <el-button type="primary" :loading="running" @click="handleRun">执行脚本</el-button>
+            <el-form ref="basicFormRef" :model="form" :rules="basicRules" label-width="96px">
+              <el-row :gutter="16">
+                <el-col :xs="24" :md="12">
+                  <el-form-item label="作业名称" prop="scriptName">
+                    <el-input v-model="form.scriptName" />
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="12">
+                  <el-form-item label="作业编码">
+                    <el-input :model-value="currentScript.scriptCode" disabled />
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="8">
+                  <el-form-item label="作业类型">
+                    <el-input :model-value="(currentScript.scriptType || 'sql').toUpperCase()" disabled />
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="8">
+                  <el-form-item label="作业用途" prop="scriptRole">
+                    <el-select v-model="form.scriptRole" style="width: 100%">
+                      <el-option v-for="item in roleOptions" :key="item.value" :label="item.label" :value="item.value" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="8">
+                  <el-form-item label="负责人">
+                    <el-input :model-value="currentScript.owner || '-'" disabled />
+                  </el-form-item>
+                </el-col>
+                <el-col v-if="currentScript.scriptType === 'sql'" :xs="24" :md="8">
+                  <el-form-item label="执行引擎" prop="engineType">
+                    <el-select v-model="form.engineType" style="width: 100%">
+                      <el-option label="Spark SQL" value="spark" />
+                      <el-option label="Hive" value="hive" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="16">
+                  <el-form-item label="目标模型">
+                    <el-select v-model="form.targetModelId" clearable filterable placeholder="探索分析可不绑定；发布任务前会做治理校验" style="width: 100%">
+                      <el-option
+                        v-for="model in modelOptions"
+                        :key="model.modelId"
+                        :label="`${model.modelName}（${model.layer}）`"
+                        :value="model.modelId"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="8">
+                  <el-form-item label="当前版本">
+                    <el-input :model-value="`v${currentScript.versionNumber || 0}`" disabled />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="24">
+                  <el-form-item label="作业说明">
+                    <el-input v-model="form.description" type="textarea" :rows="2" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-form>
+          </el-card>
+
+          <el-card shadow="never" class="detail-card editor-card">
+            <template #header>
+              <div class="card-header">
+                <div>
+                  <h3>脚本编辑</h3>
+                  <p>保存草稿用于开发调试；发布版本用于形成正式可回滚版本；发布到任务运维会基于当前版本生成任务快照。</p>
+                </div>
+                <div class="editor-actions">
+                  <el-tag v-if="hasUnsavedContent" type="warning" effect="plain">内容未保存</el-tag>
+                  <el-button type="primary" :loading="running" @click="handleRun">执行作业</el-button>
+                </div>
               </div>
-            </div>
-            <div class="dev-editor-shell">
-              <code-editor
-                ref="editorRef"
-                v-model="content"
-                :lang="scriptLang"
-                :running="running"
-                :hide-toolbar="true"
-                @run="handleRun"
-              />
-            </div>
-          </section>
-        </template>
-      </flip-card>
+            </template>
+            <code-editor
+              ref="editorRef"
+              v-model="content"
+              :lang="currentScript.scriptType || 'sql'"
+              :running="running"
+              :hide-toolbar="true"
+              @run="handleRun"
+            />
+          </el-card>
+        </div>
+
+        <div class="side-column">
+          <el-card shadow="never" class="detail-card">
+            <template #header>
+              <div class="card-header">
+                <div>
+                  <h3>版本与执行</h3>
+                  <p>当前页只做研发与发布，真正的调度依赖请在任务运维继续处理。</p>
+                </div>
+                <el-button v-if="currentScript.taskId" link type="primary" @click="openTaskDetail">查看任务运维</el-button>
+              </div>
+            </template>
+            <activity-panel
+              v-model:active-tab="activityTab"
+              v-model:version-view="versionView"
+              :filtered-versions="filteredVersions"
+              :selected-version-id="selectedVersionId"
+              :version-empty-text="versionEmptyText"
+              :executions="executions"
+              @preview-version="handlePreviewVersion"
+              @rollback-version="handleRollback"
+            />
+          </el-card>
+        </div>
+      </section>
     </template>
 
-    <el-empty v-else description="脚本不存在或已被删除" :image-size="88">
-      <el-button type="primary" @click="goBack">返回脚本列表</el-button>
+    <el-empty v-else description="加工作业不存在或已被删除" :image-size="88">
+      <el-button type="primary" @click="goBack">返回加工作业列表</el-button>
     </el-empty>
-
-    <el-dialog v-model="showEditDialog" title="编辑脚本信息" width="480px" :close-on-click-modal="false">
-      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
-        <el-form-item label="脚本名称" prop="scriptName">
-          <el-input v-model="editForm.scriptName" placeholder="请输入脚本名称" />
-        </el-form-item>
-        <el-form-item label="所属目录">
-          <el-select v-model="editForm.directoryId" placeholder="请选择目录（可选）" clearable style="width: 100%">
-            <el-option
-              v-for="directory in directoryOptions"
-              :key="directory.directoryId"
-              :label="directory.directoryName"
-              :value="directory.directoryId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item v-if="editForm.scriptType === 'sql'" label="执行引擎" prop="engineType">
-          <el-radio-group v-model="editForm.engineType">
-            <el-radio value="spark">Spark SQL</el-radio>
-            <el-radio value="hive">Hive</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="editForm.description" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button type="primary" :loading="editing" @click="submitEdit">保存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -133,18 +167,18 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import {
-  getScript,
-  updateScript,
-  delScript,
-  listVersions,
   createVersion,
-  rollbackVersion,
+  delScript,
   executeScript,
+  getScript,
+  listModels,
   listScriptExecutions,
-  getDirectoryTree,
+  listVersions,
+  publishScriptTask,
+  publishVersion,
+  rollbackVersion,
+  updateScript,
 } from '@/api/data/datadev'
-
-import FlipCard from '@/components/FlipCard/index.vue'
 import CodeEditor from './components/CodeEditor.vue'
 import ActivityPanel from './components/ActivityPanel.vue'
 
@@ -152,122 +186,145 @@ defineOptions({ name: 'DataDevScriptDetail' })
 
 const route = useRoute()
 const router = useRouter()
-
-const engineLabelMap = { spark: 'Spark SQL', hive: 'Hive', mvp: 'MVP预演' }
-
-const detailLoading = ref(false)
-const currentScript = ref(null)
-const workspaceFeedback = ref({ type: 'info', title: '', message: '' })
-const directoryOptions = ref([])
-const isEditing = ref(false)
-const running = ref(false)
+const basicFormRef = ref(null)
 const editorRef = ref(null)
 
-const currentRuntimeLabel = computed(() => getRuntimeLabel(currentScript.value))
-const scriptLang = computed(() => currentScript.value?.scriptType || 'sql')
-const latestExecutionSummary = computed(() => {
-  const latestExecution = executions.value?.[0]
-  if (!latestExecution) return '暂无记录'
-  return `${execStatusLabel(latestExecution.status)} / ${latestExecution.createTime || '-'} `
-})
-const content = computed({
-  get: () => currentScript.value?.content || '',
-  set: (value) => {
-    if (!currentScript.value) return
-    currentScript.value.content = value
-  },
-})
-const hasChange = computed(() => {
-  if (!currentScript.value) return false
-  return currentScript.value.content !== currentScript.value.savedContent
-})
+const roleOptions = [
+  { label: '探索分析', value: 'explore' },
+  { label: '模型加工', value: 'transform' },
+  { label: '质量校验', value: 'quality' },
+  { label: '数据回刷', value: 'backfill' },
+  { label: 'Python 作业', value: 'python_job' },
+]
+const engineLabelMap = { spark: 'Spark SQL', hive: 'Hive', mvp: 'MVP 预演' }
 
-function getRuntimeLabel(script) {
-  if (!script) return ''
-  if (script.datasourceName) return script.datasourceName
-  return engineLabelMap[script.engineType] || ''
+const detailLoading = ref(false)
+const savingMeta = ref(false)
+const savingDraft = ref(false)
+const publishingVersion = ref(false)
+const publishingTask = ref(false)
+const running = ref(false)
+
+const currentScript = ref(null)
+const modelOptions = ref([])
+const workspaceFeedback = ref({ type: 'info', title: '', message: '' })
+const content = ref('')
+const savedContent = ref('')
+const versions = ref([])
+const selectedVersionId = ref(null)
+const activityTab = ref('versions')
+const versionView = ref('all')
+const executions = ref([])
+
+const form = reactive({
+  scriptName: '',
+  scriptRole: 'transform',
+  engineType: 'spark',
+  targetModelId: null,
+  description: '',
+})
+const basicRules = {
+  scriptName: [{ required: true, message: '请输入作业名称', trigger: 'blur' }],
+  scriptRole: [{ required: true, message: '请选择作业用途', trigger: 'change' }],
+  engineType: [{ required: true, message: '请选择执行引擎', trigger: 'change' }],
 }
+
+const filteredVersions = computed(() => {
+  if (versionView.value === 'released') return versions.value.filter(item => item.isReleased)
+  if (versionView.value === 'draft') return versions.value.filter(item => !item.isReleased)
+  return versions.value
+})
+const versionEmptyText = computed(() => {
+  if (versionView.value === 'released') return '暂无正式版本'
+  if (versionView.value === 'draft') return '暂无草稿版本'
+  return '暂无版本'
+})
+const runtimeLabel = computed(() => {
+  if (!currentScript.value) return '-'
+  if (currentScript.value.datasourceName) return currentScript.value.datasourceName
+  return engineLabelMap[currentScript.value.engineType] || '未配置'
+})
+const hasUnsavedContent = computed(() => content.value !== savedContent.value)
+const hasMetaChange = computed(() => {
+  if (!currentScript.value) return false
+  return (
+    form.scriptName !== (currentScript.value.scriptName || '')
+    || form.scriptRole !== (currentScript.value.scriptRole || '')
+    || form.engineType !== (currentScript.value.engineType || 'spark')
+    || (form.targetModelId || null) !== (currentScript.value.targetModelId || null)
+    || form.description !== (currentScript.value.description || '')
+  )
+})
 
 function showWorkspaceFeedback(type, title, message) {
   workspaceFeedback.value = { type, title, message }
 }
 
-function clearWorkspaceFeedback() {
-  workspaceFeedback.value = { type: 'info', title: '', message: '' }
-}
-
-function scriptStatusLabel(status) {
+function statusLabel(status) {
   return ({ draft: '草稿', published: '正式', archived: '归档' })[status] || '草稿'
 }
 
-function scriptStatusTagType(status) {
+function statusTagType(status) {
   return ({ draft: 'info', published: 'success', archived: 'warning' })[status] || 'info'
 }
 
-function getErrorMessage(error, fallback = '操作失败') {
-  if (!error) return fallback
-  if (error instanceof Error && error.message) return error.message
-  if (typeof error === 'string' && error.trim()) return error
-  if (error?.response?.data?.msg) return error.response.data.msg
-  if (error?.response?.data?.detail) return error.response.data.detail
-  if (error?.msg) return error.msg
-  return fallback
+function taskStatusLabel(status) {
+  return status ? ({ active: '已纳管', paused: '已暂停', draft: '草稿', archived: '已归档' }[status] || status) : '未发布'
 }
 
-function presentActionError(error, title, fallback = '操作失败') {
-  let message = getErrorMessage(error, fallback)
-  if (message === '系统接口请求超时' && title === '脚本执行失败') {
-    message = '脚本执行等待超时，任务可能仍在后端运行，请稍后到执行记录查看结果'
-  }
-  showWorkspaceFeedback('error', title, message)
-  if (!error?.__handled) {
-    ElMessage.error(message)
-  }
-  return message
+function roleLabel(value) {
+  return roleOptions.find(item => item.value === value)?.label || '未设置'
 }
 
-function flattenDirectoryTree(treeNodes) {
-  const result = []
-  const traverse = (nodes) => {
-    ;(nodes || []).forEach((node) => {
-      result.push(node)
-      if (node.children?.length) {
-        traverse(node.children)
-      }
-    })
+function extractErrorMessage(error, fallback = '操作失败') {
+  const responseData = error?.response?.data || {}
+  if (responseData.msg) {
+    return responseData.msg
   }
-  traverse(treeNodes)
-  return result
+  if (responseData.errors) {
+    const firstValue = Object.values(responseData.errors)[0]
+    if (Array.isArray(firstValue)) {
+      return String(firstValue[0] || fallback)
+    }
+    return String(firstValue || fallback)
+  }
+  if (responseData.detail) {
+    return typeof responseData.detail === 'string' ? responseData.detail : JSON.stringify(responseData.detail)
+  }
+  return error?.message || fallback
 }
 
-async function loadDirectories() {
+async function loadModelOptions() {
   try {
-    const res = await getDirectoryTree()
-    directoryOptions.value = flattenDirectoryTree(res.data || [])
+    const res = await listModels({ pageNum: 1, pageSize: 200 })
+    modelOptions.value = res.rows || res.data || []
   } catch (error) {
-    directoryOptions.value = []
-    console.warn('[datadev] 加载目录失败', error)
+    modelOptions.value = []
+    console.warn('[datadev] 加载模型列表失败', error)
   }
 }
 
-function createScriptPayload(data) {
-  return {
-    scriptId: data.scriptId,
-    scriptName: data.scriptName,
-    scriptCode: data.scriptCode,
-    content: data.content || '',
-    savedContent: data.content || '',
-    scriptType: data.scriptType || 'sql',
-    status: data.status || 'draft',
-    datasourceId: data.datasourceId || null,
-    datasourceName: data.datasourceName || '',
-    engineType: data.engineType || 'spark',
-    directoryId: data.directoryId || null,
-    directoryName: data.directoryName || '',
-    versionNumber: data.versionNumber || 0,
-    owner: data.owner || '',
-    description: data.description || '',
-  }
+function applyScriptData(data = {}) {
+  currentScript.value = { ...data }
+  form.scriptName = data.scriptName || ''
+  form.scriptRole = data.scriptRole || (data.scriptType === 'python' ? 'python_job' : 'transform')
+  form.engineType = data.engineType || (data.scriptType === 'python' ? 'mvp' : 'spark')
+  form.targetModelId = data.targetModelId || null
+  form.description = data.description || ''
+  content.value = data.content || ''
+  savedContent.value = data.content || ''
+}
+
+async function loadVersions(scriptId) {
+  const res = await listVersions(scriptId)
+  versions.value = res.data || []
+  const currentVersionItem = versions.value.find(item => item.isCurrent)
+  selectedVersionId.value = currentVersionItem?.versionId || null
+}
+
+async function loadExecutions(scriptId) {
+  const res = await listScriptExecutions(scriptId)
+  executions.value = res.rows || res.data || []
 }
 
 async function loadCurrentScript(scriptId, { preserveFeedback = false } = {}) {
@@ -278,21 +335,54 @@ async function loadCurrentScript(scriptId, { preserveFeedback = false } = {}) {
   detailLoading.value = true
   try {
     const res = await getScript(scriptId)
-    currentScript.value = createScriptPayload(res.data || {})
+    applyScriptData(res.data || {})
     await Promise.all([loadVersions(scriptId), loadExecutions(scriptId)])
     if (!preserveFeedback) {
-      clearWorkspaceFeedback()
+      workspaceFeedback.value = { type: 'info', title: '', message: '' }
     }
   } catch (error) {
     currentScript.value = null
-    presentActionError(error, '脚本详情加载失败', '加载脚本详情失败')
+    showWorkspaceFeedback('error', '加工作业加载失败', extractErrorMessage(error, '加载加工作业失败'))
   } finally {
     detailLoading.value = false
   }
 }
 
-async function confirmDiscardChanges(message = '当前脚本有未保存修改，离开后将丢失编辑内容，是否继续？') {
-  if (!hasChange.value) return true
+function buildMetaPayload() {
+  return {
+    scriptName: form.scriptName,
+    scriptRole: form.scriptRole,
+    engineType: currentScript.value?.scriptType === 'sql' ? form.engineType : 'mvp',
+    targetModelId: form.targetModelId,
+    description: form.description,
+  }
+}
+
+async function persistMeta({ silent = false } = {}) {
+  if (!currentScript.value) return
+  await basicFormRef.value?.validate()
+  if (!hasMetaChange.value) return
+  await updateScript(currentScript.value.scriptId, buildMetaPayload())
+  Object.assign(currentScript.value, buildMetaPayload(), { targetModelName: '' })
+  if (!silent) {
+    ElMessage.success('作业定义已保存')
+    showWorkspaceFeedback('success', '作业定义已保存', '基础信息已更新，后续可继续保存草稿或发布任务。')
+  }
+}
+
+async function ensureDraftSynced() {
+  if (!currentScript.value) return
+  if (!hasUnsavedContent.value && currentScript.value.versionNumber) return
+  await createVersion(currentScript.value.scriptId, {
+    content: content.value,
+    changeLog: '页面保存草稿',
+  })
+  savedContent.value = content.value
+  await loadCurrentScript(currentScript.value.scriptId, { preserveFeedback: true })
+}
+
+async function confirmDiscardChanges(message = '当前作业有未保存内容，离开后将丢失修改，是否继续？') {
+  if (!hasUnsavedContent.value && !hasMetaChange.value) return true
   try {
     await ElMessageBox.confirm(message, '离开确认', {
       type: 'warning',
@@ -309,202 +399,123 @@ function goBack() {
   router.push({ name: 'DataDevIde' })
 }
 
-function openEditor() {
-  if (!currentScript.value) {
-    ElMessage.warning('请先选择一个脚本')
-    return
-  }
-  isEditing.value = true
+function openTaskDetail() {
+  if (!currentScript.value?.taskId) return
+  router.push({ name: 'DataTaskDetail', params: { id: currentScript.value.taskId } })
 }
 
-function closeEditor() {
-  isEditing.value = false
-}
-
-function focusEditor() {
-  const editor = editorRef.value?.getEditor?.()
-  if (!editor) return
-  editor.resize()
-  editor.focus()
-}
-
-watch(isEditing, async (editing) => {
-  if (!editing) return
-  await nextTick()
-  window.requestAnimationFrame(() => {
-    window.setTimeout(() => {
-      focusEditor()
-    }, 320)
-  })
-})
-
-const showEditDialog = ref(false)
-const editing = ref(false)
-const editFormRef = ref(null)
-const editForm = reactive({ scriptId: null, scriptName: '', scriptType: 'sql', engineType: 'spark', directoryId: null, description: '' })
-const editRules = {
-  scriptName: [{ required: true, message: '请输入脚本名称', trigger: 'blur' }],
-}
-
-function handleEditScript(script) {
-  if (!script) return
-  editForm.scriptId = script.scriptId
-  editForm.scriptName = script.scriptName
-  editForm.scriptType = script.scriptType || 'sql'
-  editForm.engineType = script.engineType || 'spark'
-  editForm.directoryId = script.directoryId || null
-  editForm.description = script.description || ''
-  showEditDialog.value = true
-  nextTick(() => editFormRef.value?.clearValidate())
-}
-
-async function submitEdit() {
+async function handleSaveMeta() {
+  if (!currentScript.value) return
+  savingMeta.value = true
   try {
-    await editFormRef.value.validate()
-  } catch {
-    return
-  }
-  editing.value = true
-  try {
-    await updateScript(editForm.scriptId, {
-      scriptName: editForm.scriptName,
-      directoryId: editForm.directoryId,
-      engineType: editForm.scriptType === 'sql' ? editForm.engineType : 'mvp',
-      description: editForm.description,
-    })
-    showEditDialog.value = false
-    showWorkspaceFeedback('success', '脚本信息已更新', '脚本基础信息已保存。')
-    ElMessage.success('保存成功')
-    await Promise.all([
-      loadDirectories(),
-      loadCurrentScript(editForm.scriptId, { preserveFeedback: true }),
-    ])
+    await persistMeta()
+    await loadCurrentScript(currentScript.value.scriptId, { preserveFeedback: true })
   } catch (error) {
-    presentActionError(error, '脚本信息保存失败', '保存失败')
+    const message = extractErrorMessage(error, '保存作业定义失败')
+    showWorkspaceFeedback('error', '作业定义保存失败', message)
+    ElMessage.error(message)
   } finally {
-    editing.value = false
+    savingMeta.value = false
   }
 }
 
-async function handleDeleteScript(script) {
-  if (!script?.scriptId) return
+async function handleSaveDraft() {
+  if (!currentScript.value) return
+  savingDraft.value = true
   try {
-    await ElMessageBox.confirm(`确认删除脚本「${script.scriptName}」？此操作不可恢复。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '确认删除',
-      cancelButtonText: '取消',
+    await persistMeta({ silent: true })
+    await ensureDraftSynced()
+    showWorkspaceFeedback('success', '草稿已保存', `当前作业已保存为 v${currentScript.value.versionNumber || 0} 草稿版本。`)
+    ElMessage.success('草稿保存成功')
+  } catch (error) {
+    const message = extractErrorMessage(error, '保存草稿失败')
+    showWorkspaceFeedback('error', '草稿保存失败', message)
+    ElMessage.error(message)
+  } finally {
+    savingDraft.value = false
+  }
+}
+
+async function handlePublishVersion() {
+  if (!currentScript.value) return
+  publishingVersion.value = true
+  try {
+    await persistMeta({ silent: true })
+    await publishVersion(currentScript.value.scriptId, {
+      content: content.value,
+      changeLog: '页面发布正式版本',
     })
-  } catch {
-    return
-  }
-
-  try {
-    await delScript(script.scriptId)
-    ElMessage.success('删除成功')
-    await router.push({ name: 'DataDevIde' })
+    savedContent.value = content.value
+    await loadCurrentScript(currentScript.value.scriptId, { preserveFeedback: true })
+    showWorkspaceFeedback('success', '版本发布成功', `已发布 v${currentScript.value.versionNumber || 0}，后续可直接发布到任务运维。`)
+    ElMessage.success('版本发布成功')
   } catch (error) {
-    presentActionError(error, '脚本删除失败', '删除失败')
+    const message = extractErrorMessage(error, '发布版本失败')
+    showWorkspaceFeedback('error', '版本发布失败', message)
+    ElMessage.error(message)
+  } finally {
+    publishingVersion.value = false
   }
 }
 
-const versions = ref([])
-const selectedVersionId = ref(null)
-const activityTab = ref('versions')
-const versionView = ref('all')
-const executions = ref([])
-
-const filteredVersions = computed(() => {
-  if (versionView.value === 'released') return versions.value.filter(item => item.isReleased)
-  if (versionView.value === 'draft') return versions.value.filter(item => !item.isReleased)
-  return versions.value
-})
-const versionEmptyText = computed(() => {
-  if (versionView.value === 'released') return '暂无正式版本'
-  if (versionView.value === 'draft') return '暂无草稿版本'
-  return '暂无版本'
-})
-
-async function loadVersions(scriptId) {
+async function handlePublishTask() {
+  if (!currentScript.value) return
+  publishingTask.value = true
   try {
-    const res = await listVersions(scriptId)
-    versions.value = res.data || []
-    const currentVersionItem = versions.value.find(item => item.isCurrent)
-    selectedVersionId.value = currentVersionItem?.versionId || null
+    await persistMeta({ silent: true })
+    await ensureDraftSynced()
+    const res = await publishScriptTask(currentScript.value.scriptId)
+    ElMessage.success(res.msg || '已发布到任务运维')
+    router.push({ name: 'DataTaskDetail', params: { id: res.data.taskId } })
   } catch (error) {
-    versions.value = []
-    selectedVersionId.value = null
-    console.warn('[datadev] 加载版本失败', error)
+    const message = extractErrorMessage(error, '发布任务失败')
+    showWorkspaceFeedback('error', '发布到任务运维失败', message)
+    ElMessage.error(message)
+  } finally {
+    publishingTask.value = false
   }
-}
-
-async function handlePreviewVersion(version) {
-  if (!currentScript.value || !version) return
-  if (selectedVersionId.value === version.versionId) return
-  if (!(await confirmDiscardChanges('当前内容有未保存修改，查看历史版本将覆盖编辑区内容，是否继续？'))) {
-    return
-  }
-  currentScript.value.content = version.content || ''
-  currentScript.value.versionNumber = version.versionNumber || currentScript.value.versionNumber
-  selectedVersionId.value = version.versionId
-  showWorkspaceFeedback('info', '版本内容已切换', `当前正在预览 v${version.versionNumber}。`)
 }
 
 async function handleRollback(version) {
   if (!currentScript.value || !version) return
   try {
-    await ElMessageBox.confirm(`确认回滚到 v${version.versionNumber}？`, '回滚确认')
+    await ElMessageBox.confirm(`确认回滚到 v${version.versionNumber}？`, '回滚确认', { type: 'warning' })
   } catch {
     return
   }
   try {
     await rollbackVersion(currentScript.value.scriptId, version.versionId)
-    activityTab.value = 'versions'
-    showWorkspaceFeedback('success', '版本回滚成功', `已回滚到 v${version.versionNumber}。`)
-    ElMessage.success('回滚成功')
     await loadCurrentScript(currentScript.value.scriptId, { preserveFeedback: true })
+    showWorkspaceFeedback('success', '版本回滚成功', `已回滚到 v${version.versionNumber}。`)
+    ElMessage.success('版本回滚成功')
   } catch (error) {
-    presentActionError(error, '版本回滚失败', '回滚失败')
+    const message = extractErrorMessage(error, '回滚版本失败')
+    showWorkspaceFeedback('error', '版本回滚失败', message)
+    ElMessage.error(message)
   }
 }
 
-function execStatusLabel(status) {
-  const map = { pending: '已提交', running: '执行中', success: '成功', failed: '失败', cancelled: '已取消' }
-  return map[status] || status || '未知'
-}
-
-async function loadExecutions(scriptId) {
-  try {
-    const res = await listScriptExecutions(scriptId)
-    executions.value = res.rows || res.data || []
-  } catch (error) {
-    executions.value = []
-    console.warn('[datadev] 加载执行记录失败', error)
+async function handlePreviewVersion(version) {
+  if (!version) return
+  if (!(await confirmDiscardChanges('当前编辑区有未保存内容，预览历史版本会覆盖编辑器内容，是否继续？'))) {
+    return
   }
-}
-
-async function syncDraftBeforeRun() {
-  if (!currentScript.value?.scriptId || !hasChange.value) return
-  await createVersion(currentScript.value.scriptId, {
-    content: content.value,
-    changeLog: '开发模式自动保存',
-  })
-  currentScript.value.savedContent = content.value
-  await loadVersions(currentScript.value.scriptId)
+  selectedVersionId.value = version.versionId
+  content.value = version.content || ''
+  showWorkspaceFeedback('info', '已切换预览版本', `当前正在预览 v${version.versionNumber}。`)
 }
 
 async function handleRun() {
-  if (!currentScript.value) {
-    ElMessage.warning('请先选择一个脚本')
-    return
-  }
+  if (!currentScript.value) return
   running.value = true
   try {
-    await syncDraftBeforeRun()
+    await persistMeta({ silent: true })
+    await ensureDraftSynced()
     const res = await executeScript(currentScript.value.scriptId)
     const data = res.data || {}
     showWorkspaceFeedback(
       data.designOnly ? 'warning' : 'success',
-      data.designOnly ? '脚本预演完成' : '脚本执行完成',
+      data.designOnly ? '作业预演完成' : '作业执行完成',
       data.designOnly
         ? `本次为预演模式，耗时 ${data.duration || '-'}s。`
         : `本次执行返回 ${data.rows?.length || 0} 行数据，耗时 ${data.duration || '-'}s。`,
@@ -512,15 +523,38 @@ async function handleRun() {
     ElMessage.success(data.designOnly ? '预演完成' : '执行成功')
     await loadExecutions(currentScript.value.scriptId)
   } catch (error) {
-    presentActionError(error, '脚本执行失败', '执行失败')
+    const message = extractErrorMessage(error, '执行作业失败')
+    showWorkspaceFeedback('error', '作业执行失败', message)
+    ElMessage.error(message)
   } finally {
     running.value = false
   }
 }
 
+async function handleDeleteScript() {
+  if (!currentScript.value?.scriptId) return
+  try {
+    await ElMessageBox.confirm(`确认删除加工作业「${currentScript.value.scriptName}」？此操作不可恢复。`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  try {
+    await delScript(currentScript.value.scriptId)
+    ElMessage.success('删除成功')
+    router.push({ name: 'DataDevIde' })
+  } catch (error) {
+    const message = extractErrorMessage(error, '删除作业失败')
+    showWorkspaceFeedback('error', '删除作业失败', message)
+    ElMessage.error(message)
+  }
+}
+
 onMounted(async () => {
-  await loadDirectories()
-  await loadCurrentScript(Number(route.params.scriptId))
+  await Promise.all([loadModelOptions(), loadCurrentScript(Number(route.params.scriptId))])
 })
 
 watch(
@@ -529,11 +563,10 @@ watch(
     const nextScriptId = Number(scriptId)
     const prevScriptId = Number(oldScriptId)
     if (!nextScriptId || nextScriptId === prevScriptId) return
-    if (!(await confirmDiscardChanges('当前脚本有未保存修改，切换脚本将丢失编辑内容，是否继续？'))) {
+    if (!(await confirmDiscardChanges('当前作业有未保存修改，切换作业将丢失内容，是否继续？'))) {
       await router.replace(`/datadev/ide/detail/${prevScriptId || currentScript.value?.scriptId}`)
       return
     }
-    isEditing.value = false
     await loadCurrentScript(nextScriptId)
   },
 )
@@ -544,7 +577,7 @@ onBeforeRouteLeave(async () => {
 </script>
 
 <style lang="scss" scoped>
-.script-detail-page {
+.job-detail-page {
   min-height: calc(100vh - 84px);
   padding: 18px;
   background: #f5f7fb;
@@ -553,154 +586,95 @@ onBeforeRouteLeave(async () => {
   gap: 16px;
 }
 
-.info-card,
-.activity-card,
-.dev-mode-page {
-  background: #fff;
-  border: 1px solid #e6ebf2;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-}
-
 .page-feedback {
   border-radius: 14px;
 }
 
-.content-grid {
-  min-height: 720px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+.page-header,
+.card-header,
+.header-actions,
+.meta-tags,
+.editor-actions {
+  display: flex;
   gap: 12px;
 }
 
-.info-card,
-.activity-card {
-  min-height: 0;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.section-head {
-  display: flex;
+.page-header,
+.card-header {
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
 }
 
-.section-head--stacked {
-  display: block;
+.page-path {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #8a97a8;
 }
 
-.section-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.section-head h3,
-.script-overview h2 {
+.page-header h1,
+.card-header h3 {
   margin: 0;
-  color: #1f2f45;
+  color: #213044;
 }
 
-.script-overview h2 {
-  font-size: 26px;
-}
-
-.script-overview p,
-.section-head p {
+.page-header p,
+.card-header p {
   margin: 8px 0 0;
-  font-size: 14px;
-  line-height: 1.7;
   color: #66768b;
+  line-height: 1.7;
 }
 
-.script-overview__title,
-.script-overview__tags {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.header-actions,
+.meta-tags,
+.editor-actions {
   flex-wrap: wrap;
 }
 
-.script-overview__title {
-  justify-content: space-between;
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
+  gap: 16px;
 }
 
-.activity-card :deep(.activity-panel) {
-  flex: 1;
-  min-height: 0;
-}
-
-.dev-mode-page {
-  min-height: 720px;
-  padding: 16px;
+.main-column,
+.side-column {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  min-width: 0;
 }
 
-.dev-mode-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.dev-mode-buttons {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.dev-editor-shell {
-  flex: 1;
-  min-height: 0;
+.detail-card {
+  border-radius: 16px;
   border: 1px solid #e6ebf2;
-  border-radius: 12px;
-  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.editor-card :deep(.code-editor),
+.editor-card :deep(.editor-wrap) {
+  min-height: 520px;
+}
+
+.side-column :deep(.activity-panel) {
+  min-height: 640px;
 }
 
 @media (max-width: 1280px) {
   .content-grid {
     grid-template-columns: 1fr;
   }
-
-  .activity-card {
-    min-height: 420px;
-  }
 }
 
 @media (max-width: 768px) {
-  .script-detail-page {
+  .job-detail-page {
     min-height: calc(100vh - 72px);
     padding: 12px;
   }
 
-  .info-card,
-  .activity-card,
-  .dev-mode-page {
-    padding: 16px;
-  }
-
-  .section-head,
-  .dev-mode-actions,
-  .script-overview__title {
+  .page-header,
+  .card-header {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .section-actions,
-  .dev-mode-buttons,
-  .script-overview__tags {
-    width: 100%;
-    justify-content: flex-start;
   }
 }
 </style>

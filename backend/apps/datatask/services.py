@@ -342,8 +342,12 @@ class TaskService:
             'scriptId': script.id,
             'scriptCode': script.script_code,
             'scriptType': script.script_type,
+            'scriptRole': getattr(script, 'script_role', ''),
             'engineType': getattr(script, 'engine_type', ''),
-            'directoryId': script.directory_id,
+            'targetModelId': getattr(script, 'target_model_id', None),
+            'targetModelCode': getattr(getattr(script, 'target_model', None), 'model_code', ''),
+            'targetModelName': getattr(getattr(script, 'target_model', None), 'model_name', ''),
+            'targetLayer': getattr(getattr(script, 'target_model', None), 'layer', ''),
             'datasourceId': datasource.id if datasource else None,
             'datasourceType': datasource.db_type if datasource else '',
             'currentVersionId': version.id if version else None,
@@ -365,20 +369,12 @@ class TaskService:
         return task.status, schedule_type or 'manual', cron_expression or ''
 
     @classmethod
-    def sync_datadev_source_task(cls, script, username: str = '') -> Task | None:
+    def sync_datadev_source_task(cls, script, username: str = '') -> Task:
         existing_task = Task.objects.filter(
             source_module='datadev.script',
             source_record_id=script.id,
             del_flag='0',
         ).first()
-        if script.script_type != 'sql':
-            cls.soft_delete_source_task(
-                source_module='datadev.script',
-                source_record_id=script.id,
-                username=username,
-            )
-            return None
-
         current_version = script.versions.filter(is_current=True).first()
         default_status = cls.SCRIPT_STATUS_TO_TASK_STATUS.get(script.status, 'draft')
         preserved_status, preserved_schedule_type, preserved_cron_expression = cls.get_task_governance_defaults(
@@ -522,6 +518,7 @@ class TaskService:
         runtime_params: dict | None = None,
         trigger_mode: str = 'manual',
         runtime_config: dict | None = None,
+        platform_task: Task | None = None,
     ) -> dict:
         from datetime import timedelta
 
@@ -531,17 +528,31 @@ class TaskService:
         from apps.dbutils.factory import get_executor
         from apps.executors.base import ExecutorFactory
 
+        runtime_params = runtime_params or {}
+        task = platform_task
+        if task is None:
+            task = Task.objects.filter(
+                source_module='datadev.script',
+                source_record_id=script.id,
+                del_flag='0',
+            ).first()
+
         current_version = script.versions.filter(is_current=True).first()
+        if task is not None:
+            version_id = (task.task_config or {}).get('currentVersionId')
+            if version_id:
+                current_version = script.versions.filter(id=version_id).first() or current_version
+            sql = (task.task_config or {}).get('sqlText') or (current_version.content if current_version else '')
+        else:
+            sql = current_version.content if current_version else ''
+
         if not current_version:
             return {'ok': False, 'msg': '脚本没有当前版本', 'data': None}
-
-        sql = current_version.content
         if not sql or not sql.strip():
             return {'ok': False, 'msg': '脚本内容为空', 'data': None}
 
         ds = script.datasource
         info = None
-        runtime_params = runtime_params or {}
         execution_mode = str(runtime_params.get('executionMode') or '').strip().lower()
         modeling_info = None
         configured_engine_type = str(getattr(script, 'engine_type', '') or '').strip().lower()
@@ -598,44 +609,21 @@ class TaskService:
             normalized_executor_type = configured_engine_type
         elif script.script_type == 'python' or configured_engine_type == 'mvp':
             normalized_executor_type = 'mvp'
-        existing_task = Task.objects.filter(
-            source_module='datadev.script',
-            source_record_id=script.id,
-            del_flag='0',
-        ).first()
-        preserved_status, preserved_schedule_type, preserved_cron_expression = cls.get_task_governance_defaults(
-            existing_task
-        )
-        task, _ = cls.upsert_source_task(
-            task_name=script.script_name,
-            task_type='SQL_COMPUTE',
-            source_module='datadev.script',
-            source_record_id=script.id,
-            status=preserved_status,
-            schedule_type=preserved_schedule_type,
-            cron_expression=preserved_cron_expression,
-            owner=(modeling_info['owner'] if modeling_info else script.owner or username),
-            task_config=cls.build_script_task_config(
-                script=script,
-                version=current_version,
-                datasource=ds,
-                sql=sql,
-            ),
-            remark=script.remark or (existing_task.remark if existing_task else ''),
-            username=username,
-        )
-        task_instance = cls.create_task_instance(
-            task=task,
-            trigger_mode=trigger_mode,
-            runtime_config={
-                'scriptVersionId': current_version.id,
-                'params': runtime_params,
-                **(runtime_config or {}),
-            },
-            triggered_by=username or trigger_mode,
-            executor_type=normalized_executor_type,
-        )
-        cls.mark_instance_running(task_instance, executor_type=normalized_executor_type)
+
+        task_instance = None
+        if task is not None:
+            task_instance = cls.create_task_instance(
+                task=task,
+                trigger_mode=trigger_mode,
+                runtime_config={
+                    'scriptVersionId': current_version.id,
+                    'params': runtime_params,
+                    **(runtime_config or {}),
+                },
+                triggered_by=username or trigger_mode,
+                executor_type=normalized_executor_type,
+            )
+            cls.mark_instance_running(task_instance, executor_type=normalized_executor_type)
 
         start_time = timezone.now()
         start_perf = timezone.now().timestamp()
@@ -743,18 +731,19 @@ class TaskService:
         if engine_result.get('design_only'):
             result_summary['designOnly'] = True
             task_result_summary['designOnly'] = True
-        cls.finalize_instance(
-            instance=task_instance,
-            status=status,
-            result_summary=task_result_summary,
-            error_message=error_msg,
-        )
+        if task_instance is not None:
+            cls.finalize_instance(
+                instance=task_instance,
+                status=status,
+                result_summary=task_result_summary,
+                error_message=error_msg,
+            )
 
         execution = DataDevScriptExecution.objects.create(
             script=script,
             version=current_version,
             task_instance=task_instance,
-            execution_id=task_instance.instance_id,
+            execution_id=task_instance.instance_id if task_instance else uuid.uuid4().hex,
             status=status,
             executor_type=normalized_executor_type,
             executor_params=runtime_params,
@@ -1051,6 +1040,7 @@ class TaskService:
                 username=username,
                 trigger_mode=trigger_mode,
                 runtime_config=runtime_config,
+                platform_task=task,
             )
 
         return {'ok': False, 'msg': f'暂不支持执行来源模块 {task.source_module or "未知"}', 'data': None}

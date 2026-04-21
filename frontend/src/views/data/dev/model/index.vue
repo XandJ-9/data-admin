@@ -28,6 +28,8 @@
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList" />
     </el-row>
 
+    <el-alert class="mb8" type="info" :closable="false" show-icon title="模型设计先于加工作业" description="请先维护层级、目标表、表注释、字段注释和负责人，再进入加工作业绑定模型并编写转换逻辑。" />
+
     <el-table v-loading="loading" :data="modelList" border>
       <el-table-column prop="modelName" label="模型名称" min-width="180" show-overflow-tooltip />
       <el-table-column prop="modelCode" label="模型编码" min-width="160" show-overflow-tooltip />
@@ -44,9 +46,10 @@
         </template>
       </el-table-column>
       <el-table-column prop="updateTime" label="更新时间" width="180" />
-      <el-table-column label="操作" width="260" fixed="right">
+      <el-table-column label="操作" width="320" fixed="right">
         <template #default="scope">
           <el-button link type="primary" v-hasPermi="['datadev:model:query']" @click="handleDetail(scope.row)">详情</el-button>
+          <el-button link type="success" @click="handleCreateJob(scope.row)">创建加工作业</el-button>
           <el-button link type="success" v-hasPermi="['datadev:model:submit']" @click="handleSubmit(scope.row)">提交建表</el-button>
           <el-button link type="danger" v-hasPermi="['datadev:model:remove']" @click="handleDelete(scope.row)">删除</el-button>
         </template>
@@ -99,6 +102,10 @@ function handleAdd() {
 
 function handleDetail(row) {
   router.push(`/datadev/modeling/detail/${row.modelId}`)
+}
+
+function handleCreateJob(row) {
+  router.push({ path: '/datadev/ide', query: { quickCreate: 'sql', targetModelId: row.modelId } })
 }
 
 async function handleDelete(row) {

@@ -1,63 +1,66 @@
 <template>
-  <div class="datadev-home-page">
-    <div class="hero-card">
+  <div class="dev-home-page">
+    <section class="hero-card">
       <div>
-        <p class="hero-kicker">Data Development</p>
-        <h2 class="hero-title">数据开发首页</h2>
-        <p class="hero-desc">在统一 Task 中轴之上，按“脚本开发、数据目录、数据建模”三条主线进入不同能力模块。先选择操作，再进入具体工作区，减少首次进入时的信息负担。</p>
+        <p class="hero-kicker">Model Driven Data Development</p>
+        <h2 class="hero-title">建模与加工</h2>
+        <p class="hero-desc">
+          ODS 进入仓库后，先定义目标模型，再围绕模型编写加工作业；真正的调度、依赖和运行治理统一进入任务运维。
+        </p>
       </div>
       <div class="hero-actions">
-        <el-button type="primary" @click="goToIde()">进入脚本开发</el-button>
-        <el-button plain type="success" @click="goToModeling">进入数据建模</el-button>
+        <el-button type="primary" @click="goToJobs()">进入加工作业</el-button>
+        <el-button type="success" plain @click="goToModeling">进入模型设计</el-button>
       </div>
-    </div>
+    </section>
 
-    <div class="action-grid">
-      <div class="action-card accent-blue">
-        <h3>脚本开发</h3>
-        <p>进入 SQL / Python 研发工作台，支持版本管理、执行反馈与统一任务接入。</p>
+    <section class="card-grid">
+      <article class="action-card accent-green">
+        <h3>模型设计</h3>
+        <p>先定义层级、目标表、字段注释和负责人，把治理信息前置到开发入口。</p>
         <div class="card-actions">
-          <el-button type="primary" @click="goToIde()">打开工作台</el-button>
-          <el-button plain @click="goToIde('sql')">新建 SQL</el-button>
-          <el-button plain @click="goToIde('python')">新建 Python</el-button>
+          <el-button type="success" plain @click="goToModeling">打开模型设计</el-button>
         </div>
-      </div>
+      </article>
 
-      <div class="action-card accent-green">
-        <h3>数据建模</h3>
-        <p>维护数仓表结构、字段注释、分层归属与负责人，先做治理，再提交建表。</p>
+      <article class="action-card accent-blue">
+        <h3>加工作业</h3>
+        <p>围绕模型编写 SQL / Python 作业，保存草稿、发布版本、调试执行，再发布到任务运维。</p>
         <div class="card-actions">
-          <el-button type="success" plain @click="goToModeling">进入建模</el-button>
+          <el-button type="primary" @click="goToJobs()">查看作业</el-button>
+          <el-button plain @click="goToJobs('sql')">新建 SQL 作业</el-button>
+          <el-button plain @click="goToJobs('python')">新建 Python 作业</el-button>
         </div>
-      </div>
+      </article>
 
-      <div class="action-card accent-orange">
-        <h3>数据目录</h3>
-        <p>管理脚本目录结构，梳理开发空间与脚本归属，减少未分配脚本的堆积。</p>
+      <article class="action-card accent-orange">
+        <h3>任务运维</h3>
+        <p>发布后的作业会进入统一 Task 中轴，在这里做 Cron、依赖、实例运行和异常处理。</p>
         <div class="card-actions">
-          <el-button plain @click="goToCatalog">进入目录</el-button>
+          <el-button plain @click="goToTaskOps">进入任务运维</el-button>
         </div>
-      </div>
-    </div>
+      </article>
+    </section>
 
-    <div class="guide-grid">
-      <div class="guide-card">
+    <section class="guide-grid">
+      <article class="guide-card">
         <h3>推荐使用路径</h3>
         <ol>
-          <li>先进入数据建模维护表注释、字段注释、负责人等治理信息。</li>
-          <li>再进入脚本开发完成 SQL / Python 研发与版本迭代。</li>
-          <li>脚本运行后在工作台底部查看结果与运维记录，统一回到 Task 体系追踪。</li>
+          <li>先在模型设计中维护层级、表注释、字段注释和负责人。</li>
+          <li>再进入加工作业，绑定目标模型并编写 SQL / Python 逻辑。</li>
+          <li>作业确认后点击“发布到任务运维”，在任务运维继续编排和调度。</li>
         </ol>
-      </div>
-      <div class="guide-card">
+      </article>
+
+      <article class="guide-card">
         <h3>模块边界</h3>
         <ul>
-          <li>脚本开发：承接 SQL_COMPUTE 研发与版本管理。</li>
-          <li>数据建模：承接表结构治理与建表提交。</li>
-          <li>数据目录：承接脚本组织与空间结构整理。</li>
+          <li>建模与加工只负责定义，不承接 Cron 与 DAG 编排。</li>
+          <li>任务运维只负责运行，不直接改开发态 SQL。</li>
+          <li>资产化会基于模型、任务和血缘锚点继续沉淀。</li>
         </ul>
-      </div>
-    </div>
+      </article>
+    </section>
   </div>
 </template>
 
@@ -66,7 +69,7 @@ defineOptions({ name: 'DataDevHome' })
 
 const router = useRouter()
 
-function goToIde(quickCreate = '') {
+function goToJobs(quickCreate = '') {
   const query = quickCreate ? { quickCreate } : undefined
   router.push({ path: '/datadev/ide', query })
 }
@@ -75,16 +78,16 @@ function goToModeling() {
   router.push('/datadev/modeling')
 }
 
-function goToCatalog() {
-  router.push('/datadev/catalog')
+function goToTaskOps() {
+  router.push('/datatask')
 }
 </script>
 
 <style lang="scss" scoped>
-.datadev-home-page {
+.dev-home-page {
   min-height: calc(100vh - 84px);
   padding: 18px;
-  background: linear-gradient(140deg, #f7f3ea 0%, #eef6f5 55%, #f4f7fb 100%);
+  background: linear-gradient(140deg, #f5f8fc 0%, #eef7f4 58%, #fbf8ef 100%);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -93,8 +96,8 @@ function goToCatalog() {
 .hero-card,
 .action-card,
 .guide-card {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #d7dee8;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #dce5ef;
   border-radius: 16px;
   box-shadow: 0 12px 24px rgba(22, 39, 58, 0.06);
 }
@@ -128,20 +131,25 @@ function goToCatalog() {
   color: #66768b;
 }
 
-.hero-actions {
+.hero-actions,
+.card-actions {
   display: flex;
-  align-items: flex-start;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hero-actions {
+  align-items: flex-start;
   flex-shrink: 0;
 }
 
-.action-grid,
+.card-grid,
 .guide-grid {
   display: grid;
   gap: 16px;
 }
 
-.action-grid {
+.card-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
@@ -173,9 +181,6 @@ function goToCatalog() {
 }
 
 .card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
   margin-top: 18px;
 }
 
@@ -190,24 +195,20 @@ function goToCatalog() {
 }
 
 @media (max-width: 1024px) {
-  .action-grid,
+  .card-grid,
   .guide-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
-  .datadev-home-page {
+  .dev-home-page {
     min-height: calc(100vh - 72px);
     padding: 12px;
   }
 
   .hero-card {
     flex-direction: column;
-  }
-
-  .hero-actions {
-    flex-wrap: wrap;
   }
 
   .hero-title {

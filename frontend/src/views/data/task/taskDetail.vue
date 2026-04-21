@@ -4,7 +4,7 @@
       <div>
         <div class="page-path">任务运维 / 任务详情</div>
         <h1>{{ taskDetail.taskName || '任务详情' }}</h1>
-        <p>{{ taskDetail.remark || '这里展示任务运维视角下的数据集成/数据开发任务配置、来源和运行概况。' }}</p>
+        <p>{{ taskDetail.remark || '这里展示任务运维视角下的数据集成 / 建模与加工任务配置、来源和运行概况。' }}</p>
       </div>
       <div class="page-actions">
         <el-button :icon="ArrowLeft" @click="goBack">返回任务运维</el-button>
@@ -199,7 +199,7 @@ const sourceDetailText = computed(() => {
     return '进入集成详情'
   }
   if (taskDetail.value.sourceModule === 'datadev.script') {
-    return '进入脚本详情'
+    return '进入加工作业'
   }
   return '进入来源详情'
 })

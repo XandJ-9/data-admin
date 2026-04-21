@@ -76,34 +76,39 @@ class DataDevDirectory(BaseModel):
 
 
 class DataDevScript(BaseModel):
-    """
-    数据开发脚本
-
-    脚本研发中心的核心资产模型，管理 SQL 和 Python 脚本的元信息与生命周期。
-    """
+    """建模与加工中的加工作业定义。"""
 
     SCRIPT_TYPE_CHOICES = [
         ('sql', 'SQL'),
         ('python', 'Python'),
+    ]
+    SCRIPT_ROLE_CHOICES = [
+        ('explore', '探索分析'),
+        ('transform', '模型加工'),
+        ('quality', '质量校验'),
+        ('backfill', '数据回刷'),
+        ('python_job', 'Python 作业'),
     ]
     ENGINE_TYPE_CHOICES = [
         ('spark', 'Spark SQL'),
         ('hive', 'Hive'),
         ('mvp', 'MVP预演'),
     ]
-
     STATUS_CHOICES = [
         ('draft', '草稿'),
         ('published', '已发布'),
         ('archived', '已归档'),
     ]
 
-    script_name = models.CharField(max_length=128, verbose_name='脚本名称')
-    script_code = models.CharField(max_length=64, unique=True, verbose_name='脚本编码')
+    script_name = models.CharField(max_length=128, verbose_name='作业名称')
+    script_code = models.CharField(max_length=64, unique=True, verbose_name='作业编码')
     script_type = models.CharField(
-        max_length=20, choices=SCRIPT_TYPE_CHOICES, default='sql', verbose_name='脚本类型'
+        max_length=20, choices=SCRIPT_TYPE_CHOICES, default='sql', verbose_name='作业类型'
     )
-    description = models.TextField(blank=True, null=True, verbose_name='脚本描述')
+    script_role = models.CharField(
+        max_length=20, choices=SCRIPT_ROLE_CHOICES, default='explore', verbose_name='作业用途'
+    )
+    description = models.TextField(blank=True, null=True, verbose_name='作业说明')
     engine_type = models.CharField(
         max_length=16, choices=ENGINE_TYPE_CHOICES, default='spark', verbose_name='执行引擎'
     )
@@ -119,32 +124,30 @@ class DataDevScript(BaseModel):
         verbose_name='关联数据源',
         help_text='SQL 脚本执行时使用的数据源',
     )
-    tags = models.JSONField(default=list, blank=True, verbose_name='标签')
-    remark = models.CharField(max_length=500, blank=True, null=True, verbose_name='备注')
-
-    # 预留字段：后续 ADR-007 权限阶段启用
-    owner = models.CharField(max_length=64, blank=True, default='', verbose_name='归属人')
-    project_id = models.CharField(max_length=64, blank=True, default='', verbose_name='项目ID')
-
-    # 所属数据目录（未指定时自动取 order_num 最小的目录）
-    directory = models.ForeignKey(
-        DataDevDirectory,
+    target_model = models.ForeignKey(
+        'DataDevModel',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='scripts',
-        verbose_name='所属目录',
-        help_text='脚本所属数据目录，未指定时使用默认目录（order_num 最小的目录）',
+        verbose_name='目标模型',
+        help_text='生产型加工作业建议绑定目标模型，探索脚本可留空',
     )
+    tags = models.JSONField(default=list, blank=True, verbose_name='标签')
+    remark = models.CharField(max_length=500, blank=True, null=True, verbose_name='备注')
+
+    owner = models.CharField(max_length=64, blank=True, default='', verbose_name='负责人')
+    project_id = models.CharField(max_length=64, blank=True, default='', verbose_name='项目ID')
 
     class Meta:
         db_table = 'datadev_script'
-        verbose_name = '数据开发脚本'
-        verbose_name_plural = '数据开发脚本'
+        verbose_name = '加工作业'
+        verbose_name_plural = '加工作业'
         ordering = ['-create_time']
         indexes = [
             models.Index(fields=['del_flag']),
             models.Index(fields=['script_type']),
+            models.Index(fields=['script_role']),
             models.Index(fields=['engine_type']),
             models.Index(fields=['status']),
             models.Index(fields=['owner']),
@@ -155,18 +158,13 @@ class DataDevScript(BaseModel):
 
 
 class DataDevScriptVersion(models.Model):
-    """
-    脚本版本
-
-    记录脚本内容的版本快照，支持版本回溯。
-    不继承 BaseModel —— 版本为追加写入的不可变记录，仅需 create 审计字段。
-    """
+    """作业版本快照。"""
 
     script = models.ForeignKey(
         DataDevScript,
         on_delete=models.CASCADE,
         related_name='versions',
-        verbose_name='所属脚本',
+        verbose_name='所属作业',
     )
     version_number = models.PositiveIntegerField(verbose_name='版本号')
     content = models.TextField(verbose_name='脚本内容')
@@ -180,8 +178,8 @@ class DataDevScriptVersion(models.Model):
 
     class Meta:
         db_table = 'datadev_script_version'
-        verbose_name = '脚本版本'
-        verbose_name_plural = '脚本版本'
+        verbose_name = '作业版本'
+        verbose_name_plural = '作业版本'
         ordering = ['-version_number']
         unique_together = [['script', 'version_number']]
         indexes = [
@@ -194,12 +192,7 @@ class DataDevScriptVersion(models.Model):
 
 
 class DataDevScriptExecution(models.Model):
-    """
-    脚本执行记录
-
-    记录每次脚本执行的参数、状态与结果。
-    不继承 BaseModel —— 执行记录为追加写入的事件日志，无需软删除。
-    """
+    """作业执行记录。"""
 
     STATUS_CHOICES = [
         ('pending', '等待执行'),
@@ -213,7 +206,7 @@ class DataDevScriptExecution(models.Model):
         DataDevScript,
         on_delete=models.CASCADE,
         related_name='executions',
-        verbose_name='所属脚本',
+        verbose_name='所属作业',
     )
     version = models.ForeignKey(
         DataDevScriptVersion,
@@ -250,8 +243,8 @@ class DataDevScriptExecution(models.Model):
 
     class Meta:
         db_table = 'datadev_script_execution'
-        verbose_name = '脚本执行记录'
-        verbose_name_plural = '脚本执行记录'
+        verbose_name = '作业执行记录'
+        verbose_name_plural = '作业执行记录'
         ordering = ['-create_time']
         indexes = [
             models.Index(fields=['status']),
@@ -264,7 +257,7 @@ class DataDevScriptExecution(models.Model):
 
 
 class DataDevModel(BaseModel):
-    """数据建模定义。"""
+    """数据模型定义。"""
 
     LAYER_CHOICES = [
         ('ODS', 'ODS'),

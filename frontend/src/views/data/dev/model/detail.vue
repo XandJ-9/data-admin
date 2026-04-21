@@ -3,14 +3,17 @@
     <div class="page-header">
       <div>
         <h2>{{ isCreate ? '新建模型' : form.modelName || '模型详情' }}</h2>
-        <p>在详情页维护表结构、字段注释与负责人，最终提交创建数据表。</p>
+        <p>在详情页维护表结构、字段注释与负责人，模型完成后再进入加工作业继续开发。</p>
       </div>
       <div class="header-actions">
         <el-button @click="goBack">返回</el-button>
+        <el-button v-if="!isCreate && currentModelId" type="primary" plain @click="handleCreateJob">创建加工作业</el-button>
         <el-button type="primary" :loading="saving" @click="handleSave">保存模型</el-button>
         <el-button type="success" :loading="submitting" @click="handleSubmit">提交建表</el-button>
       </div>
     </div>
+
+    <el-alert class="mb16" type="info" :closable="false" show-icon title="隐形治理前置" description="表注释、字段注释和负责人是模型发布前的必填治理项，提交建表和发布任务都会依赖这些信息。" />
 
     <el-card shadow="never" class="mb16">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
@@ -186,6 +189,11 @@ function goBack() {
   router.push('/datadev/modeling')
 }
 
+function handleCreateJob() {
+  if (!currentModelId.value) return
+  router.push({ path: '/datadev/ide', query: { quickCreate: 'sql', targetModelId: currentModelId.value } })
+}
+
 function buildPayload() {
   return {
     ...form,
@@ -281,39 +289,3 @@ async function handleSubmit() {
 
 onMounted(loadDetail)
 </script>
-
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 12px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.mb16 {
-  margin-bottom: 16px;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.ddl-preview {
-  margin: 0;
-  padding: 12px;
-  background: #0f172a;
-  color: #e2e8f0;
-  border-radius: 8px;
-  overflow: auto;
-  font-family: 'JetBrains Mono', monospace;
-  line-height: 1.6;
-}
-</style>

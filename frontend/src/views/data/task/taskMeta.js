@@ -1,7 +1,7 @@
 export function taskTypeLabel(value) {
   const mapping = {
     DATA_SYNC: '数据集成',
-    SQL_COMPUTE: 'SQL 开发',
+    SQL_COMPUTE: '加工作业',
   }
   return mapping[value] || value || '-'
 }
@@ -68,7 +68,7 @@ export function executionStatusTag(value) {
 export function sourceModuleLabel(value) {
   const mapping = {
     'dataintegration.task': '数据集成',
-    'datadev.script': '数据开发',
+    'datadev.script': '建模与加工',
   }
   return mapping[value] || value || '未归类'
 }

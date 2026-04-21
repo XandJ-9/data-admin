@@ -4,14 +4,14 @@
       <div class="hero-layout">
         <div class="hero-main">
           <span class="hero-eyebrow">任务运维中心</span>
-          <h1>统一纳管数据集成任务和数据开发任务</h1>
+          <h1>统一纳管数据集成任务和建模与加工任务</h1>
           <p>
             这个页面负责回答三件事：近一段时间运行是否稳定、当前纳管任务来自哪里、哪些任务需要立刻处理。
-            数据集成与数据开发继续共用统一 Task 中轴，配置、治理、执行记录和依赖维护则下沉到各自工作面。
+            数据集成与建模与加工继续共用统一 Task 中轴，配置、治理、执行记录和依赖维护则下沉到各自工作面。
           </p>
           <div class="hero-actions">
             <el-button type="primary" :icon="Plus" @click="handleCreateIntegrationTask" v-hasPermi="['dataintegration:task:add']">新建集成任务</el-button>
-            <el-button :icon="EditPen" @click="goToDataDevelopment" v-hasPermi="['datadev:ide:view']">进入数据开发</el-button>
+            <el-button :icon="EditPen" @click="goToDataDevelopment" v-hasPermi="['datadev:ide:view']">进入建模与加工</el-button>
             <el-button :icon="Histogram" @click="goToInstances" v-hasPermi="['datatask:instance:list']">查看执行记录</el-button>
             <el-button :icon="Share" @click="goToOrchestration" v-hasPermi="['datatask:dependency:query']">进入依赖编排</el-button>
             <el-button :icon="Refresh" @click="loadOverview">刷新总览</el-button>
@@ -78,7 +78,7 @@
             <div class="section-head">
               <div>
                 <h2>来源分布饼图</h2>
-                <p>看当前纳管任务主要来自数据集成还是数据开发。</p>
+                <p>看当前纳管任务主要来自数据集成还是建模与加工。</p>
               </div>
             </div>
           </template>
@@ -314,7 +314,7 @@ const overviewCards = computed(() => [
   {
     title: '任务总量',
     value: filteredTasks.value.length,
-    hint: '任务运维当前纳管的数据集成与数据开发任务规模',
+    hint: '任务运维当前纳管的数据集成与建模加工任务规模',
     icon: Histogram,
     tone: 'tone-blue',
   },
@@ -365,7 +365,7 @@ const lastUpdatedText = computed(() => {
 const sourceDistribution = computed(() => buildDistribution(
   [
     { label: '数据集成', value: filteredTasks.value.filter(item => item.sourceModule === 'dataintegration.task').length, color: '#67C23A' },
-    { label: '数据开发', value: filteredTasks.value.filter(item => item.sourceModule === 'datadev.script').length, color: '#E6A23C' },
+    { label: '建模与加工', value: filteredTasks.value.filter(item => item.sourceModule === 'datadev.script').length, color: '#E6A23C' },
     { label: '未归类', value: filteredTasks.value.filter(item => !item.sourceModule).length, color: '#909399' },
   ],
   filteredTasks.value.length,

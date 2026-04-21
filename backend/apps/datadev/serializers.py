@@ -1,79 +1,113 @@
 import hashlib
 
 from rest_framework import serializers
+
+from apps.datatask.models import Task
 from apps.system.serializers import BaseModelSerializer
-from .models import DataDevScript, DataDevScriptVersion, DataDevScriptExecution, DataDevDirectory, DataDevModel, DataDevModelField
+from .models import (
+    DataDevDirectory,
+    DataDevModel,
+    DataDevModelField,
+    DataDevScript,
+    DataDevScriptExecution,
+    DataDevScriptVersion,
+)
 
-
-# ── Script ──────────────────────────────────────
 
 class ScriptListSerializer(BaseModelSerializer):
-    """脚本列表序列化器"""
+    """加工作业列表序列化器。"""
+
     scriptId = serializers.IntegerField(source='id', read_only=True)
     scriptName = serializers.CharField(source='script_name')
     scriptCode = serializers.CharField(source='script_code')
     scriptType = serializers.CharField(source='script_type')
+    scriptRole = serializers.CharField(source='script_role')
     engineType = serializers.CharField(source='engine_type')
-    datasourceId = serializers.PrimaryKeyRelatedField(
-        source='datasource', read_only=True
-    )
-    datasourceName = serializers.CharField(
-        source='datasource.name', read_only=True, default=''
-    )
-    directoryId = serializers.IntegerField(
-        source='directory_id', read_only=True, allow_null=True
-    )
-    directoryName = serializers.CharField(
-        source='directory.directory_name', read_only=True, default=''
-    )
+    datasourceId = serializers.PrimaryKeyRelatedField(source='datasource', read_only=True)
+    datasourceName = serializers.CharField(source='datasource.name', read_only=True, default='')
+    targetModelId = serializers.IntegerField(source='target_model_id', read_only=True, allow_null=True)
+    targetModelName = serializers.CharField(source='target_model.model_name', read_only=True, default='')
+    targetLayer = serializers.CharField(source='target_model.layer', read_only=True, default='')
+    taskId = serializers.SerializerMethodField()
+    taskStatus = serializers.SerializerMethodField()
 
     class Meta:
         model = DataDevScript
         fields = [
-            'scriptId', 'scriptName', 'scriptCode', 'scriptType', 'engineType',
+            'scriptId', 'scriptName', 'scriptCode', 'scriptType', 'scriptRole', 'engineType',
             'description', 'status', 'datasourceId', 'datasourceName',
-            'directoryId', 'directoryName',
+            'targetModelId', 'targetModelName', 'targetLayer', 'taskId', 'taskStatus',
             'tags', 'owner', 'remark',
         ]
 
+    @staticmethod
+    def _get_bound_task(obj):
+        return Task.objects.filter(
+            source_module='datadev.script',
+            source_record_id=obj.id,
+            del_flag='0',
+        ).first()
+
+    def get_taskId(self, obj):
+        task = self._get_bound_task(obj)
+        return task.id if task else None
+
+    def get_taskStatus(self, obj):
+        task = self._get_bound_task(obj)
+        return task.status if task else ''
+
 
 class ScriptCreateSerializer(serializers.Serializer):
-    """脚本创建序列化器"""
+    """加工作业创建序列化器。"""
+
     scriptName = serializers.CharField(max_length=128)
     scriptCode = serializers.CharField(max_length=64)
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], default='sql')
+    scriptRole = serializers.ChoiceField(
+        choices=[choice[0] for choice in DataDevScript.SCRIPT_ROLE_CHOICES],
+        required=False,
+    )
     engineType = serializers.ChoiceField(choices=['spark', 'hive', 'mvp'], required=False, default='spark')
     description = serializers.CharField(required=False, allow_blank=True, default='')
-    directoryId = serializers.IntegerField(required=False, allow_null=True, default=None)
+    targetModelId = serializers.IntegerField(required=False, allow_null=True, default=None)
     tags = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     remark = serializers.CharField(required=False, allow_blank=True, default='')
     content = serializers.CharField(required=False, allow_blank=True, default='')
 
 
 class ScriptUpdateSerializer(serializers.Serializer):
-    """脚本更新序列化器"""
+    """加工作业更新序列化器。"""
+
     scriptName = serializers.CharField(max_length=128, required=False)
     scriptType = serializers.ChoiceField(choices=['sql', 'python'], required=False)
+    scriptRole = serializers.ChoiceField(
+        choices=[choice[0] for choice in DataDevScript.SCRIPT_ROLE_CHOICES],
+        required=False,
+    )
     engineType = serializers.ChoiceField(choices=['spark', 'hive', 'mvp'], required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     status = serializers.ChoiceField(choices=['draft', 'published', 'archived'], required=False)
-    directoryId = serializers.IntegerField(required=False, allow_null=True)
+    targetModelId = serializers.IntegerField(required=False, allow_null=True)
     tags = serializers.ListField(child=serializers.CharField(), required=False)
     remark = serializers.CharField(required=False, allow_blank=True)
 
 
 class ScriptQuerySerializer(serializers.Serializer):
-    """脚本查询序列化器"""
+    """加工作业查询序列化器。"""
+
     scriptName = serializers.CharField(required=False, allow_blank=True)
     scriptType = serializers.ChoiceField(required=False, choices=['sql', 'python'])
+    scriptRole = serializers.ChoiceField(
+        required=False,
+        choices=[choice[0] for choice in DataDevScript.SCRIPT_ROLE_CHOICES],
+    )
     status = serializers.ChoiceField(required=False, choices=['draft', 'published', 'archived'])
-    directoryId = serializers.IntegerField(required=False, allow_null=True)
+    targetModelId = serializers.IntegerField(required=False, allow_null=True)
 
-
-# ── ScriptVersion ───────────────────────────────
 
 class ScriptVersionSerializer(serializers.ModelSerializer):
-    """脚本版本序列化器"""
+    """作业版本序列化器。"""
+
     versionId = serializers.IntegerField(source='id', read_only=True)
     scriptId = serializers.IntegerField(source='script_id', read_only=True)
     versionNumber = serializers.IntegerField(source='version_number', read_only=True)
@@ -82,9 +116,7 @@ class ScriptVersionSerializer(serializers.ModelSerializer):
     isCurrent = serializers.BooleanField(source='is_current', read_only=True)
     isReleased = serializers.BooleanField(source='is_released', read_only=True)
     createBy = serializers.CharField(source='create_by', read_only=True)
-    createTime = serializers.DateTimeField(
-        source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S'
-    )
+    createTime = serializers.DateTimeField(source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
 
     class Meta:
         model = DataDevScriptVersion
@@ -95,39 +127,27 @@ class ScriptVersionSerializer(serializers.ModelSerializer):
 
 
 class ScriptVersionCreateSerializer(serializers.Serializer):
-    """创建新版本"""
     content = serializers.CharField()
     changeLog = serializers.CharField(required=False, allow_blank=True, default='')
     isReleased = serializers.BooleanField(required=False, default=False)
 
 
-# ── ScriptExecution ─────────────────────────────
-
 class ScriptExecutionSerializer(serializers.ModelSerializer):
-    """脚本执行记录序列化器"""
     taskId = serializers.IntegerField(source='task_instance.task_id', read_only=True, allow_null=True)
     taskInstanceId = serializers.IntegerField(source='task_instance_id', read_only=True, allow_null=True)
     executionId = serializers.CharField(source='execution_id', read_only=True)
     scriptId = serializers.IntegerField(source='script_id', read_only=True)
     scriptName = serializers.CharField(source='script.script_name', read_only=True, default='')
-    versionNumber = serializers.IntegerField(
-        source='version.version_number', read_only=True, default=None
-    )
+    versionNumber = serializers.IntegerField(source='version.version_number', read_only=True, default=None)
     executorType = serializers.CharField(source='executor_type', read_only=True)
     executorParams = serializers.JSONField(source='executor_params', read_only=True)
-    startTime = serializers.DateTimeField(
-        source='start_time', read_only=True, format='%Y-%m-%d %H:%M:%S'
-    )
-    endTime = serializers.DateTimeField(
-        source='end_time', read_only=True, format='%Y-%m-%d %H:%M:%S'
-    )
+    startTime = serializers.DateTimeField(source='start_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
+    endTime = serializers.DateTimeField(source='end_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
     durationSeconds = serializers.IntegerField(source='duration_seconds', read_only=True)
     resultSummary = serializers.JSONField(source='result_summary', read_only=True)
     errorMessage = serializers.CharField(source='error_message', read_only=True)
     executedBy = serializers.CharField(source='executed_by', read_only=True)
-    createTime = serializers.DateTimeField(
-        source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S'
-    )
+    createTime = serializers.DateTimeField(source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
 
     class Meta:
         model = DataDevScriptExecution
@@ -141,7 +161,6 @@ class ScriptExecutionSerializer(serializers.ModelSerializer):
 
 
 class ScriptExecutionQuerySerializer(serializers.Serializer):
-    """执行记录查询序列化器"""
     status = serializers.ChoiceField(
         required=False,
         choices=['pending', 'running', 'success', 'failed', 'cancelled'],
@@ -149,10 +168,7 @@ class ScriptExecutionQuerySerializer(serializers.Serializer):
     executedBy = serializers.CharField(required=False, allow_blank=True)
 
 
-# ── DataDevDirectory ──────────────────────────────────────
-
 class DataDevDirectorySerializer(BaseModelSerializer):
-    """数据目录序列化器（列表/详情）"""
     directoryId = serializers.IntegerField(source='directory_id', read_only=True)
     parentId = serializers.IntegerField(source='parent_id', read_only=True)
     directoryName = serializers.CharField(source='directory_name', read_only=True)
@@ -165,11 +181,9 @@ class DataDevDirectorySerializer(BaseModelSerializer):
             'directoryId', 'parentId', 'ancestors',
             'directoryName', 'directoryCode', 'orderNum',
         ]
-        # __init_subclass__ 自动追加: status, remark, createBy, updateBy, createTime, updateTime
 
 
 class DataDevDirectoryCreateSerializer(serializers.Serializer):
-    """数据目录创建序列化器"""
     parentId = serializers.IntegerField(default=0)
     directoryName = serializers.CharField(max_length=100)
     directoryCode = serializers.CharField(max_length=32)
@@ -179,7 +193,6 @@ class DataDevDirectoryCreateSerializer(serializers.Serializer):
 
 
 class DataDevDirectoryUpdateSerializer(serializers.Serializer):
-    """数据目录更新序列化器"""
     parentId = serializers.IntegerField(required=False)
     directoryName = serializers.CharField(max_length=100, required=False)
     directoryCode = serializers.CharField(max_length=32, required=False)
@@ -257,20 +270,6 @@ class DataModelCreateUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True, default='')
     remark = serializers.CharField(required=False, allow_blank=True, default='')
     fields = DataModelFieldPayloadSerializer(many=True, allow_empty=False)
-
-    def validate_fields(self, value):
-        names = set()
-        for index, item in enumerate(value, start=1):
-            field_name = str(item.get('fieldName') or '').strip()
-            field_comment = str(item.get('fieldComment') or '').strip()
-            if not field_name:
-                raise serializers.ValidationError(f'第 {index} 个字段缺少字段名称')
-            if field_name.lower() in names:
-                raise serializers.ValidationError(f'字段名称重复: {field_name}')
-            if not field_comment:
-                raise serializers.ValidationError(f'字段 {field_name} 必须填写字段注释')
-            names.add(field_name.lower())
-        return value
 
 
 class DataModelQuerySerializer(serializers.Serializer):

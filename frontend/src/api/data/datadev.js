@@ -1,8 +1,5 @@
 import request from '@/utils/request'
 
-// ── 脚本 CRUD ─────────────────────────────────
-
-/** 查询脚本列表 */
 export function listScripts(query) {
   return request({
     url: '/datadev/scripts',
@@ -11,7 +8,6 @@ export function listScripts(query) {
   })
 }
 
-/** 获取脚本详情（含当前版本内容） */
 export function getScript(id) {
   return request({
     url: `/datadev/scripts/${id}`,
@@ -19,7 +15,6 @@ export function getScript(id) {
   })
 }
 
-/** 创建脚本 */
 export function addScript(data) {
   return request({
     url: '/datadev/scripts',
@@ -28,7 +23,6 @@ export function addScript(data) {
   })
 }
 
-/** 更新脚本 */
 export function updateScript(id, data) {
   return request({
     url: `/datadev/scripts/${id}`,
@@ -37,7 +31,6 @@ export function updateScript(id, data) {
   })
 }
 
-/** 删除脚本 */
 export function delScript(id) {
   return request({
     url: `/datadev/scripts/${id}`,
@@ -45,9 +38,13 @@ export function delScript(id) {
   })
 }
 
-// ── 版本管理 ─────────────────────────────────
+export function publishScriptTask(scriptId) {
+  return request({
+    url: `/datadev/scripts/${scriptId}/publish-task`,
+    method: 'post',
+  })
+}
 
-/** 获取脚本版本列表 */
 export function listVersions(scriptId) {
   return request({
     url: `/datadev/scripts/${scriptId}/versions`,
@@ -55,7 +52,6 @@ export function listVersions(scriptId) {
   })
 }
 
-/** 创建新版本 */
 export function createVersion(scriptId, data) {
   return request({
     url: `/datadev/scripts/${scriptId}/versions/create`,
@@ -64,7 +60,6 @@ export function createVersion(scriptId, data) {
   })
 }
 
-/** 发布新版本 */
 export function publishVersion(scriptId, data) {
   return request({
     url: `/datadev/scripts/${scriptId}/versions/publish`,
@@ -73,7 +68,6 @@ export function publishVersion(scriptId, data) {
   })
 }
 
-/** 回滚到指定版本 */
 export function rollbackVersion(scriptId, versionId) {
   return request({
     url: `/datadev/scripts/${scriptId}/versions/${versionId}/rollback`,
@@ -81,9 +75,6 @@ export function rollbackVersion(scriptId, versionId) {
   })
 }
 
-// ── 执行 ─────────────────────────────────────
-
-/** 触发脚本执行 */
 export function executeScript(scriptId, data) {
   return request({
     url: `/datadev/scripts/${scriptId}/execute`,
@@ -93,7 +84,6 @@ export function executeScript(scriptId, data) {
   })
 }
 
-/** 获取脚本执行记录 */
 export function listScriptExecutions(scriptId, query) {
   return request({
     url: `/datadev/scripts/${scriptId}/executions`,
@@ -102,7 +92,6 @@ export function listScriptExecutions(scriptId, query) {
   })
 }
 
-/** 获取全局执行记录 */
 export function listExecutions(query) {
   return request({
     url: '/datadev/executions',
@@ -111,9 +100,6 @@ export function listExecutions(query) {
   })
 }
 
-// ── 数据目录 ─────────────────────────────────
-
-/** 查询数据目录列表 */
 export function listDirectories(query) {
   return request({
     url: '/datadev/directories',
@@ -122,7 +108,6 @@ export function listDirectories(query) {
   })
 }
 
-/** 获取数据目录树 */
 export function getDirectoryTree() {
   return request({
     url: '/datadev/directories/tree',
@@ -130,7 +115,6 @@ export function getDirectoryTree() {
   })
 }
 
-/** 新增数据目录 */
 export function addDirectory(data) {
   return request({
     url: '/datadev/directories',
@@ -139,7 +123,6 @@ export function addDirectory(data) {
   })
 }
 
-/** 修改数据目录 */
 export function updateDirectory(id, data) {
   return request({
     url: `/datadev/directories/${id}`,
@@ -148,16 +131,12 @@ export function updateDirectory(id, data) {
   })
 }
 
-/** 删除数据目录 */
 export function delDirectory(id) {
   return request({
     url: `/datadev/directories/${id}`,
     method: 'delete',
   })
 }
-
-
-// ── 数据建模 ─────────────────────────────────
 
 export function listModels(query) {
   return request({
