@@ -149,6 +149,27 @@ class DataAssetViewSet(BaseViewSet):
         schema_name = self.request.query_params.get('schemaName')
         if schema_name:
             qs = qs.filter(namespace__schema_name__icontains=schema_name)
+        asset_category = self.request.query_params.get('assetCategory')
+        if asset_category:
+            qs = qs.filter(asset_category=asset_category)
+        warehouse_layer = self.request.query_params.get('warehouseLayer')
+        if warehouse_layer:
+            qs = qs.filter(warehouse_layer=warehouse_layer)
+        business_domain = self.request.query_params.get('businessDomain')
+        if business_domain:
+            qs = qs.filter(business_domain__icontains=business_domain)
+        subject_area = self.request.query_params.get('subjectArea')
+        if subject_area:
+            qs = qs.filter(subject_area__icontains=subject_area)
+        owner = self.request.query_params.get('owner')
+        if owner:
+            qs = qs.filter(owner__icontains=owner)
+        lifecycle_status = self.request.query_params.get('lifecycleStatus')
+        if lifecycle_status:
+            qs = qs.filter(lifecycle_status=lifecycle_status)
+        security_level = self.request.query_params.get('securityLevel')
+        if security_level:
+            qs = qs.filter(security_level=security_level)
         keyword = self.request.query_params.get('keyword')
         if keyword:
             qs = qs.filter(
@@ -205,6 +226,18 @@ class DataAssetColumnViewSet(BaseViewSet):
         column_comment = self.request.query_params.get('columnComment')
         if column_comment:
             qs = qs.filter(comment__icontains=column_comment)
+        business_term = self.request.query_params.get('businessTerm')
+        if business_term:
+            qs = qs.filter(business_term__icontains=business_term)
+        warehouse_role = self.request.query_params.get('warehouseRole')
+        if warehouse_role:
+            qs = qs.filter(warehouse_role=warehouse_role)
+        security_level = self.request.query_params.get('securityLevel')
+        if security_level:
+            qs = qs.filter(security_level=security_level)
+        standard_code = self.request.query_params.get('standardCode')
+        if standard_code:
+            qs = qs.filter(standard_code__icontains=standard_code)
         return qs
 
 
@@ -233,6 +266,27 @@ class MetaTableViewSet(BaseViewSet):
         dbname = self.request.query_params.get('databaseName')
         if dbname:
             qs = qs.filter(database__icontains=dbname)
+        asset_category = self.request.query_params.get('assetCategory')
+        if asset_category:
+            qs = qs.filter(asset_category=asset_category)
+        warehouse_layer = self.request.query_params.get('warehouseLayer')
+        if warehouse_layer:
+            qs = qs.filter(warehouse_layer=warehouse_layer)
+        business_domain = self.request.query_params.get('businessDomain')
+        if business_domain:
+            qs = qs.filter(business_domain__icontains=business_domain)
+        subject_area = self.request.query_params.get('subjectArea')
+        if subject_area:
+            qs = qs.filter(subject_area__icontains=subject_area)
+        owner = self.request.query_params.get('owner')
+        if owner:
+            qs = qs.filter(owner__icontains=owner)
+        lifecycle_status = self.request.query_params.get('lifecycleStatus')
+        if lifecycle_status:
+            qs = qs.filter(lifecycle_status=lifecycle_status)
+        security_level = self.request.query_params.get('securityLevel')
+        if security_level:
+            qs = qs.filter(security_level=security_level)
         # 创建/修改时间范围
         def _parse_dt(val):
             from datetime import datetime
@@ -280,6 +334,27 @@ class MetaTableViewSet(BaseViewSet):
         database_name = self.request.query_params.get('databaseName')
         if database_name:
             qs = _filter_canonical_database(qs, database_name)
+        asset_category = self.request.query_params.get('assetCategory')
+        if asset_category:
+            qs = qs.filter(asset_category=asset_category)
+        warehouse_layer = self.request.query_params.get('warehouseLayer')
+        if warehouse_layer:
+            qs = qs.filter(warehouse_layer=warehouse_layer)
+        business_domain = self.request.query_params.get('businessDomain')
+        if business_domain:
+            qs = qs.filter(business_domain__icontains=business_domain)
+        subject_area = self.request.query_params.get('subjectArea')
+        if subject_area:
+            qs = qs.filter(subject_area__icontains=subject_area)
+        owner = self.request.query_params.get('owner')
+        if owner:
+            qs = qs.filter(owner__icontains=owner)
+        lifecycle_status = self.request.query_params.get('lifecycleStatus')
+        if lifecycle_status:
+            qs = qs.filter(lifecycle_status=lifecycle_status)
+        security_level = self.request.query_params.get('securityLevel')
+        if security_level:
+            qs = qs.filter(security_level=security_level)
 
         c_start = _parse_datetime_param(self.request.query_params.get('createTimeStart'))
         c_end = _parse_datetime_param(self.request.query_params.get('createTimeEnd'))
@@ -379,6 +454,18 @@ class MetaColumnViewSet(BaseViewSet):
         column_comment = self.request.query_params.get('columnComment')
         if column_comment:
             qs = qs.filter(comment__icontains=column_comment)
+        business_term = self.request.query_params.get('businessTerm')
+        if business_term:
+            qs = qs.filter(business_term__icontains=business_term)
+        warehouse_role = self.request.query_params.get('warehouseRole')
+        if warehouse_role:
+            qs = qs.filter(warehouse_role=warehouse_role)
+        security_level = self.request.query_params.get('securityLevel')
+        if security_level:
+            qs = qs.filter(security_level=security_level)
+        standard_code = self.request.query_params.get('standardCode')
+        if standard_code:
+            qs = qs.filter(standard_code__icontains=standard_code)
         # 数据源名称模糊查询
         data_source_name = self.request.query_params.get('dataSourceName')
         if data_source_name:
@@ -431,6 +518,18 @@ class MetaColumnViewSet(BaseViewSet):
         column_comment = self.request.query_params.get('columnComment')
         if column_comment:
             qs = qs.filter(comment__icontains=column_comment)
+        business_term = self.request.query_params.get('businessTerm')
+        if business_term:
+            qs = qs.filter(business_term__icontains=business_term)
+        warehouse_role = self.request.query_params.get('warehouseRole')
+        if warehouse_role:
+            qs = qs.filter(warehouse_role=warehouse_role)
+        security_level = self.request.query_params.get('securityLevel')
+        if security_level:
+            qs = qs.filter(security_level=security_level)
+        standard_code = self.request.query_params.get('standardCode')
+        if standard_code:
+            qs = qs.filter(standard_code__icontains=standard_code)
         data_source_name = self.request.query_params.get('dataSourceName')
         if data_source_name:
             qs = qs.filter(asset__namespace__data_source__name__icontains=data_source_name)
@@ -468,6 +567,11 @@ class MetaColumnViewSet(BaseViewSet):
                     'default': str(request.data.get('defaultValue') or ''),
                     'primary': bool(request.data.get('isPrimary')),
                     'comment': request.data.get('columnComment') or '',
+                    'business_term': request.data.get('businessTerm') or '',
+                    'warehouse_role': request.data.get('warehouseRole') or '',
+                    'security_level': request.data.get('securityLevel') or 'internal',
+                    'standard_code': request.data.get('standardCode') or '',
+                    'metric_unit': request.data.get('metricUnit') or '',
                     'del_flag': '0',
                 },
             )
@@ -514,6 +618,16 @@ class MetaColumnViewSet(BaseViewSet):
                 instance.primary = bool(request.data.get('isPrimary'))
             if 'columnComment' in request.data:
                 instance.comment = request.data.get('columnComment') or ''
+            if 'businessTerm' in request.data:
+                instance.business_term = request.data.get('businessTerm') or ''
+            if 'warehouseRole' in request.data:
+                instance.warehouse_role = request.data.get('warehouseRole') or ''
+            if 'securityLevel' in request.data:
+                instance.security_level = request.data.get('securityLevel') or 'internal'
+            if 'standardCode' in request.data:
+                instance.standard_code = request.data.get('standardCode') or ''
+            if 'metricUnit' in request.data:
+                instance.metric_unit = request.data.get('metricUnit') or ''
             if hasattr(request.user, 'username'):
                 instance.update_by = request.user.username
             instance.save()

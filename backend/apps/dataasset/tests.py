@@ -916,3 +916,93 @@ class DataAssetModelRefactorTests(TestCase):
 
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual([column['columnName'] for column in detail_response.data['data']['columns']], ['id'])
+
+    def test_sync_standard_asset_should_copy_business_and_warehouse_metadata_fields(self):
+        meta_table = MetaTable.objects.create(
+            data_source=self.data_source,
+            table_name='dwd_orders',
+            database='warehouse',
+            comment='订单明细表',
+            asset_category='warehouse',
+            warehouse_layer='DWD',
+            business_domain='交易',
+            subject_area='订单域',
+            owner='alice',
+            steward='bob',
+            lifecycle_status='active',
+            security_level='sensitive',
+            grain='订单明细',
+        )
+        meta_column = MetaColumn.objects.create(
+            data_source=self.data_source,
+            table=meta_table,
+            order=1,
+            name='pay_amount',
+            type='decimal(18,2)',
+            comment='支付金额',
+            business_term='支付金额',
+            warehouse_role='measure',
+            security_level='restricted',
+            standard_code='STD_PAY_AMOUNT',
+            metric_unit='元',
+        )
+
+        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        column = DataAssetColumn.objects.get(asset=asset, legacy_meta_column_id=meta_column.id)
+
+        self.assertEqual(asset.asset_category, 'warehouse')
+        self.assertEqual(asset.warehouse_layer, 'DWD')
+        self.assertEqual(asset.business_domain, '交易')
+        self.assertEqual(asset.subject_area, '订单域')
+        self.assertEqual(asset.owner, 'alice')
+        self.assertEqual(asset.steward, 'bob')
+        self.assertEqual(asset.lifecycle_status, 'active')
+        self.assertEqual(asset.security_level, 'sensitive')
+        self.assertEqual(asset.grain, '订单明细')
+        self.assertEqual(column.business_term, '支付金额')
+        self.assertEqual(column.warehouse_role, 'measure')
+        self.assertEqual(column.security_level, 'restricted')
+        self.assertEqual(column.standard_code, 'STD_PAY_AMOUNT')
+        self.assertEqual(column.metric_unit, '元')
+
+    def test_meta_table_view_should_support_business_and_warehouse_filters(self):
+        source_meta = MetaTable.objects.create(
+            data_source=self.data_source,
+            table_name='crm_customer',
+            database='biz',
+            comment='客户表',
+            asset_category='business',
+            business_domain='会员',
+            owner='lucy',
+        )
+        warehouse_meta = MetaTable.objects.create(
+            data_source=self.data_source,
+            table_name='dws_order_summary',
+            database='dw',
+            comment='订单汇总表',
+            asset_category='warehouse',
+            warehouse_layer='DWS',
+            business_domain='交易',
+            owner='alice',
+        )
+        sync_standard_asset_from_meta_table(source_meta, user=self.user)
+        sync_standard_asset_from_meta_table(warehouse_meta, user=self.user)
+
+        view = MetaTableViewSet.as_view({'get': 'list'})
+        request = self.factory.get('/data-api/dataasset/meta-table', {
+            'assetCategory': 'warehouse',
+            'warehouseLayer': 'DWS',
+            'businessDomain': '交易',
+            'owner': 'alice',
+        })
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['total'], 1)
+        self.assertEqual(response.data['rows'][0]['tableName'], 'dws_order_summary')
+        self.assertEqual(response.data['rows'][0]['assetCategory'], 'warehouse')
+        self.assertEqual(response.data['rows'][0]['warehouseLayer'], 'DWS')
+        self.assertEqual(response.data['rows'][0]['businessDomain'], '交易')
+

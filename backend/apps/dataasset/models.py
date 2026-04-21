@@ -45,6 +45,47 @@ def resolve_collection_scope(db_type, database_name=''):
     return scope_level, catalog_name, schema_name
 
 
+class AssetCategory(models.TextChoices):
+    SOURCE = 'source', '源端元数据'
+    BUSINESS = 'business', '业务元数据'
+    WAREHOUSE = 'warehouse', '数仓元数据'
+    SERVICE = 'service', '服务资产'
+    OTHER = 'other', '其他资产'
+
+
+class WarehouseLayer(models.TextChoices):
+    NONE = '', '未设置'
+    SOURCE = 'SOURCE', '源端'
+    ODS = 'ODS', '贴源层'
+    DWD = 'DWD', '明细层'
+    DWS = 'DWS', '汇总层'
+    ADS = 'ADS', '应用层'
+    DIM = 'DIM', '维度层'
+
+
+class LifecycleStatus(models.TextChoices):
+    DRAFT = 'draft', '草稿'
+    ACTIVE = 'active', '在线'
+    OFFLINE = 'offline', '下线'
+    ARCHIVED = 'archived', '归档'
+
+
+class SecurityLevel(models.TextChoices):
+    PUBLIC = 'public', '公开'
+    INTERNAL = 'internal', '内部'
+    SENSITIVE = 'sensitive', '敏感'
+    RESTRICTED = 'restricted', '严格受限'
+
+
+class WarehouseRole(models.TextChoices):
+    NONE = '', '未设置'
+    DIMENSION = 'dimension', '维度字段'
+    MEASURE = 'measure', '指标字段'
+    PARTITION_KEY = 'partition_key', '分区字段'
+    BUSINESS_KEY = 'business_key', '业务主键'
+    ATTRIBUTE = 'attribute', '属性字段'
+
+
 class AssetNamespace(BaseModel):
     """资产命名空间（环境 / catalog / schema）"""
 
@@ -100,10 +141,27 @@ class DataAsset(BaseModel):
     asset_type = models.CharField(
         max_length=32, choices=AssetType.choices, default=AssetType.TABLE, verbose_name='资产类型'
     )
+    asset_category = models.CharField(
+        max_length=32, choices=AssetCategory.choices, default=AssetCategory.SOURCE, verbose_name='资产分类'
+    )
     object_name = models.CharField(max_length=255, verbose_name='对象名称')
     qualified_name = models.CharField(max_length=1024, db_index=True, verbose_name='限定名称')
     display_name = models.CharField(max_length=255, blank=True, default='', verbose_name='显示名称')
     comment = models.CharField(max_length=1024, blank=True, default='', verbose_name='描述')
+    warehouse_layer = models.CharField(
+        max_length=16, choices=WarehouseLayer.choices, blank=True, default=WarehouseLayer.NONE, verbose_name='数仓分层'
+    )
+    business_domain = models.CharField(max_length=128, blank=True, default='', verbose_name='业务域')
+    subject_area = models.CharField(max_length=128, blank=True, default='', verbose_name='主题域')
+    owner = models.CharField(max_length=64, blank=True, default='', verbose_name='资产负责人')
+    steward = models.CharField(max_length=64, blank=True, default='', verbose_name='数据管家')
+    lifecycle_status = models.CharField(
+        max_length=16, choices=LifecycleStatus.choices, default=LifecycleStatus.DRAFT, verbose_name='生命周期状态'
+    )
+    security_level = models.CharField(
+        max_length=16, choices=SecurityLevel.choices, default=SecurityLevel.INTERNAL, verbose_name='安全等级'
+    )
+    grain = models.CharField(max_length=255, blank=True, default='', verbose_name='数据粒度')
     is_active = models.BooleanField(default=True, verbose_name='是否有效')
     last_collected_at = models.DateTimeField(null=True, blank=True, verbose_name='最近采集时间')
     legacy_meta_table_id = models.BigIntegerField(null=True, blank=True, db_index=True, verbose_name='旧元数据表ID')
@@ -123,6 +181,9 @@ class DataAsset(BaseModel):
             models.Index(fields=['del_flag']),
             models.Index(fields=['namespace', 'object_name']),
             models.Index(fields=['asset_type']),
+            models.Index(fields=['asset_category']),
+            models.Index(fields=['warehouse_layer']),
+            models.Index(fields=['owner']),
         ]
 
     @property
@@ -157,6 +218,15 @@ class DataAssetColumn(BaseModel):
     default_value = models.CharField(max_length=512, blank=True, default='', verbose_name='默认值')
     is_primary_key = models.BooleanField(default=False, verbose_name='是否主键')
     comment = models.CharField(max_length=1024, blank=True, default='', verbose_name='字段描述')
+    business_term = models.CharField(max_length=255, blank=True, default='', verbose_name='业务术语')
+    warehouse_role = models.CharField(
+        max_length=32, choices=WarehouseRole.choices, blank=True, default=WarehouseRole.NONE, verbose_name='数仓字段角色'
+    )
+    security_level = models.CharField(
+        max_length=16, choices=SecurityLevel.choices, default=SecurityLevel.INTERNAL, verbose_name='安全等级'
+    )
+    standard_code = models.CharField(max_length=128, blank=True, default='', verbose_name='标准编码')
+    metric_unit = models.CharField(max_length=64, blank=True, default='', verbose_name='指标单位')
     legacy_meta_column_id = models.BigIntegerField(
         null=True, blank=True, db_index=True, verbose_name='旧元数据字段ID'
     )
@@ -176,6 +246,7 @@ class DataAssetColumn(BaseModel):
             models.Index(fields=['del_flag']),
             models.Index(fields=['asset', 'ordinal_position']),
             models.Index(fields=['asset', 'column_name']),
+            models.Index(fields=['security_level']),
         ]
 
     def save(self, *args, **kwargs):
@@ -190,10 +261,25 @@ class MetaTable(BaseModel):
     """元数据表"""
     data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='meta_tables')
     table_name = models.CharField(max_length=256, verbose_name='表名')
-    # 表注释/描述
     comment = models.CharField(max_length=1024, blank=True, default='', verbose_name='表注释')
-    # 原始数据库名
     database = models.CharField(max_length=256, blank=True, default='', verbose_name='数据库名')
+    asset_category = models.CharField(
+        max_length=32, choices=AssetCategory.choices, default=AssetCategory.SOURCE, verbose_name='资产分类'
+    )
+    warehouse_layer = models.CharField(
+        max_length=16, choices=WarehouseLayer.choices, blank=True, default=WarehouseLayer.NONE, verbose_name='数仓分层'
+    )
+    business_domain = models.CharField(max_length=128, blank=True, default='', verbose_name='业务域')
+    subject_area = models.CharField(max_length=128, blank=True, default='', verbose_name='主题域')
+    owner = models.CharField(max_length=64, blank=True, default='', verbose_name='资产负责人')
+    steward = models.CharField(max_length=64, blank=True, default='', verbose_name='数据管家')
+    lifecycle_status = models.CharField(
+        max_length=16, choices=LifecycleStatus.choices, default=LifecycleStatus.DRAFT, verbose_name='生命周期状态'
+    )
+    security_level = models.CharField(
+        max_length=16, choices=SecurityLevel.choices, default=SecurityLevel.INTERNAL, verbose_name='安全等级'
+    )
+    grain = models.CharField(max_length=255, blank=True, default='', verbose_name='数据粒度')
 
     class Meta:
         db_table = 'dataasset_meta_table'
@@ -203,6 +289,9 @@ class MetaTable(BaseModel):
         indexes = [
             models.Index(fields=['del_flag']),
             models.Index(fields=['data_source', 'table_name']),
+            models.Index(fields=['asset_category']),
+            models.Index(fields=['warehouse_layer']),
+            models.Index(fields=['owner']),
         ]
 
     def __str__(self):
@@ -212,7 +301,6 @@ class MetaTable(BaseModel):
 class MetaColumn(BaseModel):
     """元数据字段"""
     data_source = models.ForeignKey(DataSource, on_delete=models.CASCADE, related_name='meta_columns')
-    # 所属表
     table = models.ForeignKey(MetaTable, on_delete=models.CASCADE, related_name='columns')
     order = models.IntegerField(default=0, verbose_name='字段顺序')
     name = models.CharField(max_length=256, verbose_name='字段名')
@@ -220,8 +308,16 @@ class MetaColumn(BaseModel):
     notnull = models.BooleanField(default=False, verbose_name='是否可空')
     default = models.CharField(max_length=512, blank=True, default='', verbose_name='默认值')
     primary = models.BooleanField(default=False, verbose_name='是否主键')
-    # 字段注释/描述
     comment = models.CharField(max_length=1024, blank=True, default='', verbose_name='字段注释')
+    business_term = models.CharField(max_length=255, blank=True, default='', verbose_name='业务术语')
+    warehouse_role = models.CharField(
+        max_length=32, choices=WarehouseRole.choices, blank=True, default=WarehouseRole.NONE, verbose_name='数仓字段角色'
+    )
+    security_level = models.CharField(
+        max_length=16, choices=SecurityLevel.choices, default=SecurityLevel.INTERNAL, verbose_name='安全等级'
+    )
+    standard_code = models.CharField(max_length=128, blank=True, default='', verbose_name='标准编码')
+    metric_unit = models.CharField(max_length=64, blank=True, default='', verbose_name='指标单位')
 
     class Meta:
         db_table = 'dataasset_meta_column'
@@ -231,6 +327,7 @@ class MetaColumn(BaseModel):
         indexes = [
             models.Index(fields=['del_flag']),
             models.Index(fields=['table', 'order']),
+            models.Index(fields=['security_level']),
         ]
 
     def __str__(self):

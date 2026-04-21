@@ -47,12 +47,21 @@ class DataAssetSerializer(BaseModelSerializer):
     dataSourceId = serializers.IntegerField(source='namespace.data_source_id', read_only=True)
     dataSourceName = serializers.CharField(source='namespace.data_source.name', read_only=True, required=False)
     assetType = serializers.CharField(source='asset_type')
+    assetCategory = serializers.CharField(source='asset_category', required=False, allow_blank=True)
     objectName = serializers.CharField(source='object_name')
     qualifiedName = serializers.CharField(source='qualified_name', read_only=True)
     displayName = serializers.CharField(source='display_name', required=False, allow_blank=True)
     catalogName = serializers.CharField(source='namespace.catalog_name', read_only=True, required=False)
     schemaName = serializers.CharField(source='namespace.schema_name', read_only=True, required=False)
     databaseName = serializers.SerializerMethodField()
+    warehouseLayer = serializers.CharField(source='warehouse_layer', required=False, allow_blank=True)
+    businessDomain = serializers.CharField(source='business_domain', required=False, allow_blank=True)
+    subjectArea = serializers.CharField(source='subject_area', required=False, allow_blank=True)
+    owner = serializers.CharField(required=False, allow_blank=True)
+    steward = serializers.CharField(required=False, allow_blank=True)
+    lifecycleStatus = serializers.CharField(source='lifecycle_status', required=False, allow_blank=True)
+    securityLevel = serializers.CharField(source='security_level', required=False, allow_blank=True)
+    grain = serializers.CharField(required=False, allow_blank=True)
     isActive = serializers.BooleanField(source='is_active', required=False)
     lastCollectedAt = serializers.DateTimeField(source='last_collected_at', required=False, allow_null=True)
     legacyMetaTableId = serializers.IntegerField(source='legacy_meta_table_id', read_only=True, allow_null=True)
@@ -60,10 +69,11 @@ class DataAssetSerializer(BaseModelSerializer):
     class Meta:
         model = DataAsset
         fields = [
-            'id', 'namespaceId', 'dataSourceId', 'assetType', 'objectName',
+            'id', 'namespaceId', 'dataSourceId', 'assetType', 'assetCategory', 'objectName',
             'dataSourceName', 'catalogName', 'schemaName', 'databaseName',
-            'qualifiedName', 'displayName', 'comment', 'isActive', 'lastCollectedAt',
-            'legacyMetaTableId'
+            'qualifiedName', 'displayName', 'comment', 'warehouseLayer', 'businessDomain',
+            'subjectArea', 'owner', 'steward', 'lifecycleStatus', 'securityLevel', 'grain',
+            'isActive', 'lastCollectedAt', 'legacyMetaTableId'
         ]
 
     def get_databaseName(self, obj):
@@ -77,10 +87,17 @@ class DataAssetQuerySerializer(serializers.Serializer):
     dataSourceName = serializers.CharField(required=False, allow_blank=True)
     namespaceId = serializers.IntegerField(required=False)
     assetType = serializers.CharField(required=False, allow_blank=True)
+    assetCategory = serializers.CharField(required=False, allow_blank=True)
     objectName = serializers.CharField(required=False, allow_blank=True)
     databaseName = serializers.CharField(required=False, allow_blank=True)
     catalogName = serializers.CharField(required=False, allow_blank=True)
     schemaName = serializers.CharField(required=False, allow_blank=True)
+    warehouseLayer = serializers.CharField(required=False, allow_blank=True)
+    businessDomain = serializers.CharField(required=False, allow_blank=True)
+    subjectArea = serializers.CharField(required=False, allow_blank=True)
+    owner = serializers.CharField(required=False, allow_blank=True)
+    lifecycleStatus = serializers.CharField(required=False, allow_blank=True)
+    securityLevel = serializers.CharField(required=False, allow_blank=True)
     keyword = serializers.CharField(required=False, allow_blank=True)
 
 
@@ -99,6 +116,11 @@ class DataAssetColumnSerializer(BaseModelSerializer):
     defaultValue = serializers.CharField(source='default_value')
     isPrimary = serializers.BooleanField(source='is_primary_key')
     columnComment = serializers.CharField(source='comment', required=False, allow_blank=True)
+    businessTerm = serializers.CharField(source='business_term', required=False, allow_blank=True)
+    warehouseRole = serializers.CharField(source='warehouse_role', required=False, allow_blank=True)
+    securityLevel = serializers.CharField(source='security_level', required=False, allow_blank=True)
+    standardCode = serializers.CharField(source='standard_code', required=False, allow_blank=True)
+    metricUnit = serializers.CharField(source='metric_unit', required=False, allow_blank=True)
     legacyMetaColumnId = serializers.IntegerField(source='legacy_meta_column_id', read_only=True, allow_null=True)
 
     class Meta:
@@ -106,7 +128,8 @@ class DataAssetColumnSerializer(BaseModelSerializer):
         fields = [
             'id', 'assetId', 'dataSourceId', 'dataSourceName', 'tableName', 'databaseName',
             'columnIndex', 'columnName', 'dataType', 'isNullable', 'defaultValue',
-            'isPrimary', 'columnComment', 'legacyMetaColumnId'
+            'isPrimary', 'columnComment', 'businessTerm', 'warehouseRole', 'securityLevel',
+            'standardCode', 'metricUnit', 'legacyMetaColumnId'
         ]
 
     def get_databaseName(self, obj):
@@ -124,6 +147,10 @@ class DataAssetColumnQuerySerializer(serializers.Serializer):
     databaseName = serializers.CharField(required=False, allow_blank=True)
     columnName = serializers.CharField(required=False, allow_blank=True)
     columnComment = serializers.CharField(required=False, allow_blank=True)
+    businessTerm = serializers.CharField(required=False, allow_blank=True)
+    warehouseRole = serializers.CharField(required=False, allow_blank=True)
+    securityLevel = serializers.CharField(required=False, allow_blank=True)
+    standardCode = serializers.CharField(required=False, allow_blank=True)
 
 
 class DataAssetDetailSerializer(DataAssetSerializer):
@@ -148,10 +175,19 @@ class CanonicalMetaTableSerializer(BaseModelSerializer):
     dataSourceName = serializers.CharField(source='namespace.data_source.name', read_only=True, required=False)
     databaseName = serializers.SerializerMethodField()
     assetType = serializers.CharField(source='asset_type', read_only=True)
+    assetCategory = serializers.CharField(source='asset_category', read_only=True)
     namespaceId = serializers.IntegerField(source='namespace_id', read_only=True)
     catalogName = serializers.CharField(source='namespace.catalog_name', read_only=True, required=False)
     schemaName = serializers.CharField(source='namespace.schema_name', read_only=True, required=False)
     qualifiedName = serializers.CharField(source='qualified_name', read_only=True)
+    warehouseLayer = serializers.CharField(source='warehouse_layer', read_only=True)
+    businessDomain = serializers.CharField(source='business_domain', read_only=True)
+    subjectArea = serializers.CharField(source='subject_area', read_only=True)
+    owner = serializers.CharField(read_only=True)
+    steward = serializers.CharField(read_only=True)
+    lifecycleStatus = serializers.CharField(source='lifecycle_status', read_only=True)
+    securityLevel = serializers.CharField(source='security_level', read_only=True)
+    grain = serializers.CharField(read_only=True)
     isActive = serializers.BooleanField(source='is_active', read_only=True)
     lastCollectedAt = serializers.DateTimeField(source='last_collected_at', required=False, allow_null=True)
 
@@ -159,8 +195,10 @@ class CanonicalMetaTableSerializer(BaseModelSerializer):
         model = DataAsset
         fields = [
             'id', 'namespaceId', 'dataSourceId', 'dataSourceName', 'tableName', 'databaseName',
-            'catalogName', 'schemaName', 'assetType', 'qualifiedName', 'comment',
-            'isActive', 'lastCollectedAt'
+            'catalogName', 'schemaName', 'assetType', 'assetCategory', 'qualifiedName', 'comment',
+            'warehouseLayer', 'businessDomain', 'subjectArea', 'owner', 'steward',
+            'lifecycleStatus', 'securityLevel', 'grain', 'isActive', 'lastCollectedAt',
+            'createBy', 'updateBy', 'createTime', 'updateTime'
         ]
 
     def get_id(self, obj):
@@ -188,13 +226,19 @@ class CanonicalMetaColumnSerializer(BaseModelSerializer):
     defaultValue = serializers.CharField(source='default_value')
     isPrimary = serializers.BooleanField(source='is_primary_key')
     columnComment = serializers.CharField(source='comment', required=False, allow_blank=True)
+    businessTerm = serializers.CharField(source='business_term', read_only=True)
+    warehouseRole = serializers.CharField(source='warehouse_role', read_only=True)
+    securityLevel = serializers.CharField(source='security_level', read_only=True)
+    standardCode = serializers.CharField(source='standard_code', read_only=True)
+    metricUnit = serializers.CharField(source='metric_unit', read_only=True)
 
     class Meta:
         model = DataAssetColumn
         fields = [
             'id', 'tableId', 'dataSourceId', 'dataSourceName', 'tableName', 'databaseName',
             'columnIndex', 'columnName', 'dataType', 'isNullable', 'defaultValue',
-            'isPrimary', 'columnComment'
+            'isPrimary', 'columnComment', 'businessTerm', 'warehouseRole', 'securityLevel',
+            'standardCode', 'metricUnit', 'createBy', 'updateBy'
         ]
 
     def get_id(self, obj):
@@ -216,10 +260,23 @@ class MetaTableSerializer(BaseModelSerializer):
     dataSourceName = serializers.CharField(source='data_source.name', read_only=True, required=False)
     comment = serializers.CharField(required=False, allow_blank=True)
     databaseName = serializers.CharField(source='database', required=False, allow_blank=True)
+    assetCategory = serializers.CharField(source='asset_category', required=False, allow_blank=True)
+    warehouseLayer = serializers.CharField(source='warehouse_layer', required=False, allow_blank=True)
+    businessDomain = serializers.CharField(source='business_domain', required=False, allow_blank=True)
+    subjectArea = serializers.CharField(source='subject_area', required=False, allow_blank=True)
+    owner = serializers.CharField(required=False, allow_blank=True)
+    steward = serializers.CharField(required=False, allow_blank=True)
+    lifecycleStatus = serializers.CharField(source='lifecycle_status', required=False, allow_blank=True)
+    securityLevel = serializers.CharField(source='security_level', required=False, allow_blank=True)
+    grain = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = MetaTable
-        fields = ['id', 'dataSourceId', 'tableName', 'comment', 'databaseName', 'dataSourceName']
+        fields = [
+            'id', 'dataSourceId', 'tableName', 'comment', 'databaseName', 'dataSourceName',
+            'assetCategory', 'warehouseLayer', 'businessDomain', 'subjectArea', 'owner',
+            'steward', 'lifecycleStatus', 'securityLevel', 'grain'
+        ]
 
 
 class MetaTableQuerySerializer(serializers.Serializer):
@@ -228,6 +285,13 @@ class MetaTableQuerySerializer(serializers.Serializer):
     dataSourceName = serializers.CharField(required=False, allow_blank=True)
     tableName = serializers.CharField(required=False, allow_blank=True)
     databaseName = serializers.CharField(required=False, allow_blank=True)
+    assetCategory = serializers.CharField(required=False, allow_blank=True)
+    warehouseLayer = serializers.CharField(required=False, allow_blank=True)
+    businessDomain = serializers.CharField(required=False, allow_blank=True)
+    subjectArea = serializers.CharField(required=False, allow_blank=True)
+    owner = serializers.CharField(required=False, allow_blank=True)
+    lifecycleStatus = serializers.CharField(required=False, allow_blank=True)
+    securityLevel = serializers.CharField(required=False, allow_blank=True)
     createTimeStart = serializers.DateTimeField(required=False)
     createTimeEnd = serializers.DateTimeField(required=False)
     updateTimeStart = serializers.DateTimeField(required=False)
@@ -250,13 +314,19 @@ class MetaColumnSerializer(BaseModelSerializer):
     defaultValue = serializers.CharField(source='default')
     isPrimary = serializers.BooleanField(source='primary')
     columnComment = serializers.CharField(source='comment', required=False, allow_blank=True)
+    businessTerm = serializers.CharField(source='business_term', required=False, allow_blank=True)
+    warehouseRole = serializers.CharField(source='warehouse_role', required=False, allow_blank=True)
+    securityLevel = serializers.CharField(source='security_level', required=False, allow_blank=True)
+    standardCode = serializers.CharField(source='standard_code', required=False, allow_blank=True)
+    metricUnit = serializers.CharField(source='metric_unit', required=False, allow_blank=True)
 
     class Meta:
         model = MetaColumn
         fields = [
             'id', 'tableId', 'dataSourceId', 'dataSourceName', 'tableName', 'databaseName',
             'columnIndex', 'columnName', 'dataType', 'isNullable', 'defaultValue',
-            'isPrimary', 'columnComment'
+            'isPrimary', 'columnComment', 'businessTerm', 'warehouseRole', 'securityLevel',
+            'standardCode', 'metricUnit'
         ]
 
 
@@ -268,6 +338,10 @@ class MetaColumnQuerySerializer(serializers.Serializer):
     databaseName = serializers.CharField(required=False, allow_blank=True)
     columnName = serializers.CharField(required=False, allow_blank=True)
     columnComment = serializers.CharField(required=False, allow_blank=True)
+    businessTerm = serializers.CharField(required=False, allow_blank=True)
+    warehouseRole = serializers.CharField(required=False, allow_blank=True)
+    securityLevel = serializers.CharField(required=False, allow_blank=True)
+    standardCode = serializers.CharField(required=False, allow_blank=True)
     dataSourceName = serializers.CharField(required=False, allow_blank=True)
 
 
