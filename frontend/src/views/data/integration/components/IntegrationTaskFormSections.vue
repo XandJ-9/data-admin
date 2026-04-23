@@ -44,18 +44,18 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="源资产" prop="sourceAssetId">
+          <el-form-item label="源表" prop="sourceTableId">
             <el-select
-              v-model="form.sourceAssetId"
+              v-model="form.sourceTableId"
               filterable
               clearable
               placeholder="请选择源表"
               :loading="assetLoading"
-              @change="$emit('source-asset-change', $event)"
+              @change="$emit('source-table-change', $event)"
             >
-              <el-option v-for="item in sourceAssetOptions" :key="item.id" :label="item.objectName" :value="item.id">
+              <el-option v-for="item in sourceTableOptions" :key="item.id" :label="item.objectName" :value="item.id">
                 <span>{{ item.objectName }}</span>
-                <span class="option-extra">{{ item.databaseName || item.schemaName || '' }}</span>
+                <span class="option-extra">{{ item.databaseName || '' }}</span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -144,14 +144,14 @@ defineProps({
   form: { type: Object, required: true },
   rules: { type: Object, required: true },
   dataSourceOptions: { type: Array, default: () => [] },
-  sourceAssetOptions: { type: Array, default: () => [] },
+  sourceTableOptions: { type: Array, default: () => [] },
   assetLoading: { type: Boolean, default: false },
   statusOptions: { type: Array, default: () => [] },
   supportedExecutors: { type: Array, default: () => [] },
   currentExecutorHint: { type: String, default: '' },
 })
 
-defineEmits(['source-ds-change', 'source-asset-change', 'target-table-input'])
+defineEmits(['source-ds-change', 'source-table-change', 'target-table-input'])
 
 const innerFormRef = ref()
 

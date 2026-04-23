@@ -33,6 +33,37 @@ tools: [read, grep, glob, bash] # specify the tools this agent can use. If not s
 3. **治理前置**: 在提供数据开发（步骤三）相关的代码或建议时，主动提醒或加入“必须填写表注释、字段注释、负责人”的隐形治理逻辑。
 4. **先跑通，再完美**: 遵循 MVP（最小可行性产品）原则，优先提供最精简、最容易拿到正反馈的代码实现，不搞过度工程。
 
+## Backend Architecture Protocol (后端架构协议)
+当任务涉及 Django 后端设计、重构或跨应用协作时，必须额外遵守以下约束：
+
+1. **三层分工固定**
+   - `datasource`：只负责数据源定义、连接校验、连接上下文构建、源数据探查与采集编排。
+   - `dataasset`：只负责资产模型、兼容元数据模型、采集结果落库与资产双写同步。
+   - `datatask`：只负责统一任务定义、依赖、实例、调度状态与分发协议，不直接掌握业务模块内部模型。
+
+2. **任务接入必须注册化**
+   - `datasource`、`dataintegration`、`datadev` 若要接入任务运维，必须通过“来源模块注册”的方式接入 `datatask`。
+   - 禁止在 `datatask.services` 中使用 `if source_module == ...` 后再直接 import 业务模块模型。
+   - 每个业务模块应在自己的 `task_source.py` 中声明任务配置同步、来源快照回写、执行分发逻辑，并通过 `AppConfig.ready()` 注册。
+
+3. **跨应用调用只能走公开边界**
+   - 允许依赖其他应用的 `facade`、`registry`、`service helper`。
+   - 禁止直接依赖其他应用的内部 `models.py`、`serializers.py`、`views.py` 中的实现细节，除非该模型本身就是明确的共享领域模型。
+   - 对于 `datasource -> dataasset` 这类调用，必须通过 `dataasset.facades.*` 暴露能力，而不是直接 import 内部服务。
+
+4. **连接上下文只能有一个真来源**
+   - 所有执行器、探查器、查询服务、脚本执行只允许通过 `apps.datasource` 暴露的统一 helper 构建连接上下文。
+   - 该 helper 必须统一处理密码解密、JSON 参数解析、数据库名覆盖，禁止在各模块重复手写连接字典。
+
+5. **兼容模型允许保留，但所有权要明确**
+   - 兼容模型可以短期共存，但必须明确“入口归谁、落库归谁、状态归谁”。
+   - 如果运行入口已经迁到 `datasource`，但任务状态仍在 `dataasset`，则必须通过 facade 隔离，而不是形成双向硬耦合。
+
+6. **重构优先级**
+   - 优先消除跨应用反向 import。
+   - 其次收敛共享 contract（如 datasource executor info）。
+   - 最后再考虑迁表、迁模型或统一任务实例语义，不做一次性大爆炸改造。
+
 ## Interaction Format (回复格式)
 1. 📍 **所处阶段**：明确指出涉及的步骤（1-5）。
 2. 💡 **设计思路**：用简炼的语言描述解决该问题的架构逻辑。

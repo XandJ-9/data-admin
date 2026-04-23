@@ -42,20 +42,32 @@ backend/
 │   │   ├── permission.py          #   RBAC 权限控制 (HasRolePermission)
 │   │   └── management/commands/   #   init_system 初始化命令
 │   ├── datasource/                # 数据源管理
-│   │   └── models.py              #   DataSource（连接信息 + 加密密码）
+│   │   ├── models.py              #   DataSource（连接信息 + 加密密码）
+│   │   ├── views.py               #   数据源 CRUD、连通性测试、探查与采集入口
+│   │   ├── collectors.py          #   源数据采集编排
+│   │   └── executor_info.py       #   统一连接上下文构建（解密密码 + 解析参数）
 │   ├── dataasset/                 # 数据资产管理
 │   │   ├── models.py              #   AssetNamespace, DataAsset, DataAssetColumn, MetaTable, MetaColumn, MetaCollectionTask, TableLineage
-│   │   ├── collectors.py          #   异步元数据采集执行器（线程）
 │   │   ├── services.py            #   规范资产双写与元数据同步
-│   │   └── views.py               #   元数据浏览, 采集管理, 血缘查询
+│   │   ├── facades/               #   对 datasource 暴露的元数据采集公开门面
+│   │   └── views.py               #   元数据浏览、资产查询、血缘查询
 │   ├── dataservice/               # 数据服务
 │   │   ├── models.py              #   QueryLog, InterfaceInfo, InterfaceField
 │   │   ├── views.py               #   SQL 查询, CSV 导出, 接口执行
 │   │   └── custom.py              #   自定义业务逻辑
+│   ├── dataintegration/           # 数据集成
+│   │   ├── models.py              #   DataIntegrationTask 业务配置模型
+│   │   ├── views.py               #   集成任务配置与执行入口
+│   │   └── task_source.py         #   向 datatask 注册 DATA_SYNC 来源处理器
 │   ├── datadev/                   # 数据开发
-│   │   ├── models.py              #   DataDevScript, DataDevVersion, DataDevExecution
-│   │   ├── views.py               #   脚本、版本与执行接口
-│   │   └── services/              #   开发执行与版本管理
+│   │   ├── models.py              #   DataDevScript, DataDevModel, DataDevScriptExecution 等
+│   │   ├── views.py               #   加工作业、模型设计与执行接口
+│   │   └── task_source.py         #   向 datatask 注册 SQL_COMPUTE 来源处理器
+│   ├── datatask/                  # 任务运维中心（平台内核）
+│   │   ├── models.py              #   Task, TaskDependency, TaskInstance
+│   │   ├── services.py            #   统一任务内核服务
+│   │   ├── views.py               #   任务、依赖、实例运维接口
+│   │   └── source_registry.py     #   任务来源注册与分发协议
 │   ├── dbutils/                   # 数据库执行器抽象层
 │   │   ├── base.py                #   DataSourceExecutor 接口定义
 │   │   ├── factory.py             #   执行器工厂（按 db_type 路由）
@@ -75,6 +87,16 @@ backend/
 │   └── utils/
 │       └── excel.py               #   Excel 导入导出
 ```
+
+## 推荐分层
+
+| 层级 | 模块 | 角色 |
+|------|------|------|
+| 业务入口层 | `datasource` | 连接与发现：数据源定义、探查、采集编排 |
+| 业务入口层 | `dataintegration` | 数据搬运入仓：贴源同步任务配置与执行 |
+| 业务入口层 | `datadev` | 建模与加工：模型定义、脚本开发、研发治理 |
+| 平台内核层 | `datatask` | 统一任务、依赖、实例、调度与来源分发 |
+| 资产治理层 | `dataasset` | 元数据沉淀、资产语义、兼容模型、血缘基础 |
 
 ## 核心抽象层
 
@@ -176,14 +198,14 @@ backend/
 | POST | `/dataasset/meta-column` | 新增元数据字段 |
 | PUT | `/dataasset/meta-column/{id}` | 修改元数据字段 |
 | DELETE | `/dataasset/meta-column/{id}` | 删除元数据字段 |
-| POST | `/dataasset/collection/databases` | 获取数据库列表 |
-| POST | `/dataasset/collection/tables` | 获取表列表 |
-| POST | `/dataasset/collection/columns` | 获取字段列表 |
-| POST | `/dataasset/collection/collect` | 同步整库采集 |
-| POST | `/dataasset/collection/collect-table` | 同步单表采集 |
-| POST | `/dataasset/collection/collect-async` | 启动异步采集（返回 taskId） |
-| GET | `/dataasset/collection/collect-status` | 采集进度查询（轮询） |
-| POST | `/dataasset/collection/collect-cancel` | 取消采集任务 |
+| POST | `/datasource/collection/databases` | 获取数据库列表 |
+| POST | `/datasource/collection/tables` | 获取表列表 |
+| POST | `/datasource/collection/columns` | 获取字段列表 |
+| POST | `/datasource/collection/collect` | 同步整库采集 |
+| POST | `/datasource/collection/collect-table` | 同步单表采集 |
+| POST | `/datasource/collection/collect-async` | 启动异步采集（返回 taskId） |
+| GET | `/datasource/collection/collect-status` | 采集进度查询（轮询） |
+| POST | `/datasource/collection/collect-cancel` | 取消采集任务 |
 | GET | `/dataasset/lineage` | 血缘关系列表 |
 | GET | `/dataasset/lineage/upstream` | 上游血缘查询 |
 | GET | `/dataasset/lineage/downstream` | 下游血缘查询 |

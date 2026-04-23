@@ -7,9 +7,22 @@ import json
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.datadev.models import DataDevDirectory
 from apps.system.management.commands.sync_menu_data import MENU_DATA_FILE, flatten_menu_tree
 from apps.system.models import Menu, Role, RoleMenu, User, UserRole, Dept
+
+try:
+    from apps.datadev.models import DataDevDirectory
+except ModuleNotFoundError:
+    DataDevDirectory = None
+
+
+DISABLED_MENU_ROOT_PATHS = {
+    '/data-asset',
+    '/data-service',
+    '/data-orchestration',
+    '/datadev',
+    '/datatask',
+}
 
 
 class Command(BaseCommand):
@@ -60,9 +73,24 @@ class Command(BaseCommand):
             Menu.objects.all().delete()
 
         with open(MENU_DATA_FILE, 'r', encoding='utf-8') as f:
-            menu_tree = json.load(f)
+            menu_tree = self._filter_enabled_menu_tree(json.load(f))
 
         menus = flatten_menu_tree(menu_tree, parent_id=0)
+        pending_menu_ids = list(
+            Menu.objects.filter(del_flag='0', path__in=DISABLED_MENU_ROOT_PATHS).values_list('menu_id', flat=True)
+        )
+        stale_menu_ids = set(pending_menu_ids)
+        while pending_menu_ids:
+            child_ids = list(
+                Menu.objects.filter(parent_id__in=pending_menu_ids, del_flag='0').values_list('menu_id', flat=True)
+            )
+            pending_menu_ids = [item for item in child_ids if item not in stale_menu_ids]
+            stale_menu_ids.update(pending_menu_ids)
+
+        if stale_menu_ids:
+            RoleMenu.objects.filter(menu_id__in=stale_menu_ids).delete()
+            Menu.objects.filter(menu_id__in=stale_menu_ids).update(del_flag='1', update_by='system')
+
         created_count = 0
         updated_count = 0
         for m in menus:
@@ -83,8 +111,23 @@ class Command(BaseCommand):
             )
         )
 
+    def _filter_enabled_menu_tree(self, nodes):
+        filtered_nodes = []
+        for node in nodes:
+            if node.get('path') in DISABLED_MENU_ROOT_PATHS:
+                continue
+            normalized_node = dict(node)
+            children = normalized_node.get('children', []) or []
+            if children:
+                normalized_node['children'] = self._filter_enabled_menu_tree(children)
+            filtered_nodes.append(normalized_node)
+        return filtered_nodes
+
     # ---------------------------------------------------------- 数据开发目录
     def _init_datadev_directories(self, force):
+        if DataDevDirectory is None:
+            self.stdout.write('数据开发模块未启用，跳过默认目录初始化')
+            return
         default_directories = [
             {
                 'directory_name': 'ODS 贴源层',
@@ -206,7 +249,7 @@ class Command(BaseCommand):
 
         # 为普通角色分配部分菜单（数据资产、任务运维、数据集成、数据服务的目录/页面 + 查询按钮）
         # 找到业务模块的顶级目录 ID
-        biz_paths = {'/data-asset', '/datatask', '/data-integration', '/data-orchestration', '/data-service'}
+        biz_paths = {'/datasource', '/data-integration'}
         menu_by_id = {menu.menu_id: menu for menu in active_menus}
         biz_root_ids = {
             menu.menu_id for menu in active_menus

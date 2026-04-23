@@ -190,6 +190,12 @@ class DataXConfigBuilder:
         source_asset = getattr(self.task, 'source_asset', None)
         if source_asset and source_asset.object_name:
             return source_asset.object_name
+        source_table_snapshot = getattr(self.task, 'source_table_snapshot', None)
+        if source_table_snapshot and getattr(source_table_snapshot, 'table_name', ''):
+            return str(source_table_snapshot.table_name).strip()
+        source_table_name = str(getattr(self.task, 'source_table_name', '') or '').strip()
+        if source_table_name:
+            return source_table_name
         return str(self.task_config.get('sourceTableName') or '').strip()
 
     def _get_target_table_name(self) -> str:

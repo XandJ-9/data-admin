@@ -1,3 +1,70 @@
+### 2026-04-23: Phase 1 `datasource` 后端模块按 ADR-011 重建
+
+- ✅ 已按 Connection & Discovery 阶段重建 `backend/apps/datasource`，当前后端重新具备数据源 CRUD、连通性测试、数据库/表/字段探查与采集入口
+- ✅ 原始元数据采集结果现先落在 `datasource` 自身的源表/源字段快照模型中，并新增采集任务状态模型，避免在 Phase 1 再次反向依赖资产层
+- ✅ `backend/config/settings.py` 与 `backend/config/urls.py` 已临时收敛为仅注册当前真实存在的模块与新的 `datasource`，保证本轮 Phase 1 范围内后端可启动、可检查、可测试
+
+### 2026-04-23: 新模块清场扫描范围补齐
+
+- ✅ `scripts/module_rebuild_guard.py` 默认扫描范围已从局部目录扩展到 `backend/`、`frontend/src/`、`docs/`、`scripts/`、`deploy/` 和根目录说明文件
+- ✅ 新模块开工前现推荐默认使用 `--fail-on-hits`，先拦截旧实现残留，再判断替换边界与删除范围
+- ✅ 短英文关键词现按边界匹配，避免误命中普通变量名或函数名片段，扫描结果更接近真实旧实现
+- ✅ 创建指南与 README 已同步补充“删除后重新扫描直到无残留”的收口要求
+
+### 2026-04-23: 新模块旧实现扫描器落地
+
+- ✅ 已新增 `scripts/module_rebuild_guard.py`，支持按模块名与 ADR-011 阶段扫描后端、前端、菜单、文档中的旧实现候选
+- ✅ 脚本已支持 `--fail-on-hits` 用于自动化拦截，也支持通过 `--delete ... --yes` 对确认路径执行显式清场
+- ✅ `README.md` 与 `docs/developments/creating-modules.md` 已补充脚本用法，后续新模块可直接按“先扫描、再清场、后重建”流程开工
+
+### 2026-04-23: 新模块开发前置清场流程固化
+
+- ✅ 已将 `ADR-011-平台五阶段职责划分规范` 上升为新模块开发的强制前置检查，要求先判断阶段归属，再开始模块设计
+- ✅ `CLAUDE.md` 已新增“新模块开发前置流程”，明确必须先全局检查当前项目是否已有同职责旧实现，并先确定替换边界
+- ✅ `docs/developments/creating-modules.md` 已新增“先查旧实现、先删后建”的模块创建流程，要求后端、前端、菜单、文档与测试同步清场后再重建
+
+### 2026-04-23: 平台五阶段职责规范固化为 ADR
+
+- ✅ 已新增 `docs/adr/ADR-011-平台五阶段职责划分规范.md`，正式固化 Connection & Discovery、Data Integration、Data Development、Orchestration & DataOps、Assetization & Service 的职责边界
+- ✅ ADR 已明确每个阶段的目标、负责范围、不负责范围、交付物与越界约束，作为后续所有开发的统一判断依据
+- ✅ 已规定后续需求评审、设计评审和跨模块实现必须先回答“阶段归属、上下游交付物、是否越界、治理是否嵌入流程”等检查项
+
+### 2026-04-22: 后端平台分层架构正式固化
+
+- ✅ 已新增 `docs/adr/ADR-010-后端平台分层与模块职责重构.md`，正式定义“3 个业务入口 + 1 个平台内核 + 1 个资产治理层”的后端架构
+- ✅ 已明确 `datasource / dataintegration / datadev` 属于业务入口层，`datatask` 属于平台内核层，`dataasset` 属于资产治理层
+- ✅ 已规定 datasource 如需正式纳入任务运维，必须先补齐“采集任务定义模型”，不得直接把一次性采集实例等价为平台级 `Task`
+
+### 2026-04-22: 后端任务接入改为注册式分发
+
+- ✅ 已将 `datatask` 的来源模块分发改为 `source_registry` 注册机制，`dataintegration` 与 `datadev` 通过各自 `task_source.py` + `AppConfig.ready()` 注册任务执行与快照回写处理器
+- ✅ 已移除 `datatask.services` 中针对 `dataintegration.task` / `datadev.script` 的反向 import 分支，统一任务中心现只保留任务内核与注册式分发协议
+- ✅ `datadev.model` 任务已一并纳入注册式来源执行链路，任务运维执行入口不再只支持数据集成与脚本加工
+
+### 2026-04-22: 数据源连接上下文与元数据采集边界收敛
+
+- ✅ 已在 `apps.datasource` 新增统一连接上下文 helper，数据源探查、数据服务查询与数据开发脚本执行现统一走“密码解密 + JSON 参数解析 + 数据库覆盖”的单一入口
+- ✅ 已在 `apps.dataasset.facades.metadata_collection` 暴露采集任务 queryset / serializer / 状态更新 / 单表采集门面，`datasource` 不再直接依赖 `dataasset` 内部模型、序列化器与服务实现
+- ✅ 已同步更新 `data-architect-assistant` Agent 规范，明确 datasource / dataasset / datatask 的职责边界、任务注册模式与跨应用依赖约束
+
+### 2026-04-22: 新增资深数据治理工程师 Agent
+
+- ✅ 已在 `.claude/agents` 新增 `data-governance-engineer.agent.md`，作为独立的资深数据治理工程师角色配置
+- ✅ Agent 角色已聚焦元数据治理、数据标准、数据质量、数据安全、数据资产与治理流程落地 6 个治理域
+- ✅ 输出原则已明确为“治理嵌入主流程、规则可机器校验、先做最小治理闭环”，便于后续直接用于平台协作
+
+### 2026-04-22: 数据源管理接管源数据探查与采集
+
+- ✅ 已将后端源数据采集执行器从 `apps.dataasset.collectors` 迁移到 `apps.datasource.collectors`，明确“数据源管理 = 连接管理 + 源数据发现/采集”
+- ✅ 源数据探查与采集接口已从 `/data-api/dataasset/collection/*` 迁移到 `/data-api/datasource/collection/*`，旧后端路由已移除，不再由数据资产模块承载
+- ✅ 前端数据源详情页与源数据查看页已同步切换到 `datasource` API 封装，采集任务状态轮询与取消链路保持不变
+
+### 2026-04-22: 修复 MySQL 数据源探查数据表失败
+
+- ✅ 已定位根因：数据资产侧“查看数据库 / 查看数据表 / 采集元数据”链路直接使用了落库后的加密密码，而“测试连接”会先解密，所以出现“测试通过、探查失败”的分叉
+- ✅ 已将 `apps.dataasset` 的执行器连接信息构建统一收敛为“解密密码 + 解析 JSON 连接参数”，覆盖表探查接口与异步采集执行器
+- ✅ 已补充回归测试，确保 MySQL 数据源在保存为加密密码后，探查数据表接口仍会向执行器传递明文密码
+
 ### 2026-04-22: 数据资产元数据拓展为业务 + 数仓双语义模型
 
 - ✅ 已在 `MetaTable / MetaColumn` 与 `DataAsset / DataAssetColumn` 同步补充资产分类、数仓分层、业务域、主题域、负责人、安全等级、字段角色、标准编码等字段

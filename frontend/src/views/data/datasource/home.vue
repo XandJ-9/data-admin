@@ -140,12 +140,10 @@
 import { CircleCheck, Connection, DataAnalysis, Grid, Promotion } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { listDatasource } from '@/api/data/datasource'
-import { listMetaTables } from '@/api/data/asset'
 
 const router = useRouter()
 const loading = ref(false)
 const sourceRows = ref([])
-const metaTableCount = ref(0)
 
 const recentSources = computed(() => [...(sourceRows.value || [])].sort((left, right) => {
   const leftTime = new Date(left.updateTime || left.createTime || 0).getTime()
@@ -182,12 +180,12 @@ const overviewCards = computed(() => [
     action: () => goToList(),
   },
   {
-    title: '已纳入元数据表',
-    value: metaTableCount.value,
-    hint: pendingSourceCount.value ? `仍有 ${pendingSourceCount.value} 个连接待测试或异常` : '当前连接已完成基本验证',
+    title: '待处理连接',
+    value: pendingSourceCount.value,
+    hint: pendingSourceCount.value ? '优先进入列表处理未测试或异常连接' : '当前连接已完成基本验证',
     icon: Grid,
     tone: 'tone-violet',
-    action: () => router.push({ name: 'DataAssetMetadata' }),
+    action: () => goToList(),
   },
 ])
 
@@ -209,11 +207,18 @@ const capabilities = [
     icon: DataAnalysis,
   },
   {
-    title: '元数据衔接',
-    description: '采集完成后进入元数据目录继续浏览和校验，再决定是否进入数据集成与服务模块。',
-    points: ['查看采集结果', '确认字段结构和注释', '为后续集成与服务做准备'],
-    actionText: '查看元数据目录',
-    action: () => router.push({ name: 'DataAssetMetadata' }),
+    title: '原始元数据采集',
+    description: '在详情页或源数据查看页按库、按表执行采集，把源端结构沉淀为 Phase 1 的原始快照。',
+    points: ['支持整库与单表采集', '支持异步任务状态跟踪', '为后续阶段保留标准化输入'],
+    actionText: '进入数据源详情',
+    action: () => {
+      const firstSource = sourceRows.value[0]
+      if (firstSource?.dataSourceId) {
+        openDetail(firstSource)
+        return
+      }
+      goToList()
+    },
     icon: Grid,
   },
 ]
@@ -236,8 +241,8 @@ const workflowSteps = [
   },
   {
     order: '04',
-    title: '进入后续链路',
-    description: '元数据确认后再进入数据集成、数据服务或数据资产模块继续工作。',
+    title: '沉淀 Phase 1 快照',
+    description: '完成采集后先保留源端原始快照，后续阶段恢复时再继续进入集成、开发和资产化链路。',
   },
 ]
 
@@ -275,20 +280,10 @@ function resolveTotal(response) {
 async function loadOverview() {
   loading.value = true
   try {
-    const [sourceRes, tableRes] = await Promise.allSettled([
-      listDatasource({ pageNum: 1, pageSize: 200 }),
-      listMetaTables({ pageNum: 1, pageSize: 1 }),
-    ])
-
-    if (sourceRes.status !== 'fulfilled') {
-      throw sourceRes.reason
-    }
-
-    sourceRows.value = resolveRows(sourceRes.value)
-    metaTableCount.value = tableRes.status === 'fulfilled' ? resolveTotal(tableRes.value) : 0
+    const response = await listDatasource({ pageNum: 1, pageSize: 200 })
+    sourceRows.value = resolveRows(response)
   } catch (error) {
     sourceRows.value = []
-    metaTableCount.value = 0
     ElMessage.error(error?.response?.data?.msg || error?.message || '加载数据源概览失败')
   } finally {
     loading.value = false

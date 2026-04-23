@@ -36,12 +36,8 @@ INSTALLED_APPS = [
     'channels',  # WebSocket support
     'apps.system',
     'apps.monitor',
-    'apps.dataservice',
-    'apps.datasource',  # 数据源管理模块
-    'apps.dataasset',  # 数据资产管理模块（包含元数据管理）
     'apps.dataintegration',  # 数据集成模块
-    'apps.datatask',    # 统一任务中心
-    'apps.datadev',     # 数据开发模块
+    'apps.datasource',  # 数据源管理模块
     'apps.terminal',    # Web Terminal
 ]
 

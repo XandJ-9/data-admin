@@ -192,8 +192,8 @@
 </template>
 
 <script setup name="DataAssetMetadata">
-import { listDatasource } from '@/api/data/datasource'
-import { listMetaTables, listMetaColumns, collectMeta, collectMetaAsync } from '@/api/data/asset'
+import { collectMeta, collectMetaAsync, listDatasource } from '@/api/data/datasource'
+import { listMetaTables, listMetaColumns } from '@/api/data/asset'
 
 const { proxy } = getCurrentInstance()
 

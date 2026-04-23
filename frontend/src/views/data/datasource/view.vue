@@ -69,9 +69,16 @@
 </template>
 
 <script setup name="DataSourceView">
-import { listDatasource } from '@/api/data/datasource'
-import { listTables, listColumns, collectMetaTable, listDatabases,
-         collectMetaAsync, getCollectStatus, cancelCollect } from '@/api/data/asset'
+import {
+    cancelCollect,
+    collectMetaAsync,
+    collectMetaTable,
+    getCollectStatus,
+    listColumns,
+    listDatabases,
+    listDatasource,
+    listTables
+} from '@/api/data/datasource'
 import { onMounted } from 'vue'
 const { proxy } = getCurrentInstance()
 const route = useRoute()
