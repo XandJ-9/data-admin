@@ -8,11 +8,11 @@ import {
   getSupportedExecutors,
   getTask,
   getTaskExecutions,
+  listSourceTables,
   updateTask,
   validateTask,
 } from '@/api/data/integration'
 import { listDatasource } from '@/api/data/datasource'
-import { listAssets } from '@/api/data/asset'
 import { STATUS_OPTIONS, buildDefaultTargetTableName } from './taskViewMeta'
 
 function createDefaultForm() {
@@ -22,7 +22,7 @@ function createDefaultForm() {
     taskCode: '',
     sourceDataSourceId: null,
     targetDataSourceId: null,
-    sourceAssetId: null,
+    sourceTableId: null,
     targetSchemaName: 'ods',
     targetTableName: '',
     loadType: 'full',
@@ -44,7 +44,7 @@ function mapTaskToForm(task) {
     taskCode: task.taskCode,
     sourceDataSourceId: task.sourceDataSourceId,
     targetDataSourceId: task.targetDataSourceId,
-    sourceAssetId: task.sourceAssetId,
+    sourceTableId: task.sourceTableId,
     targetSchemaName: task.targetSchemaName || '',
     targetTableName: task.targetTableName,
     loadType: task.loadType,
@@ -105,7 +105,7 @@ export function useIntegrationTaskForm() {
   const executionTotal = ref(0)
   const selectedExecution = ref(null)
   const dataSourceOptions = ref([])
-  const sourceAssetOptions = ref([])
+  const sourceTableOptions = ref([])
   const formRef = ref()
   const form = ref(createDefaultForm())
   const taskSnapshot = ref(null)
@@ -124,6 +124,7 @@ export function useIntegrationTaskForm() {
     taskCode: [{ required: true, message: '请输入任务编码', trigger: 'blur' }],
     sourceDataSourceId: [{ required: true, message: '请选择源数据源', trigger: 'change' }],
     targetDataSourceId: [{ required: true, message: '请选择目标数据源', trigger: 'change' }],
+    sourceTableId: [{ required: true, message: '请选择源表', trigger: 'change' }],
     targetTableName: [{ required: true, message: '请输入目标表名', trigger: 'blur' }],
     scheduleType: [{ required: true, message: '请选择调度方式', trigger: 'change' }],
     cronExpression: [{
@@ -158,32 +159,32 @@ export function useIntegrationTaskForm() {
     }
   }
 
-  function syncTargetTableFromAsset() {
-    const currentAsset = sourceAssetOptions.value.find(item => item.id === form.value.sourceAssetId)
-    if (!currentAsset || !autoFilledTargetTable.value) {
+  function syncTargetTableFromSourceTable() {
+    const currentTable = sourceTableOptions.value.find(item => item.id === form.value.sourceTableId)
+    if (!currentTable || !autoFilledTargetTable.value) {
       return
     }
-    form.value.targetTableName = buildDefaultTargetTableName(currentAsset.objectName, form.value.targetSchemaName)
+    form.value.targetTableName = buildDefaultTargetTableName(currentTable.objectName, form.value.targetSchemaName)
   }
 
-  async function loadAssetsByDataSource(dataSourceId) {
+  async function loadSourceTablesByDataSource(dataSourceId) {
     if (!dataSourceId) {
-      sourceAssetOptions.value = []
+      sourceTableOptions.value = []
       return
     }
     const currentToken = ++assetRequestToken
     assetLoading.value = true
     try {
-      const rows = await loadAllRows(params => listAssets(params), { dataSourceId })
+      const rows = await loadAllRows(params => listSourceTables(params), { sourceDataSourceId: dataSourceId })
       if (currentToken !== assetRequestToken || form.value.sourceDataSourceId !== dataSourceId) {
         return
       }
-      sourceAssetOptions.value = rows
-      syncTargetTableFromAsset()
+      sourceTableOptions.value = rows
+      syncTargetTableFromSourceTable()
     } catch (error) {
       if (currentToken === assetRequestToken) {
-        sourceAssetOptions.value = []
-        notifyError(error, '加载源资产失败')
+        sourceTableOptions.value = []
+        notifyError(error, '加载源表失败')
       }
     } finally {
       if (currentToken === assetRequestToken) {
@@ -196,7 +197,7 @@ export function useIntegrationTaskForm() {
     if (!isEditMode.value) {
       taskSnapshot.value = null
       form.value = createDefaultForm()
-      sourceAssetOptions.value = []
+      sourceTableOptions.value = []
       autoFilledTargetTable.value = true
       formRef.value?.clearValidate()
       return
@@ -207,7 +208,7 @@ export function useIntegrationTaskForm() {
       taskSnapshot.value = res.data
       form.value = mapTaskToForm(res.data)
       autoFilledTargetTable.value = false
-      await loadAssetsByDataSource(form.value.sourceDataSourceId)
+      await loadSourceTablesByDataSource(form.value.sourceDataSourceId)
       formRef.value?.clearValidate()
     } catch (error) {
       notifyError(error, '加载任务详情失败')
@@ -217,14 +218,14 @@ export function useIntegrationTaskForm() {
   }
 
   function handleSourceDataSourceChange(value) {
-    form.value.sourceAssetId = null
+    form.value.sourceTableId = null
     form.value.targetTableName = ''
     autoFilledTargetTable.value = true
-    loadAssetsByDataSource(value)
+    loadSourceTablesByDataSource(value)
   }
 
   function handleSourceAssetChange(value) {
-    const currentAsset = sourceAssetOptions.value.find(item => item.id === value)
+    const currentAsset = sourceTableOptions.value.find(item => item.id === value)
     autoFilledTargetTable.value = true
     form.value.targetTableName = currentAsset ? buildDefaultTargetTableName(currentAsset.objectName, form.value.targetSchemaName) : ''
   }
@@ -241,7 +242,7 @@ export function useIntegrationTaskForm() {
       taskCode: form.value.taskCode,
       sourceDataSourceId: form.value.sourceDataSourceId,
       targetDataSourceId: form.value.targetDataSourceId,
-      sourceAssetId: form.value.sourceAssetId,
+      sourceTableId: form.value.sourceTableId,
       targetSchemaName: form.value.targetSchemaName,
       targetTableName: form.value.targetTableName,
       loadType: form.value.loadType,
@@ -391,7 +392,7 @@ export function useIntegrationTaskForm() {
   }
 
   watch(() => form.value.targetSchemaName, () => {
-    syncTargetTableFromAsset()
+    syncTargetTableFromSourceTable()
   })
 
   watch(
@@ -433,7 +434,7 @@ export function useIntegrationTaskForm() {
     pageTitle,
     rules,
     selectedExecution,
-    sourceAssetOptions,
+    sourceTableOptions,
     submitting,
     supportedExecutors,
     submitForm,

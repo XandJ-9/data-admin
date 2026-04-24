@@ -1,4 +1,3 @@
-from django.db import transaction
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
@@ -85,6 +84,13 @@ class DataIntegrationTaskViewSet(BaseViewSet):
         task = self.get_queryset().get(pk=task.pk)
         return self.data(DataIntegrationTaskSerializer(task).data, msg='创建成功')
 
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.del_flag = '1'
+        instance.update_by = getattr(request.user, 'username', '')
+        instance.save(update_fields=['del_flag', 'update_by', 'update_time'])
+        return self.ok(msg='删除成功')
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = DataIntegrationTaskUpdateSerializer(data=request.data, context={'instance': instance})
@@ -170,6 +176,7 @@ class DataIntegrationTaskViewSet(BaseViewSet):
         )
         task.source_datasource = task.source_datasource
         task.target_datasource = task.target_datasource
+        task.source_table_snapshot = source_table
         is_valid, error_message = validate_task_configuration(task)
         if not is_valid:
             return self.error(msg=error_message)
@@ -216,4 +223,3 @@ class IntegrationExecutionLogViewSet(BaseViewSet):
     def detail(self, request, pk=None):
         instance = self.get_object()
         return self.data(DataIntegrationExecutionLogSerializer(instance).data)
-
