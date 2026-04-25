@@ -13,6 +13,7 @@ from apps.datatask.models import Task, TaskInstance
 from apps.datatask.services import TaskService
 from .models import DataDevDirectory, DataDevModel, DataDevModelField, DataDevScript
 from .models import DataDevScriptExecution, DataDevScriptVersion
+from .task_source import sync_model_source_task, sync_script_source_task
 from .views import DataDevDirectoryViewSet, DataModelViewSet, ScriptViewSet
 
 
@@ -482,7 +483,7 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
                 return None
 
         mock_get_executor.return_value = _MockQueryExecutor()
-        task = TaskService.sync_datadev_source_task(self.script, username='script_runner')
+        task = sync_script_source_task(self.script, username='script_runner')
         self.script.versions.update(is_current=False)
         version2 = DataDevScriptVersion.objects.create(
             script=self.script,
@@ -660,7 +661,7 @@ class DataModelViewSetTests(TestCase):
             create_by='model_admin',
             update_by='model_admin',
         )
-        TaskService.sync_datamodel_source_task(model, username='model_admin')
+        sync_model_source_task(model, username='model_admin')
 
         update_payload = {
             **self.base_payload,
@@ -763,3 +764,55 @@ class DataModelViewSetTests(TestCase):
         self.assertEqual(model.model_fields.filter(del_flag='0').count(), 0)
         task.refresh_from_db()
         self.assertEqual(task.del_flag, '1')
+
+    @patch('apps.executors.base.ExecutorFactory.create_executor')
+    def test_dependency_execution_of_model_should_preserve_runtime_config(self, mock_create_executor):
+        model = DataDevModel.objects.create(
+            model_name='用户标签汇总表',
+            model_code='dws_user_tag_summary',
+            layer='DWS',
+            table_name='dws_user_tag_summary',
+            schema_name='dws',
+            table_comment='用户标签汇总表',
+            engine_type='spark',
+            owner='tag_owner',
+            create_by='model_admin',
+            update_by='model_admin',
+        )
+        DataDevModelField.objects.create(
+            model=model,
+            field_name='user_id',
+            field_type='STRING',
+            field_comment='用户ID',
+            is_nullable=False,
+            ordinal_position=1,
+            create_by='model_admin',
+            update_by='model_admin',
+        )
+        mock_create_executor.return_value = type('SparkExecutorStub', (), {
+            'validate': staticmethod(lambda: (True, '')),
+            'execute': staticmethod(lambda: {
+                'status': 'success',
+                'columns': [],
+                'rows': [],
+                'duration_seconds': 1,
+                'raw_output': 'OK',
+            }),
+        })()
+        task = sync_model_source_task(model, username='model_admin')
+
+        result = TaskService.execute_task(
+            task,
+            username='scheduler',
+            trigger_mode='dependency',
+            runtime_config={
+                'dependencyFingerprint': '10:instance-1',
+                'scheduleTick': '2026-04-25T12:00:00Z',
+            },
+        )
+
+        self.assertTrue(result['ok'])
+        task_instance = TaskInstance.objects.get(task=task)
+        self.assertEqual(task_instance.runtime_config['dependencyFingerprint'], '10:instance-1')
+        self.assertEqual(task_instance.runtime_config['scheduleTick'], '2026-04-25T12:00:00Z')
+        self.assertEqual(task_instance.runtime_config['tableName'], 'dws_user_tag_summary')

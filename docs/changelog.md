@@ -1,3 +1,9 @@
+# [v1.4.62] - 2026-04-25
+- [Refactor] `apps.datadev` 已新增注册式 `task_source.py`，并通过 `AppConfig.ready()` 接入统一任务中心，`datatask` 不再直接持有 datadev 的脚本/模型执行与回写逻辑。
+- [Refactor] 脚本发布到任务运维、脚本执行、模型任务同步与模型建表提交已迁回 `datadev` 业务模块自身，`datatask` 仅保留通用任务运行时与来源分发协议。
+- [Refactor] `datadev/views.py` 已统一改为调用 datadev 自身来源处理函数，脚本与模型继续通过标准 `Task` / `TaskInstance` 接入任务运维。
+- [Refactor] datadev 脚本执行中的普通数据源连接上下文现复用 `apps.datasource.executor_info`，移除业务模块内重复拼接连接信息的逻辑。
+
 # [v1.4.61] - 2026-04-25
 - [Refactor] `apps.dataintegration` 已新增注册式 `task_source.py`，并通过 `AppConfig.ready()` 接入统一任务中心，`datatask` 不再直接 import 数据集成模型执行或回写。
 - [Refactor] 数据集成创建、更新、删除现与统一 `Task` 生命周期事务内同步，任务运维对状态/调度的修改也会回写到 `DataIntegrationTask`。
