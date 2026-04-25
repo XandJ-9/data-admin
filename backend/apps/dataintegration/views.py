@@ -6,7 +6,6 @@ from rest_framework.response import Response
 from apps.common.pagination import StandardPagination
 from apps.datatask.models import TaskInstance
 from apps.datatask.services import TaskService
-from apps.datasource.models import SourceTableSnapshot
 from apps.system.permission import HasRolePermission
 from apps.system.views.core import BaseViewSet
 
@@ -19,8 +18,6 @@ from .serializers import (
     DataIntegrationTaskSerializer,
     DataIntegrationTaskUpdateSerializer,
     DataIntegrationTaskValidateSerializer,
-    SourceTableOptionSerializer,
-    SourceTableQuerySerializer,
 )
 from .task_source import sync_source_task, validate_task_configuration
 
@@ -30,7 +27,6 @@ class DataIntegrationTaskViewSet(BaseViewSet):
     queryset = DataIntegrationTask.objects.select_related(
         'source_datasource',
         'target_datasource',
-        'source_table_snapshot',
     ).all()
     serializer_class = DataIntegrationTaskSerializer
     pagination_class = StandardPagination
@@ -52,26 +48,19 @@ class DataIntegrationTaskViewSet(BaseViewSet):
             queryset = queryset.filter(target_datasource_id=validated_data['targetDataSourceId'])
         return queryset.order_by('-update_time', '-id')
 
-    def _get_source_table(self, source_table_id):
-        if not source_table_id:
-            return None
-        return SourceTableSnapshot.objects.filter(id=source_table_id, del_flag='0').first()
-
     def create(self, request, *args, **kwargs):
         serializer = DataIntegrationTaskCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
         username = getattr(request.user, 'username', '')
-        source_table = self._get_source_table(validated_data.get('sourceTableId'))
         with transaction.atomic():
             task = DataIntegrationTask.objects.create(
                 task_name=validated_data['taskName'],
                 task_code=validated_data['taskCode'],
                 source_datasource_id=validated_data['sourceDataSourceId'],
                 target_datasource_id=validated_data['targetDataSourceId'],
-                source_table_snapshot=source_table,
-                source_database_name=getattr(source_table, 'database_name', '') if source_table else '',
-                source_table_name=getattr(source_table, 'table_name', '') if source_table else '',
+                source_database_name=validated_data.get('sourceDatabaseName', ''),
+                source_table_name=validated_data['sourceTableName'].strip(),
                 target_schema_name=validated_data.get('targetSchemaName', ''),
                 target_table_name=validated_data['targetTableName'],
                 load_type=validated_data['loadType'],
@@ -109,7 +98,6 @@ class DataIntegrationTaskViewSet(BaseViewSet):
         serializer = DataIntegrationTaskUpdateSerializer(data=request.data, context={'instance': instance})
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
-        source_table = self._get_source_table(validated_data['sourceTableId']) if 'sourceTableId' in validated_data else instance.source_table_snapshot
         username = getattr(request.user, 'username', '')
         with transaction.atomic():
             if 'taskName' in validated_data:
@@ -118,10 +106,10 @@ class DataIntegrationTaskViewSet(BaseViewSet):
                 instance.source_datasource_id = validated_data['sourceDataSourceId']
             if 'targetDataSourceId' in validated_data:
                 instance.target_datasource_id = validated_data['targetDataSourceId']
-            if 'sourceTableId' in validated_data:
-                instance.source_table_snapshot = source_table
-                instance.source_database_name = getattr(source_table, 'database_name', '') if source_table else ''
-                instance.source_table_name = getattr(source_table, 'table_name', '') if source_table else ''
+            if 'sourceDatabaseName' in validated_data:
+                instance.source_database_name = validated_data['sourceDatabaseName']
+            if 'sourceTableName' in validated_data:
+                instance.source_table_name = validated_data['sourceTableName'].strip()
             if 'targetSchemaName' in validated_data:
                 instance.target_schema_name = validated_data['targetSchemaName']
             if 'targetTableName' in validated_data:
@@ -150,21 +138,6 @@ class DataIntegrationTaskViewSet(BaseViewSet):
         instance = self.get_queryset().get(pk=instance.pk)
         return self.data(DataIntegrationTaskSerializer(instance).data, msg='更新成功')
 
-    @action(detail=False, methods=['get'], url_path='source-tables')
-    def source_tables(self, request):
-        serializer = SourceTableQuerySerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        queryset = SourceTableSnapshot.objects.filter(
-            data_source_id=serializer.validated_data['sourceDataSourceId'],
-            del_flag='0',
-        ).order_by('database_name', 'table_name')
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serialized = SourceTableOptionSerializer(page, many=True)
-            return self.get_paginated_response(serialized.data)
-        serialized = SourceTableOptionSerializer(queryset, many=True)
-        return self.raw_response({'code': 200, 'msg': '操作成功', 'rows': serialized.data, 'total': len(serialized.data)})
-
     @action(detail=False, methods=['post'], url_path='validate')
     def validate_task(self, request):
         serializer = DataIntegrationTaskValidateSerializer(data=request.data)
@@ -173,15 +146,13 @@ class DataIntegrationTaskViewSet(BaseViewSet):
             message = first_error[0] if isinstance(first_error, list) and first_error else first_error
             return Response({'code': 400, 'msg': str(message)}, status=400)
         validated_data = serializer.validated_data
-        source_table = self._get_source_table(validated_data.get('sourceTableId'))
         task = DataIntegrationTask(
             task_name=validated_data['taskName'],
             task_code=validated_data['taskCode'],
             source_datasource_id=validated_data['sourceDataSourceId'],
             target_datasource_id=validated_data['targetDataSourceId'],
-            source_table_snapshot=source_table,
-            source_database_name=getattr(source_table, 'database_name', '') if source_table else '',
-            source_table_name=getattr(source_table, 'table_name', '') if source_table else '',
+            source_database_name=validated_data.get('sourceDatabaseName', ''),
+            source_table_name=validated_data['sourceTableName'].strip(),
             target_schema_name=validated_data.get('targetSchemaName', ''),
             target_table_name=validated_data['targetTableName'],
             load_type=validated_data['loadType'],
@@ -195,7 +166,6 @@ class DataIntegrationTaskViewSet(BaseViewSet):
         )
         task.source_datasource = task.source_datasource
         task.target_datasource = task.target_datasource
-        task.source_table_snapshot = source_table
         is_valid, error_message = validate_task_configuration(task)
         if not is_valid:
             return Response({'code': 400, 'msg': error_message}, status=400)

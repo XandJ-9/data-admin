@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.datatask.models import Task, TaskInstance
-from apps.datasource.models import DataSource, SourceTableSnapshot
+from apps.datasource.models import DataSource
 
 from .models import DataIntegrationTask
 from .views import DataIntegrationTaskViewSet, IntegrationExecutionLogViewSet
@@ -35,14 +35,7 @@ class DataIntegrationTaskViewSetTests(TestCase):
             password='secret',
             create_by='tester',
         )
-        self.source_table = SourceTableSnapshot.objects.create(
-            data_source=self.source_datasource,
-            database_name='biz',
-            table_name='order_info',
-            create_by='tester',
-        )
-
-    def test_create_task_should_bind_source_table_snapshot(self):
+    def test_create_task_should_persist_source_table_name(self):
         view = DataIntegrationTaskViewSet.as_view({'post': 'create'})
         request = self.factory.post(
             '/data-api/dataintegration/task',
@@ -51,7 +44,8 @@ class DataIntegrationTaskViewSetTests(TestCase):
                 'taskCode': 'sync_order_info',
                 'sourceDataSourceId': self.source_datasource.id,
                 'targetDataSourceId': self.target_datasource.id,
-                'sourceTableId': self.source_table.id,
+                'sourceDatabaseName': 'biz',
+                'sourceTableName': 'order_info',
                 'targetSchemaName': 'ods',
                 'targetTableName': 'ods_order_info',
                 'loadType': 'full',
@@ -70,7 +64,7 @@ class DataIntegrationTaskViewSetTests(TestCase):
         integration_task = DataIntegrationTask.objects.get(task_code='sync_order_info')
         platform_task = Task.objects.get(source_module='dataintegration.task', source_record_id=integration_task.id, del_flag='0')
         self.assertEqual(response.data['data']['taskId'], integration_task.id)
-        self.assertEqual(integration_task.source_table_snapshot_id, self.source_table.id)
+        self.assertEqual(integration_task.source_database_name, 'biz')
         self.assertEqual(integration_task.source_table_name, 'order_info')
         self.assertEqual(platform_task.task_type, 'DATA_SYNC')
 
@@ -83,7 +77,7 @@ class DataIntegrationTaskViewSetTests(TestCase):
                 'taskCode': 'sync_invalid_same_ds',
                 'sourceDataSourceId': self.source_datasource.id,
                 'targetDataSourceId': self.source_datasource.id,
-                'sourceTableId': self.source_table.id,
+                'sourceTableName': 'order_info',
                 'targetTableName': 'ods_order_info',
                 'executorType': 'mock',
                 'scheduleType': 'manual',
@@ -96,17 +90,6 @@ class DataIntegrationTaskViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_source_tables_should_return_snapshot_options(self):
-        view = DataIntegrationTaskViewSet.as_view({'get': 'source_tables'})
-        request = self.factory.get('/data-api/dataintegration/task/source-tables', {'sourceDataSourceId': self.source_datasource.id})
-        force_authenticate(request, user=self.user)
-
-        response = view(request)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['total'], 1)
-        self.assertEqual(response.data['rows'][0]['objectName'], 'order_info')
-
     @patch('apps.executors.mock.time.sleep', return_value=None)
     @patch('apps.executors.mock.random.random', return_value=0.1)
     @patch('apps.executors.mock.random.uniform', return_value=1)
@@ -117,7 +100,6 @@ class DataIntegrationTaskViewSetTests(TestCase):
             task_code='sync_order_info_exec',
             source_datasource=self.source_datasource,
             target_datasource=self.target_datasource,
-            source_table_snapshot=self.source_table,
             source_database_name='biz',
             source_table_name='order_info',
             target_schema_name='ods',
@@ -155,7 +137,6 @@ class DataIntegrationTaskViewSetTests(TestCase):
             task_code='sync_order_info_exec_fail',
             source_datasource=self.source_datasource,
             target_datasource=self.target_datasource,
-            source_table_snapshot=self.source_table,
             source_database_name='biz',
             source_table_name='order_info',
             target_schema_name='ods',
@@ -258,3 +239,43 @@ class DataIntegrationTaskViewSetTests(TestCase):
         platform_task.refresh_from_db()
         self.assertEqual(integration_task.del_flag, '1')
         self.assertEqual(platform_task.del_flag, '1')
+
+    def test_delete_source_datasource_should_unbind_integration_task(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_source_deleted',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_table_name='order_info',
+            target_table_name='ods_order_info',
+            create_by='tester',
+        )
+
+        self.source_datasource.delete()
+
+        integration_task.refresh_from_db()
+        self.assertIsNone(integration_task.source_datasource_id)
+        self.assertEqual(integration_task.target_datasource_id, self.target_datasource.id)
+
+    def test_execute_task_should_fail_when_source_datasource_deleted(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_missing_source',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_table_name='order_info',
+            target_table_name='ods_order_info',
+            executor_type='mock',
+            schedule_type='manual',
+            create_by='tester',
+        )
+        self.source_datasource.delete()
+        view = DataIntegrationTaskViewSet.as_view({'post': 'execute_task'})
+        request = self.factory.post(f'/data-api/dataintegration/task/{integration_task.id}/execute', {}, format='json')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 400)
+        self.assertEqual(response.data['msg'], '源数据源已删除或未配置，请重新绑定后再执行')

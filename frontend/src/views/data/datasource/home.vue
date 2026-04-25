@@ -201,15 +201,15 @@ const capabilities = [
   {
     title: '源数据发现',
     description: '通过首页快捷入口或独立菜单进入源数据查看页，快速浏览数据库、表和字段。',
-    points: ['查看库表结构', '触发整库或单表采集', '适合验证接入范围'],
+    points: ['查看库表结构', '查看字段详情', '适合验证接入范围'],
     actionText: '进入源数据查看',
     action: () => goToView(),
     icon: DataAnalysis,
   },
   {
-    title: '原始元数据采集',
-    description: '在数据源详情页按库、按表执行采集，把源端结构沉淀为 Phase 1 的原始快照。',
-    points: ['支持整库与单表采集', '支持异步任务状态跟踪', '为后续阶段保留标准化输入'],
+    title: '数据源详情',
+    description: '进入数据源详情页查看连接信息、数据库列表、表结构与字段明细，聚焦连接与发现能力本身。',
+    points: ['查看连接配置', '浏览数据库与数据表', '按表查看字段明细'],
     actionText: '进入数据源详情',
     action: () => {
       const firstSource = sourceRows.value[0]

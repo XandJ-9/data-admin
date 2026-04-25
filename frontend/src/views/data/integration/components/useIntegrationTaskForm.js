@@ -8,7 +8,6 @@ import {
   getSupportedExecutors,
   getTask,
   getTaskExecutions,
-  listSourceTables,
   updateTask,
   validateTask,
 } from '@/api/data/integration'
@@ -21,8 +20,9 @@ function createDefaultForm() {
     taskName: '',
     taskCode: '',
     sourceDataSourceId: null,
+    sourceDatabaseName: '',
+    sourceTableName: '',
     targetDataSourceId: null,
-    sourceTableId: null,
     targetSchemaName: 'ods',
     targetTableName: '',
     loadType: 'full',
@@ -43,8 +43,9 @@ function mapTaskToForm(task) {
     taskName: task.taskName,
     taskCode: task.taskCode,
     sourceDataSourceId: task.sourceDataSourceId,
+    sourceDatabaseName: task.sourceDatabaseName || '',
+    sourceTableName: task.sourceTableName || '',
     targetDataSourceId: task.targetDataSourceId,
-    sourceTableId: task.sourceTableId,
     targetSchemaName: task.targetSchemaName || '',
     targetTableName: task.targetTableName,
     loadType: task.loadType,
@@ -97,7 +98,6 @@ export function useIntegrationTaskForm() {
   const loading = ref(false)
   const submitting = ref(false)
   const validating = ref(false)
-  const assetLoading = ref(false)
   const executionLoading = ref(false)
   const executionDialogVisible = ref(false)
   const executionDetailVisible = ref(false)
@@ -105,12 +105,10 @@ export function useIntegrationTaskForm() {
   const executionTotal = ref(0)
   const selectedExecution = ref(null)
   const dataSourceOptions = ref([])
-  const sourceTableOptions = ref([])
   const formRef = ref()
   const form = ref(createDefaultForm())
   const taskSnapshot = ref(null)
   const autoFilledTargetTable = ref(true)
-  let assetRequestToken = 0
   let executionListRequestToken = 0
   let executionDetailRequestToken = 0
 
@@ -123,8 +121,8 @@ export function useIntegrationTaskForm() {
     taskName: [{ required: true, message: '请输入任务名称', trigger: 'blur' }],
     taskCode: [{ required: true, message: '请输入任务编码', trigger: 'blur' }],
     sourceDataSourceId: [{ required: true, message: '请选择源数据源', trigger: 'change' }],
+    sourceTableName: [{ required: true, message: '请输入源表名', trigger: 'blur' }],
     targetDataSourceId: [{ required: true, message: '请选择目标数据源', trigger: 'change' }],
-    sourceTableId: [{ required: true, message: '请选择源表', trigger: 'change' }],
     targetTableName: [{ required: true, message: '请输入目标表名', trigger: 'blur' }],
     scheduleType: [{ required: true, message: '请选择调度方式', trigger: 'change' }],
     cronExpression: [{
@@ -160,44 +158,17 @@ export function useIntegrationTaskForm() {
   }
 
   function syncTargetTableFromSourceTable() {
-    const currentTable = sourceTableOptions.value.find(item => item.id === form.value.sourceTableId)
-    if (!currentTable || !autoFilledTargetTable.value) {
+    const currentTableName = String(form.value.sourceTableName || '').trim()
+    if (!currentTableName || !autoFilledTargetTable.value) {
       return
     }
-    form.value.targetTableName = buildDefaultTargetTableName(currentTable.objectName, form.value.targetSchemaName)
-  }
-
-  async function loadSourceTablesByDataSource(dataSourceId) {
-    if (!dataSourceId) {
-      sourceTableOptions.value = []
-      return
-    }
-    const currentToken = ++assetRequestToken
-    assetLoading.value = true
-    try {
-      const rows = await loadAllRows(params => listSourceTables(params), { sourceDataSourceId: dataSourceId })
-      if (currentToken !== assetRequestToken || form.value.sourceDataSourceId !== dataSourceId) {
-        return
-      }
-      sourceTableOptions.value = rows
-      syncTargetTableFromSourceTable()
-    } catch (error) {
-      if (currentToken === assetRequestToken) {
-        sourceTableOptions.value = []
-        notifyError(error, '加载源表失败')
-      }
-    } finally {
-      if (currentToken === assetRequestToken) {
-        assetLoading.value = false
-      }
-    }
+    form.value.targetTableName = buildDefaultTargetTableName(currentTableName, form.value.targetSchemaName)
   }
 
   async function loadTask() {
     if (!isEditMode.value) {
       taskSnapshot.value = null
       form.value = createDefaultForm()
-      sourceTableOptions.value = []
       autoFilledTargetTable.value = true
       formRef.value?.clearValidate()
       return
@@ -208,7 +179,6 @@ export function useIntegrationTaskForm() {
       taskSnapshot.value = res.data
       form.value = mapTaskToForm(res.data)
       autoFilledTargetTable.value = false
-      await loadSourceTablesByDataSource(form.value.sourceDataSourceId)
       formRef.value?.clearValidate()
     } catch (error) {
       notifyError(error, '加载任务详情失败')
@@ -217,17 +187,16 @@ export function useIntegrationTaskForm() {
     }
   }
 
-  function handleSourceDataSourceChange(value) {
-    form.value.sourceTableId = null
+  function handleSourceDataSourceChange() {
+    form.value.sourceDatabaseName = ''
+    form.value.sourceTableName = ''
     form.value.targetTableName = ''
     autoFilledTargetTable.value = true
-    loadSourceTablesByDataSource(value)
   }
 
-  function handleSourceAssetChange(value) {
-    const currentAsset = sourceTableOptions.value.find(item => item.id === value)
+  function handleSourceTableInput() {
     autoFilledTargetTable.value = true
-    form.value.targetTableName = currentAsset ? buildDefaultTargetTableName(currentAsset.objectName, form.value.targetSchemaName) : ''
+    syncTargetTableFromSourceTable()
   }
 
   function handleTargetTableInput() {
@@ -241,8 +210,9 @@ export function useIntegrationTaskForm() {
       taskName: form.value.taskName,
       taskCode: form.value.taskCode,
       sourceDataSourceId: form.value.sourceDataSourceId,
+      sourceDatabaseName: form.value.sourceDatabaseName,
+      sourceTableName: form.value.sourceTableName,
       targetDataSourceId: form.value.targetDataSourceId,
-      sourceTableId: form.value.sourceTableId,
       targetSchemaName: form.value.targetSchemaName,
       targetTableName: form.value.targetTableName,
       loadType: form.value.loadType,
@@ -409,7 +379,6 @@ export function useIntegrationTaskForm() {
 
   return {
     STATUS_OPTIONS,
-    assetLoading,
     currentExecutorHint,
     dataSourceOptions,
     executionDetailVisible,
@@ -422,8 +391,8 @@ export function useIntegrationTaskForm() {
     formRef,
     goBack,
     handleExecute,
-    handleSourceAssetChange,
     handleSourceDataSourceChange,
+    handleSourceTableInput,
     handleTargetTableInput,
     handleValidate,
     isEditMode,
@@ -434,7 +403,6 @@ export function useIntegrationTaskForm() {
     pageTitle,
     rules,
     selectedExecution,
-    sourceTableOptions,
     submitting,
     supportedExecutors,
     submitForm,

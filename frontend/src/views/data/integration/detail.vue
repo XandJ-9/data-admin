@@ -33,13 +33,11 @@
         :form="form"
         :rules="rules"
         :data-source-options="dataSourceOptions"
-        :source-table-options="sourceTableOptions"
-        :asset-loading="assetLoading"
         :status-options="STATUS_OPTIONS"
         :supported-executors="supportedExecutors"
         :current-executor-hint="currentExecutorHint"
         @source-ds-change="handleSourceDataSourceChange"
-        @source-table-change="handleSourceAssetChange"
+        @source-table-input="handleSourceTableInput"
         @target-table-input="handleTargetTableInput"
       />
 
@@ -79,7 +77,7 @@
         <el-card shadow="hover" class="overview-card">
           <template #header><span>{{ taskSnapshot ? '设计备注' : '创建提示' }}</span></template>
           <p class="aside-text">
-            {{ taskSnapshot?.remark || '先把源数据源、源表和目标表关系配置准确，再决定调度方式。编排关系暂不放在这里，后续会收敛到发布阶段。' }}
+            {{ taskSnapshot?.remark || '先把源数据源、源库名、源表和目标表关系配置准确，再决定调度方式。编排关系暂不放在这里，后续会收敛到发布阶段。' }}
           </p>
         </el-card>
       </div>
@@ -111,10 +109,9 @@ import { executorLabel, loadTypeLabel, scheduleTypeLabel, statusLabel, statusTag
 
 const route = useRoute()
 
-  const {
-    STATUS_OPTIONS,
-    assetLoading,
-    currentExecutorHint,
+const {
+  STATUS_OPTIONS,
+  currentExecutorHint,
   dataSourceOptions,
   executionDetailVisible,
   executionDialogVisible,
@@ -123,11 +120,11 @@ const route = useRoute()
   executionQueryParams,
   executionTotal,
   form,
-    formRef,
-    goBack,
-    handleExecute,
-    handleSourceAssetChange,
-    handleSourceDataSourceChange,
+  formRef,
+  goBack,
+  handleExecute,
+  handleSourceDataSourceChange,
+  handleSourceTableInput,
   handleTargetTableInput,
   handleValidate,
   isEditMode,
@@ -135,11 +132,10 @@ const route = useRoute()
   loading,
   openExecutionDetail,
   openExecutionDialog,
-    pageTitle,
-    rules,
-    selectedExecution,
-    sourceTableOptions,
-    submitting,
+  pageTitle,
+  rules,
+  selectedExecution,
+  submitting,
   supportedExecutors,
   submitForm,
   taskSnapshot,
@@ -147,7 +143,9 @@ const route = useRoute()
 } = useIntegrationTaskForm()
 
 const routeText = computed(() => {
-  const sourceName = sourceTableOptions.value.find(item => item.id === form.value.sourceTableId)?.objectName || '未选择源表'
+  const sourceName = form.value.sourceDatabaseName
+    ? `${form.value.sourceDatabaseName}.${form.value.sourceTableName || '未填写源表'}`
+    : (form.value.sourceTableName || '未填写源表')
   const targetName = form.value.targetSchemaName ? `${form.value.targetSchemaName}.${form.value.targetTableName || '未命名目标表'}` : (form.value.targetTableName || '未命名目标表')
   return `${sourceName} -> ${targetName}`
 })

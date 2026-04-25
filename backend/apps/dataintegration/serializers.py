@@ -1,31 +1,22 @@
 from rest_framework import serializers
 
 from apps.datatask.models import TaskInstance
-from apps.datasource.models import DataSource, SourceTableSnapshot
+from apps.datasource.models import DataSource
 from apps.system.serializers import BaseModelSerializer
 
 from .models import DataIntegrationTask
-
-
-class SourceTableOptionSerializer(serializers.Serializer):
-    id = serializers.IntegerField(read_only=True)
-    objectName = serializers.CharField(source='table_name', read_only=True)
-    tableName = serializers.CharField(source='table_name', read_only=True)
-    databaseName = serializers.CharField(source='database_name', read_only=True)
-    tableComment = serializers.CharField(source='table_comment', read_only=True)
 
 
 class DataIntegrationTaskSerializer(BaseModelSerializer):
     taskId = serializers.IntegerField(source='id', read_only=True)
     taskName = serializers.CharField(source='task_name', read_only=True)
     taskCode = serializers.CharField(source='task_code', read_only=True)
-    sourceDataSourceId = serializers.IntegerField(source='source_datasource_id', read_only=True)
-    sourceDataSourceName = serializers.CharField(source='source_datasource.name', read_only=True)
-    targetDataSourceId = serializers.IntegerField(source='target_datasource_id', read_only=True)
-    targetDataSourceName = serializers.CharField(source='target_datasource.name', read_only=True)
-    sourceTableId = serializers.IntegerField(source='source_table_snapshot_id', read_only=True, allow_null=True)
-    sourceTableName = serializers.SerializerMethodField()
-    sourceDatabaseName = serializers.SerializerMethodField()
+    sourceDataSourceId = serializers.IntegerField(source='source_datasource_id', read_only=True, allow_null=True)
+    sourceDataSourceName = serializers.SerializerMethodField()
+    targetDataSourceId = serializers.IntegerField(source='target_datasource_id', read_only=True, allow_null=True)
+    targetDataSourceName = serializers.SerializerMethodField()
+    sourceTableName = serializers.CharField(source='source_table_name', read_only=True)
+    sourceDatabaseName = serializers.CharField(source='source_database_name', read_only=True)
     targetSchemaName = serializers.CharField(source='target_schema_name', read_only=True)
     targetTableName = serializers.CharField(source='target_table_name', read_only=True)
     loadType = serializers.CharField(source='load_type', read_only=True)
@@ -46,7 +37,6 @@ class DataIntegrationTaskSerializer(BaseModelSerializer):
             'sourceDataSourceName',
             'targetDataSourceId',
             'targetDataSourceName',
-            'sourceTableId',
             'sourceTableName',
             'sourceDatabaseName',
             'targetSchemaName',
@@ -61,23 +51,23 @@ class DataIntegrationTaskSerializer(BaseModelSerializer):
             'remark',
         ]
 
-    def get_sourceTableName(self, obj):
-        if obj.source_table_snapshot_id and obj.source_table_snapshot is not None:
-            return obj.source_table_snapshot.table_name
-        return obj.source_table_name
+    def get_sourceDataSourceName(self, obj):
+        if obj.source_datasource is None:
+            return ''
+        return obj.source_datasource.name
 
-    def get_sourceDatabaseName(self, obj):
-        if obj.source_table_snapshot_id and obj.source_table_snapshot is not None:
-            return obj.source_table_snapshot.database_name
-        return obj.source_database_name
-
+    def get_targetDataSourceName(self, obj):
+        if obj.target_datasource is None:
+            return ''
+        return obj.target_datasource.name
 
 class DataIntegrationTaskCreateSerializer(serializers.Serializer):
     taskName = serializers.CharField(max_length=128)
     taskCode = serializers.CharField(max_length=128)
     sourceDataSourceId = serializers.IntegerField()
     targetDataSourceId = serializers.IntegerField()
-    sourceTableId = serializers.IntegerField(required=False, allow_null=True, default=None)
+    sourceDatabaseName = serializers.CharField(required=False, allow_blank=True, default='')
+    sourceTableName = serializers.CharField(max_length=256)
     targetSchemaName = serializers.CharField(required=False, allow_blank=True, default='')
     targetTableName = serializers.CharField(max_length=128)
     loadType = serializers.ChoiceField(choices=['full', 'incremental'], default='full')
@@ -104,23 +94,13 @@ class DataIntegrationTaskCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError('目标数据源不存在')
         return value
 
-    def validate_sourceTableId(self, value):
-        if value is None:
-            return value
-        if not SourceTableSnapshot.objects.filter(id=value, del_flag='0').exists():
-            raise serializers.ValidationError('源表不存在')
-        return value
-
     def validate(self, attrs):
         if attrs['sourceDataSourceId'] == attrs['targetDataSourceId']:
             raise serializers.ValidationError({'targetDataSourceId': '源数据源和目标数据源不能相同'})
         if attrs['scheduleType'] == 'cron' and not attrs.get('cronExpression'):
             raise serializers.ValidationError({'cronExpression': '定时调度模式必须配置 Cron 表达式'})
-        source_table_id = attrs.get('sourceTableId')
-        if source_table_id is not None:
-            source_table = SourceTableSnapshot.objects.filter(id=source_table_id, del_flag='0').first()
-            if source_table is not None and source_table.data_source_id != attrs['sourceDataSourceId']:
-                raise serializers.ValidationError({'sourceTableId': '源表不属于当前源数据源'})
+        if not str(attrs.get('sourceTableName') or '').strip():
+            raise serializers.ValidationError({'sourceTableName': '请输入源表名'})
         return attrs
 
 
@@ -128,7 +108,8 @@ class DataIntegrationTaskUpdateSerializer(serializers.Serializer):
     taskName = serializers.CharField(max_length=128, required=False)
     sourceDataSourceId = serializers.IntegerField(required=False)
     targetDataSourceId = serializers.IntegerField(required=False)
-    sourceTableId = serializers.IntegerField(required=False, allow_null=True)
+    sourceDatabaseName = serializers.CharField(required=False, allow_blank=True)
+    sourceTableName = serializers.CharField(max_length=256, required=False)
     targetSchemaName = serializers.CharField(required=False, allow_blank=True)
     targetTableName = serializers.CharField(max_length=128, required=False)
     loadType = serializers.ChoiceField(choices=['full', 'incremental'], required=False)
@@ -151,28 +132,19 @@ class DataIntegrationTaskUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError('目标数据源不存在')
         return value
 
-    def validate_sourceTableId(self, value):
-        if value is None:
-            return value
-        if not SourceTableSnapshot.objects.filter(id=value, del_flag='0').exists():
-            raise serializers.ValidationError('源表不存在')
-        return value
-
     def validate(self, attrs):
         instance = self.context['instance']
         source_ds_id = attrs.get('sourceDataSourceId', instance.source_datasource_id)
         target_ds_id = attrs.get('targetDataSourceId', instance.target_datasource_id)
-        source_table_id = attrs.get('sourceTableId', instance.source_table_snapshot_id)
+        source_table_name = attrs.get('sourceTableName', instance.source_table_name)
         schedule_type = attrs.get('scheduleType', instance.schedule_type)
         cron_expression = attrs.get('cronExpression', instance.cron_expression)
-        if source_ds_id == target_ds_id:
+        if source_ds_id and target_ds_id and source_ds_id == target_ds_id:
             raise serializers.ValidationError({'targetDataSourceId': '源数据源和目标数据源不能相同'})
         if schedule_type == 'cron' and not cron_expression:
             raise serializers.ValidationError({'cronExpression': '定时调度模式必须配置 Cron 表达式'})
-        if source_table_id is not None:
-            source_table = SourceTableSnapshot.objects.filter(id=source_table_id, del_flag='0').first()
-            if source_table is not None and source_table.data_source_id != source_ds_id:
-                raise serializers.ValidationError({'sourceTableId': '源表不属于当前源数据源'})
+        if not str(source_table_name or '').strip():
+            raise serializers.ValidationError({'sourceTableName': '请输入源表名'})
         return attrs
 
 
@@ -182,10 +154,6 @@ class DataIntegrationTaskQuerySerializer(serializers.Serializer):
     executorType = serializers.CharField(required=False, allow_blank=True)
     sourceDataSourceId = serializers.IntegerField(required=False)
     targetDataSourceId = serializers.IntegerField(required=False)
-
-
-class SourceTableQuerySerializer(serializers.Serializer):
-    sourceDataSourceId = serializers.IntegerField()
 
 
 class DataIntegrationTaskValidateSerializer(DataIntegrationTaskCreateSerializer):

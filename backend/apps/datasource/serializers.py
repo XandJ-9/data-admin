@@ -83,8 +83,3 @@ class DiscoveryRequestSerializer(serializers.Serializer):
 
 class TableDiscoveryRequestSerializer(DiscoveryRequestSerializer):
     tableName = serializers.CharField(source='table_name', required=False, allow_blank=True, default='')
-
-
-class CollectionStatusQuerySerializer(serializers.Serializer):
-    taskId = serializers.CharField(source='task_id')
-

@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.common.encrypt import encrypt_password
+from apps.dataintegration.models import DataIntegrationTask
 
 from .models import DataSource
 from .views import DataSourceDiscoveryViewSet, DataSourceViewSet, _sanitize_db_error_message
@@ -201,3 +202,76 @@ class DataSourceDiscoveryTests(TestCase):
         self.assertEqual(response.data['rows'][0]['tableComment'], '订单表')
         self.assertEqual(response.data['rows'][0]['tableType'], 'BASE TABLE')
 
+
+class DataSourceDeleteTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='tester', password='password123')
+        self.source_datasource = DataSource.objects.create(
+            name='业务MySQL',
+            db_type='mysql',
+            host='127.0.0.1',
+            port=3306,
+            db_name='biz',
+            username='root',
+            password=encrypt_password('secret'),
+            status='0',
+        )
+        self.target_datasource = DataSource.objects.create(
+            name='数仓MySQL',
+            db_type='mysql',
+            host='127.0.0.1',
+            port=3307,
+            db_name='warehouse',
+            username='root',
+            password=encrypt_password('secret'),
+            status='0',
+        )
+
+    def test_destroy_should_allow_delete_when_datasource_is_referenced_by_integration_task(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_delete_source',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_table_name='order_info',
+            target_table_name='ods_order_info',
+            create_by='tester',
+        )
+        view = DataSourceViewSet.as_view({'delete': 'destroy'})
+        request = self.factory.delete(f'/data-api/datasource/datasource/{self.source_datasource.id}')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(self.source_datasource.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        self.assertFalse(DataSource.objects.filter(pk=self.source_datasource.id).exists())
+        integration_task.refresh_from_db()
+        self.assertIsNone(integration_task.source_datasource_id)
+
+    def test_destroy_should_allow_batch_delete_when_datasources_are_referenced_by_integration_task(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_batch_delete_source',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_table_name='order_info',
+            target_table_name='ods_order_info',
+            create_by='tester',
+        )
+        view = DataSourceViewSet.as_view({'delete': 'destroy'})
+        request = self.factory.delete(
+            f'/data-api/datasource/datasource/{self.source_datasource.id},{self.target_datasource.id}'
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=f'{self.source_datasource.id},{self.target_datasource.id}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        self.assertFalse(DataSource.objects.filter(pk=self.source_datasource.id).exists())
+        self.assertFalse(DataSource.objects.filter(pk=self.target_datasource.id).exists())
+        integration_task.refresh_from_db()
+        self.assertIsNone(integration_task.source_datasource_id)
+        self.assertIsNone(integration_task.target_datasource_id)

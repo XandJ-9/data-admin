@@ -37,7 +37,6 @@
         <el-form-item>
           <el-button type="primary" icon="Search" @click="queryTables">查询</el-button>
           <el-button icon="Refresh" @click="resetTableFilters">重置</el-button>
-          <el-button type="primary" icon="Collection" @click="showCollectionDialog">元数据采集</el-button>
         </el-form-item>
       </el-form>
 
@@ -165,34 +164,11 @@
         <el-table-column prop="defaultValue" label="默认值" width="100" />
       </el-table>
     </el-dialog>
-
-    <el-dialog title="元数据采集" v-model="collectionDialogVisible" width="600px" append-to-body>
-      <el-form :model="collectionForm" label-width="100px">
-        <el-form-item label="数据源">
-          <el-select v-model="collectionForm.dataSourceId" placeholder="请选择数据源" style="width: 100%">
-            <el-option v-for="ds in dataSourceList" :key="ds.dataSourceId" :label="ds.dataSourceName" :value="ds.dataSourceId" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="数据库">
-          <el-input v-model="collectionForm.databaseName" placeholder="可选，留空则采集所有数据库" />
-        </el-form-item>
-        <el-form-item label="采集方式">
-          <el-radio-group v-model="collectionForm.async">
-            <el-radio :label="false">同步采集</el-radio>
-            <el-radio :label="true">异步采集</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="collectionDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="collectionLoading" @click="handleCollection">开始采集</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup name="DataAssetMetadata">
-import { collectMeta, collectMetaAsync, listDatasource } from '@/api/data/datasource'
+import { listDatasource } from '@/api/data/datasource'
 import { listMetaTables, listMetaColumns } from '@/api/data/asset'
 
 const { proxy } = getCurrentInstance()
@@ -260,10 +236,6 @@ const columnQueryParams = ref({ pageNum: 1, pageSize: 10 })
 const columnDialogVisible = ref(false)
 const columnDialogLoading = ref(false)
 const currentColumns = ref([])
-
-const collectionDialogVisible = ref(false)
-const collectionLoading = ref(false)
-const collectionForm = ref({ dataSourceId: null, databaseName: '', async: false })
 
 function formatByOptions(options, value, fallback = '-') {
   return options.find(item => item.value === value)?.label || value || fallback
@@ -385,40 +357,6 @@ function goToTable(row) {
 function handleDataSourceChange() {
   tableQueryParams.value.pageNum = 1
   queryTables()
-}
-
-function showCollectionDialog() {
-  collectionDialogVisible.value = true
-  collectionForm.value = {
-    dataSourceId: tableFilter.value.dataSourceId || null,
-    databaseName: '',
-    async: false,
-  }
-}
-
-function handleCollection() {
-  if (!collectionForm.value.dataSourceId) {
-    proxy.$modal.msgWarning('请选择数据源')
-    return
-  }
-  collectionLoading.value = true
-  const data = {
-    dataSourceId: collectionForm.value.dataSourceId,
-    databaseName: collectionForm.value.databaseName,
-  }
-  const action = collectionForm.value.async ? collectMetaAsync : collectMeta
-  action(data).then(response => {
-    collectionLoading.value = false
-    if (collectionForm.value.async) {
-      proxy.$modal.msgSuccess(`采集任务已启动，任务ID: ${response.data.taskId}`)
-    } else {
-      proxy.$modal.msgSuccess('采集完成')
-      queryTables()
-    }
-    collectionDialogVisible.value = false
-  }).catch(() => {
-    collectionLoading.value = false
-  })
 }
 
 loadDataSources()

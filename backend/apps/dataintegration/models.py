@@ -1,6 +1,6 @@
 from django.db import models
 
-from apps.datasource.models import DataSource, SourceTableSnapshot
+from apps.datasource.models import DataSource
 from apps.system.models import BaseModel
 
 
@@ -35,23 +35,19 @@ class DataIntegrationTask(BaseModel):
     task_code = models.CharField(max_length=128, unique=True, verbose_name='任务编码')
     source_datasource = models.ForeignKey(
         DataSource,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='source_integration_tasks',
         verbose_name='源数据源',
     )
     target_datasource = models.ForeignKey(
         DataSource,
-        on_delete=models.PROTECT,
-        related_name='target_integration_tasks',
-        verbose_name='目标数据源',
-    )
-    source_table_snapshot = models.ForeignKey(
-        SourceTableSnapshot,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='integration_tasks',
-        verbose_name='源表快照',
+        related_name='target_integration_tasks',
+        verbose_name='目标数据源',
     )
     source_database_name = models.CharField(max_length=256, blank=True, default='', verbose_name='源数据库名')
     source_table_name = models.CharField(max_length=256, blank=True, default='', verbose_name='源表名')

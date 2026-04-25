@@ -41,8 +41,8 @@
               clearable
               style="width: 200px; margin-right: 10px"
               prefix-icon="Search"
-            />
-            <el-button type="primary" icon="Refresh" @click="loadDatabases" :loading="databaseLoading">刷新</el-button>
+             />
+             <el-button type="primary" icon="Refresh" @click="loadDatabases" :loading="databaseLoading">刷新</el-button>
           </div>
         </div>
       </template>
@@ -54,48 +54,9 @@
         :empty-text="filteredDatabaseList.length === 0 ? (databaseSearchText ? '未找到匹配的数据库' : '暂无数据') : '点击加载按钮获取数据库列表'"
       >
         <el-table-column prop="databaseName" label="数据库名" min-width="200" />
-        <el-table-column label="采集进度" min-width="250">
-          <template #default="scope">
-            <div v-if="scope.row.collecting && scope.row.progress">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <el-progress
-                  :percentage="scope.row.progress.total > 0 ? Math.round((scope.row.progress.current / scope.row.progress.total) * 100) : 0"
-                  :status="scope.row.progress.status === 'failed' ? 'exception' : (scope.row.progress.status === 'completed' ? 'success' : '')"
-                  style="flex: 1"
-                />
-                <el-tag v-if="scope.row.taskId" size="small" type="info" @close="cancelCollectionTask(scope.row)" closable>取消</el-tag>
-              </div>
-              <div style="font-size: 12px; color: #909399; margin-top: 4px;">
-                {{ scope.row.progress.status }} - {{ scope.row.progress.current }}/{{ scope.row.progress.total }} 张表
-              </div>
-              <div v-if="scope.row.progress.error" style="font-size: 12px; color: #f56c6c; margin-top: 4px;">
-                错误：{{ scope.row.progress.error }}
-              </div>
-            </div>
-            <div v-else-if="scope.row.progress && scope.row.progress.status === 'completed'">
-              <el-tag type="success" size="small">已完成 - {{ scope.row.progress.current }} 张表</el-tag>
-            </div>
-            <div v-else-if="scope.row.progress && scope.row.progress.status === 'failed'">
-              <el-tag type="danger" size="small">失败 - {{ scope.row.progress.error || '未知错误' }}</el-tag>
-            </div>
-            <div v-else>
-              <span style="color: #c0c4cc;">未开始</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" align="center">
+        <el-table-column label="操作" width="120" align="center">
           <template #default="scope">
             <el-button size="small" icon="View" @click="viewTables(scope.row)">查看表</el-button>
-            <el-button
-              size="small"
-              icon="Collection"
-              type="primary"
-              @click="collectDatabase(scope.row)"
-              :loading="scope.row.collecting"
-              :disabled="scope.row.collecting"
-            >
-              {{ scope.row.collecting ? '采集中...' : '采集' }}
-            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -141,10 +102,9 @@
             <div class="prewrap">{{ scope.row.tableComment || '-' }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" align="center">
+        <el-table-column label="操作" width="120" align="center">
           <template #default="scope">
             <el-button size="small" icon="View" @click="viewColumns(scope.row)">查看字段</el-button>
-            <el-button size="small" icon="Collection" type="primary" @click="collectTable(scope.row)" :loading="scope.row.collecting">采集</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -205,10 +165,6 @@
 <script setup name="DataSourceDetail">
 import { useRoute, useRouter } from 'vue-router'
 import {
-  cancelCollect,
-  collectMetaAsync,
-  collectMetaTable,
-  getCollectStatus,
   getDatasource,
   listColumns,
   listDatabases,
@@ -231,9 +187,6 @@ const databaseLoading = ref(false)
 const tableLoading = ref(false)
 const columnLoading = ref(false)
 const columnDialogVisible = ref(false)
-
-// 轮询定时器管理
-const pollTimers = ref({})
 
 // 搜索关键词
 const databaseSearchText = ref('')
@@ -375,155 +328,6 @@ function viewColumns(row) {
   })
 }
 
-// 采集数据库（整库采集 - 异步）
-function collectDatabase(row) {
-  proxy.$modal.confirm(`是否确认采集数据库 "${row.databaseName}" 的元数据？`).then(() => {
-    // 设置加载状态
-    const dbItem = databaseList.value.find(db => db.databaseName === row.databaseName)
-    if (dbItem) {
-      dbItem.collecting = true
-      dbItem.taskId = null
-      dbItem.progress = { current: 0, total: 0, status: '启动中...' }
-    }
-
-    // 启动异步采集任务
-    collectMetaAsync({
-      dataSourceId: dataSourceId.value,
-      databaseName: row.databaseName
-    }).then(response => {
-      const taskId = response.data.taskId
-      if (dbItem) {
-        dbItem.taskId = taskId
-      }
-      proxy.$modal.msgSuccess('采集任务已启动')
-
-      // 开始轮询任务状态
-      pollTaskStatus(taskId, row.databaseName)
-    }).catch(() => {
-      proxy.$modal.msgError('启动采集任务失败')
-      if (dbItem) {
-        dbItem.collecting = false
-      }
-    })
-  }).catch(() => {})
-}
-
-// 轮询任务状态
-function pollTaskStatus(taskId, databaseName) {
-  // 清除可能存在的旧定时器
-  if (pollTimers.value[databaseName]) {
-    clearInterval(pollTimers.value[databaseName])
-  }
-
-  // 创建新的定时器
-  pollTimers.value[databaseName] = setInterval(() => {
-    getCollectStatus(taskId).then(response => {
-      // response 是 {code: 200, msg: "操作成功", data: {...}}
-      const status = response.data
-
-      const dbIndex = databaseList.value.findIndex(db => db.databaseName === databaseName)
-
-      if (dbIndex !== -1 && status) {
-        // 使用后端返回的正确字段名（驼峰命名）
-        databaseList.value[dbIndex].progress = {
-          current: status.collectedTables || 0,
-          total: status.totalTables || 0,
-          status: status.status === 'running' ? '运行中' :
-                   (status.status === 'completed' ? '已完成' :
-                   (status.status === 'failed' ? '失败' :
-                   (status.status === 'cancelled' ? '已取消' : status.status))),
-          error: status.errorMessage || null
-        }
-      }
-
-      // 任务完成或失败时停止轮询
-      if (status && (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled')) {
-        clearInterval(pollTimers.value[databaseName])
-        delete pollTimers.value[databaseName]
-
-        if (dbIndex !== -1) {
-          databaseList.value[dbIndex].collecting = false
-        }
-
-        if (status.status === 'completed') {
-          proxy.$modal.msgSuccess(`采集完成！成功采集 ${status.collectedTables} 张表`)
-        } else if (status.status === 'failed') {
-          proxy.$modal.msgError(`采集失败：${status.errorMessage || '未知错误'}`)
-        } else if (status.status === 'cancelled') {
-          proxy.$modal.msgWarning('采集任务已取消')
-        }
-      }
-    }).catch(error => {
-      console.error('查询任务状态失败:', error)
-      clearInterval(pollTimers.value[databaseName])
-      delete pollTimers.value[databaseName]
-
-      const dbIndex = databaseList.value.findIndex(db => db.databaseName === databaseName)
-      if (dbIndex !== -1) {
-        databaseList.value[dbIndex].collecting = false
-      }
-      proxy.$modal.msgError('查询任务状态失败')
-    })
-  }, 2000) // 每2秒轮询一次
-}
-
-// 取消采集任务
-function cancelCollectionTask(row) {
-  if (!row.taskId) {
-    proxy.$modal.msgWarning('没有可取消的任务')
-    return
-  }
-
-  proxy.$modal.confirm('是否确认取消当前采集任务？').then(() => {
-    cancelCollect(row.taskId).then(() => {
-      proxy.$modal.msgSuccess('任务已取消')
-
-      // 清理定时器
-      if (pollTimers.value[row.databaseName]) {
-        clearInterval(pollTimers.value[row.databaseName])
-        delete pollTimers.value[row.databaseName]
-      }
-
-      // 更新状态
-      const dbIndex = databaseList.value.findIndex(db => db.databaseName === row.databaseName)
-      if (dbIndex !== -1) {
-        databaseList.value[dbIndex].collecting = false
-        databaseList.value[dbIndex].progress = {
-          ...databaseList.value[dbIndex].progress,
-          status: '已取消'
-        }
-      }
-    }).catch(() => {
-      proxy.$modal.msgError('取消任务失败')
-    })
-  }).catch(() => {})
-}
-
-// 采集数据表（单表采集）
-function collectTable(row) {
-  proxy.$modal.confirm(`是否确认采集数据表 "${row.tableName}" 的元数据？`).then(() => {
-    // 设置加载状态
-    const tableItem = tableList.value.find(t => t.tableName === row.tableName)
-    if (tableItem) {
-      tableItem.collecting = true
-    }
-
-    collectMetaTable({
-      dataSourceId: dataSourceId.value,
-      databaseName: selectedDatabase.value,
-      tableName: row.tableName
-    }).then(() => {
-      proxy.$modal.msgSuccess('采集完成')
-    }).catch(() => {
-      proxy.$modal.msgError('采集失败')
-    }).finally(() => {
-      if (tableItem) {
-        tableItem.collecting = false
-      }
-    })
-  }).catch(() => {})
-}
-
 // 返回数据库列表
 function backToDatabases() {
   selectedDatabase.value = ''
@@ -549,39 +353,6 @@ function getDbTypeTag(dbType) {
   }
   return tagMap[dbType] || 'info'
 }
-
-// 重置所有状态
-function resetState() {
-  // 清理所有定时器
-  Object.values(pollTimers.value).forEach(timer => clearInterval(timer))
-  pollTimers.value = {}
-
-  dataSourceInfo.value = {}
-  databaseList.value = []
-  tableList.value = []
-  columnList.value = []
-  selectedDatabase.value = ''
-  selectedTable.value = ''
-  databaseSearchText.value = ''
-  tableSearchText.value = ''
-  columnSearchText.value = ''
-}
-
-// 组件被 keep-alive 缓存激活时调用
-onActivated(() => {
-  // 可以在这里恢复轮询或其他操作
-})
-
-// 组件被 keep-alive 缓存停用时调用
-onDeactivated(() => {
-  // 页面被缓存时，不清除状态和定时器
-})
-
-// 组件卸载时清理定时器
-onUnmounted(() => {
-  Object.values(pollTimers.value).forEach(timer => clearInterval(timer))
-  pollTimers.value = {}
-})
 
 // 监听路由参数变化
 // watch(() => route.params.id, (newId, oldId) => {

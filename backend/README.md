@@ -43,13 +43,12 @@ backend/
 │   │   └── management/commands/   #   init_system 初始化命令
 │   ├── datasource/                # 数据源管理
 │   │   ├── models.py              #   DataSource（连接信息 + 加密密码）
-│   │   ├── views.py               #   数据源 CRUD、连通性测试、探查与采集入口
-│   │   ├── collectors.py          #   源数据采集编排
+│   │   ├── views.py               #   数据源 CRUD、连通性测试、数据库/表/字段探查接口
+│   │   ├── collectors.py          #   源端库表字段探查适配
 │   │   └── executor_info.py       #   统一连接上下文构建（解密密码 + 解析参数）
 │   ├── dataasset/                 # 数据资产管理
-│   │   ├── models.py              #   AssetNamespace, DataAsset, DataAssetColumn, MetaTable, MetaColumn, MetaCollectionTask, TableLineage
+│   │   ├── models.py              #   AssetNamespace, DataAsset, DataAssetColumn, MetaTable, MetaColumn, TableLineage
 │   │   ├── services.py            #   规范资产双写与元数据同步
-│   │   ├── facades/               #   对 datasource 暴露的元数据采集公开门面
 │   │   └── views.py               #   元数据浏览、资产查询、血缘查询
 │   ├── dataservice/               # 数据服务
 │   │   ├── models.py              #   QueryLog, InterfaceInfo, InterfaceField

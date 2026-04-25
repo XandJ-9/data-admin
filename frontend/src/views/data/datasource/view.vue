@@ -14,9 +14,6 @@
             </el-form-item>
             <el-form-item>
                 <el-button type="success" :disabled="!dsId" @click="getTables">加载业务表</el-button>
-                <el-button type="primary" :disabled="!dsId || asyncCollecting" @click="handleCollectAsync">
-                    整库源数据采集
-                </el-button>
             </el-form-item>
         </el-form>
         <el-form-item label="筛选">
@@ -32,20 +29,9 @@
             <el-table-column label="操作" width="220">
                 <template #default="scope">
                     <el-button size="small" @click="loadColumns(scope.row.tableName)">查看字段</el-button>
-                    <el-button type="warning" size="small"
-                        @click="handleCollectTable(scope.row.tableName)">采集</el-button>
                 </template>
             </el-table-column>
         </el-table>
-
-        <!-- 进度对话框 -->
-        <el-dialog v-model="collectProgressVisible" title="采集进度" width="500px" :close-on-click-modal="false">
-            <el-progress :percentage="collectProgress" :status="asyncCollecting ? '' : 'success'" />
-            <p style="margin-top: 16px; text-align: center;">{{ collectStatusText }}</p>
-            <template #footer v-if="asyncCollecting">
-                <el-button @click="handleCancelCollect">取消任务</el-button>
-            </template>
-        </el-dialog>
 
         <el-dialog v-model="columnsDialogVisible" title="字段信息" style="margin-top: 16px" modal-penetrable>
             <h4>表名：{{ currentTable }}</h4>
@@ -70,10 +56,6 @@
 
 <script setup name="DataSourceView">
 import {
-    cancelCollect,
-    collectMetaAsync,
-    collectMetaTable,
-    getCollectStatus,
     listColumns,
     listDatabases,
     listDatasource,
@@ -98,15 +80,6 @@ const columns = ref([])
 const currentTable = ref('')
 const columnsDialogVisible = ref(false)
 const loading = ref(false)
-const collecting = ref(false)
-
-// 异步采集相关状态
-const asyncCollecting = ref(false)
-const currentTaskId = ref('')
-const collectProgress = ref(0)
-const collectStatusText = ref('')
-const collectProgressVisible = ref(false)
-const statusPollTimer = ref(null)
 
 function getDsList() {
     listDatasource().then(res => {
@@ -134,101 +107,6 @@ function loadColumns(t) {
         columnsDialogVisible.value = true
     })
 }
-
-// 异步采集函数
-async function handleCollectAsync() {
-    if (!dsId.value) return
-    asyncCollecting.value = true
-    collectProgressVisible.value = true
-    collectProgress.value = 0
-    collectStatusText.value = '正在启动采集任务...'
-
-    const payload = { dataSourceId: dsId.value }
-    if (databaseName.value) payload.databaseName = databaseName.value
-
-    try {
-        const res = await collectMetaAsync(payload)
-        currentTaskId.value = res.data.taskId
-        collectStatusText.value = '任务已启动，正在采集...'
-        startStatusPolling()
-    } catch (error) {
-        proxy.$modal.msgError(error.message || '启动采集任务失败')
-        asyncCollecting.value = false
-        collectProgressVisible.value = false
-    }
-}
-
-function startStatusPolling() {
-    if (statusPollTimer.value) {
-        clearInterval(statusPollTimer.value)
-    }
-
-    statusPollTimer.value = setInterval(async () => {
-        try {
-            const res = await getCollectStatus(currentTaskId.value)
-            const data = res.data
-            collectProgress.value = data.progress || 0
-            collectStatusText.value = `正在采集: ${data.currentTable || ''} (${data.collectedTables}/${data.totalTables})`
-
-            if (['completed', 'failed', 'cancelled'].includes(data.status)) {
-                clearInterval(statusPollTimer.value)
-                statusPollTimer.value = null
-                asyncCollecting.value = false
-
-                if (data.status === 'completed') {
-                    proxy.$modal.msgSuccess('采集完成')
-                    collectStatusText.value = '采集完成'
-                    getTables()
-                } else if (data.status === 'failed') {
-                    proxy.$modal.msgError(`采集失败: ${data.errorMessage || '未知错误'}`)
-                } else {
-                    collectStatusText.value = '已取消'
-                }
-
-                setTimeout(() => {
-                    collectProgressVisible.value = false
-                }, 2000)
-            }
-        } catch (error) {
-            clearInterval(statusPollTimer.value)
-            statusPollTimer.value = null
-            asyncCollecting.value = false
-            collectProgressVisible.value = false
-        }
-    }, 1000)
-}
-
-async function handleCancelCollect() {
-    if (!currentTaskId.value) return
-    try {
-        await cancelCollect(currentTaskId.value)
-        if (statusPollTimer.value) {
-            clearInterval(statusPollTimer.value)
-            statusPollTimer.value = null
-        }
-        asyncCollecting.value = false
-        collectProgressVisible.value = false
-        proxy.$modal.msgSuccess('任务已取消')
-    } catch (error) {
-        proxy.$modal.msgError(error.message || '取消任务失败')
-    }
-}
-
-function handleCollectTable(t) {
-    if (!dsId.value) return
-    collecting.value = true
-    const payload = { dataSourceId: dsId.value, databaseName: databaseName.value, tableName: t }
-    collectMetaTable(payload).then(() => {
-        proxy.$modal.msgSuccess('采集完成')
-    }).finally(() => (collecting.value = false))
-}
-
-// 组件卸载时清理定时器
-onUnmounted(() => {
-    if (statusPollTimer.value) {
-        clearInterval(statusPollTimer.value)
-    }
-})
 
 onMounted(async () => {
     getDsList()

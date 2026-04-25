@@ -12,10 +12,12 @@ from .models import DataIntegrationTask
 SOURCE_MODULE = 'dataintegration.task'
 
 
-def _get_source_table_name(task: DataIntegrationTask) -> str:
-    if task.source_table_snapshot_id and task.source_table_snapshot is not None:
-        return task.source_table_snapshot.table_name
-    return task.source_table_name
+def _get_datasource_binding_error(integration_task: DataIntegrationTask) -> str:
+    if integration_task.source_datasource_id is None or integration_task.source_datasource is None:
+        return '源数据源已删除或未配置，请重新绑定后再执行'
+    if integration_task.target_datasource_id is None or integration_task.target_datasource is None:
+        return '目标数据源已删除或未配置，请重新绑定后再执行'
+    return ''
 
 
 def _build_runtime_datasource(data_source, *, database_name: str = ''):
@@ -37,9 +39,8 @@ def build_task_config(integration_task: DataIntegrationTask) -> dict:
     return {
         'sourceDataSourceId': integration_task.source_datasource_id,
         'targetDataSourceId': integration_task.target_datasource_id,
-        'sourceTableId': integration_task.source_table_snapshot_id,
         'sourceDatabaseName': integration_task.source_database_name,
-        'sourceTableName': _get_source_table_name(integration_task),
+        'sourceTableName': integration_task.source_table_name,
         'targetSchemaName': integration_task.target_schema_name,
         'targetTableName': integration_task.target_table_name,
         'loadType': integration_task.load_type,
@@ -52,7 +53,6 @@ def build_task_config(integration_task: DataIntegrationTask) -> dict:
 
 
 def build_executor_task(integration_task: DataIntegrationTask):
-    source_table_name = _get_source_table_name(integration_task)
     return SimpleNamespace(
         id=integration_task.id,
         task_code=integration_task.task_code,
@@ -64,8 +64,7 @@ def build_executor_task(integration_task: DataIntegrationTask):
             database_name=integration_task.source_database_name,
         ),
         target_datasource=_build_runtime_datasource(integration_task.target_datasource),
-        source_table_snapshot=integration_task.source_table_snapshot,
-        source_table_name=source_table_name,
+        source_table_name=integration_task.source_table_name,
         target_schema_name=integration_task.target_schema_name,
         target_table_name=integration_task.target_table_name,
         load_type=integration_task.load_type,
@@ -78,7 +77,6 @@ def get_source_record(source_record_id: int) -> DataIntegrationTask | None:
     return DataIntegrationTask.objects.select_related(
         'source_datasource',
         'target_datasource',
-        'source_table_snapshot',
     ).filter(pk=source_record_id, del_flag='0').first()
 
 
@@ -138,6 +136,9 @@ def sync_platform_snapshot(task, changed_fields: set[str] | None = None, usernam
 
 
 def validate_task_configuration(task: DataIntegrationTask, runtime_config: dict | None = None):
+    binding_error = _get_datasource_binding_error(task)
+    if binding_error:
+        return False, binding_error
     executor = ExecutorFactory.create_executor(
         task.executor_type,
         build_executor_task(task),
@@ -148,6 +149,10 @@ def validate_task_configuration(task: DataIntegrationTask, runtime_config: dict 
 
 def execute_task(platform_task, integration_task: DataIntegrationTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> dict:
     from apps.datatask.services import TaskService
+
+    binding_error = _get_datasource_binding_error(integration_task)
+    if binding_error:
+        return {'ok': False, 'msg': binding_error, 'data': None}
 
     effective_runtime_config = {
         'integrationTaskId': integration_task.id,

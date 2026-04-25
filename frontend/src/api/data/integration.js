@@ -15,14 +15,6 @@ export function getTask(taskId) {
   })
 }
 
-export function listSourceTables(query) {
-  return request({
-    url: '/dataintegration/task/source-tables',
-    method: 'get',
-    params: query
-  })
-}
-
 export function addTask(data) {
   return request({
     url: '/dataintegration/task',
