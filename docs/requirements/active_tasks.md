@@ -1,3 +1,11 @@
+### 2026-04-25: 数据集成后端边界收敛
+
+- ✅ `dataintegration` 已新增 `task_source.py` 并通过 `AppConfig.ready()` 注册到统一任务中心，`datatask` 不再保留针对数据集成的直连执行/回写分支
+- ✅ 数据集成任务的创建、更新、删除现已在事务内同步统一 `Task` 生命周期，任务运维修改状态/调度后也会回写集成任务
+- ✅ 数据集成模块已删除旧 `DataIntegrationExecutionLog` 运行记录模型，执行事实统一收敛为 `datatask.TaskInstance`
+- ✅ `/data-api/dataintegration/task/*/execute`、`executions` 与 `executionlog/*/detail` 现统一返回 `TaskInstance` 投影视图，模块内不再维护第二套运行态
+- ✅ 数据集成执行器入参已改为复用 `apps.datasource.executor_info` 构建连接上下文，不再在 `dataintegration` 内部重复解密和拼装数据源信息
+
 ### 2026-04-25: 开发流程与 Git 分支规范固化
 
 - ✅ 已将“主干稳定、短分支交付、单分支单目标”的开发流程写入 `CLAUDE.md`，作为后续默认交付原则

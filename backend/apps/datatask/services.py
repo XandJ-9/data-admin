@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .models import Task, TaskDependency, TaskInstance
+from .source_registry import get_source_handler
 
 logger = logging.getLogger(__name__)
 
@@ -244,40 +245,9 @@ class TaskService:
         if not changed_fields:
             return
 
-        if task.source_module == 'dataintegration.task' and task.source_record_id:
-            from apps.dataintegration.models import DataIntegrationTask
-
-            integration_task = DataIntegrationTask.objects.filter(
-                pk=task.source_record_id,
-                del_flag='0',
-            ).first()
-            if integration_task is None:
-                return
-
-            update_fields: list[str] = []
-            if 'status' in changed_fields and integration_task.status != task.status:
-                integration_task.status = task.status
-                update_fields.append('status')
-            if 'owner' in changed_fields and integration_task.owner != task.owner:
-                integration_task.owner = task.owner
-                update_fields.append('owner')
-            if 'remark' in changed_fields and integration_task.remark != task.remark:
-                integration_task.remark = task.remark
-                update_fields.append('remark')
-            if task.schedule_type != 'dependency':
-                if 'schedule_type' in changed_fields and integration_task.schedule_type != task.schedule_type:
-                    integration_task.schedule_type = task.schedule_type
-                    update_fields.append('schedule_type')
-                expected_cron_expression = task.cron_expression if task.schedule_type == 'cron' else ''
-                if (
-                    'cron_expression' in changed_fields
-                    and integration_task.cron_expression != expected_cron_expression
-                ):
-                    integration_task.cron_expression = expected_cron_expression
-                    update_fields.append('cron_expression')
-            if update_fields:
-                integration_task.update_by = username
-                integration_task.save(update_fields=update_fields + ['update_by', 'update_time'])
+        handler = get_source_handler(task.source_module)
+        if handler is not None:
+            handler.sync_platform_snapshot(task, changed_fields, username)
             return
 
         if task.source_module == 'datadev.script' and task.source_record_id:
@@ -300,41 +270,6 @@ class TaskService:
             if update_fields:
                 script.update_by = username
                 script.save(update_fields=update_fields + ['update_by', 'update_time'])
-
-    @classmethod
-    def build_integration_task_config(cls, integration_task) -> dict:
-        source_asset = integration_task.source_asset
-        return {
-            'sourceDataSourceId': integration_task.source_datasource_id,
-            'targetDataSourceId': integration_task.target_datasource_id,
-            'sourceAssetId': integration_task.source_asset_id,
-            'sourceTableName': source_asset.object_name if source_asset else '',
-            'targetSchemaName': integration_task.target_schema_name,
-            'targetTableName': integration_task.target_table_name,
-            'loadType': integration_task.load_type,
-            'writeMode': integration_task.write_mode,
-            'executorType': integration_task.executor_type,
-            'scheduleType': integration_task.schedule_type,
-            'cronExpression': integration_task.cron_expression,
-            'taskConfig': integration_task.task_config,
-        }
-
-    @classmethod
-    def sync_integration_source_task(cls, integration_task, username: str = '') -> Task:
-        task, _ = cls.upsert_source_task(
-            task_name=integration_task.task_name,
-            task_type='DATA_SYNC',
-            source_module='dataintegration.task',
-            source_record_id=integration_task.id,
-            status=integration_task.status,
-            schedule_type='cron' if integration_task.schedule_type == 'cron' else 'manual',
-            cron_expression=integration_task.cron_expression,
-            owner=integration_task.owner or username,
-            task_config=cls.build_integration_task_config(integration_task),
-            remark=integration_task.remark,
-            username=username,
-        )
-        return task
 
     @classmethod
     def build_script_task_config(cls, *, script, version, datasource, sql: str) -> dict:
@@ -437,77 +372,6 @@ class TaskService:
 
             for downstream_task_id in affected_downstream_ids:
                 cls.sync_dependency_schedule_type(downstream_task_id)
-
-    @classmethod
-    def execute_integration_task(
-        cls,
-        integration_task,
-        *,
-        username: str = '',
-        trigger_mode: str = 'manual',
-        runtime_config: dict | None = None,
-    ) -> dict:
-        from apps.executors.base import ExecutorFactory
-
-        platform_task = cls.sync_integration_source_task(integration_task, username=username)
-        effective_runtime_config = {
-            'integrationTaskId': integration_task.id,
-            **(runtime_config or {}),
-        }
-        task_instance = cls.create_task_instance(
-            task=platform_task,
-            trigger_mode=trigger_mode,
-            runtime_config=effective_runtime_config,
-            triggered_by=username or trigger_mode,
-            executor_type=integration_task.executor_type,
-        )
-        cls.mark_instance_running(task_instance, executor_type=integration_task.executor_type)
-
-        try:
-            executor = ExecutorFactory.create_executor(
-                integration_task.executor_type,
-                integration_task,
-                config=effective_runtime_config,
-            )
-            is_valid, validate_message = executor.validate()
-            if not is_valid:
-                raise ValueError(validate_message)
-            result = executor.execute()
-        except Exception as exc:
-            cls.finalize_instance(
-                instance=task_instance,
-                status='failed',
-                result_summary={'error': str(exc)},
-                error_message=str(exc),
-            )
-            return {
-                'ok': False,
-                'msg': f'执行失败: {exc}',
-                'data': {'executionId': task_instance.instance_id, 'status': 'failed'},
-            }
-
-        result_status = result.get('status') or 'success'
-        cls.finalize_instance(
-            instance=task_instance,
-            status=result_status,
-            result_summary=result,
-            error_message=result.get('error_message') or '',
-        )
-        if result_status == 'failed':
-            return {
-                'ok': False,
-                'msg': result.get('error_message') or '执行失败',
-                'data': {'executionId': task_instance.instance_id, 'status': 'failed'},
-            }
-        return {
-            'ok': True,
-            'msg': '执行成功',
-            'data': {
-                'executionId': task_instance.instance_id,
-                'status': result_status,
-                'resultSummary': result,
-            },
-        }
 
     @classmethod
     def execute_datadev_script(
@@ -1010,20 +874,17 @@ class TaskService:
         trigger_mode: str = 'manual',
         runtime_config: dict | None = None,
     ) -> dict:
-        if task.source_module == 'dataintegration.task' and task.source_record_id:
-            from apps.dataintegration.models import DataIntegrationTask
-
-            integration_task = DataIntegrationTask.objects.filter(
-                pk=task.source_record_id,
-                del_flag='0',
-            ).first()
-            if integration_task is None:
-                return {'ok': False, 'msg': '来源集成任务不存在或已删除', 'data': None}
-            return cls.execute_integration_task(
-                integration_task,
-                username=username,
-                trigger_mode=trigger_mode,
-                runtime_config=runtime_config,
+        handler = get_source_handler(task.source_module)
+        if handler is not None and task.source_record_id:
+            source_record = handler.load_source_record(task.source_record_id)
+            if source_record is None:
+                return {'ok': False, 'msg': '来源任务不存在或已删除', 'data': None}
+            return handler.execute_task(
+                task,
+                source_record,
+                username,
+                trigger_mode,
+                runtime_config,
             )
 
         if task.source_module == 'datadev.script' and task.source_record_id:
