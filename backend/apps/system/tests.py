@@ -1,9 +1,11 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.core.cache import cache
+from captcha.models import CaptchaStore
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .models import Menu, Role, RoleMenu, UserRole
-from .views.core import GetInfoView
+from .views.core import GetInfoView, LoginView
 
 
 class GetInfoViewTests(TestCase):
@@ -59,3 +61,88 @@ class GetInfoViewTests(TestCase):
             response.data['permissions'],
             ['dataintegration:task:view', 'datatask:task:list'],
         )
+
+
+class LoginViewTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.factory = APIRequestFactory()
+        self.view = LoginView.as_view()
+        self.user = get_user_model().objects.create_user(username='tester', password='Password123!')
+
+    def _captcha_pair(self):
+        hashkey = CaptchaStore.generate_key()
+        captcha = CaptchaStore.objects.get(hashkey=hashkey)
+        return hashkey, captcha.response
+
+    def test_login_success_returns_token(self):
+        uuid, code = self._captcha_pair()
+        request = self.factory.post(
+            '/system/login',
+            {
+                'username': 'tester',
+                'password': 'Password123!',
+                'uuid': uuid,
+                'code': code,
+            },
+            format='json',
+        )
+
+        response = self.view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data.get('code'), 200)
+        self.assertTrue(response.data.get('token'))
+        self.assertTrue(response.data.get('refreshToken'))
+
+    def test_login_with_invalid_captcha_should_fail(self):
+        uuid, _ = self._captcha_pair()
+        request = self.factory.post(
+            '/system/login',
+            {
+                'username': 'tester',
+                'password': 'Password123!',
+                'uuid': uuid,
+                'code': 'wrong-code',
+            },
+            format='json',
+        )
+
+        response = self.view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data.get('code'), 400)
+        self.assertIn('验证码', response.data.get('msg', ''))
+
+    def test_login_failures_should_trigger_rate_limit(self):
+        for _ in range(LoginView.LOGIN_FAIL_LIMIT):
+            uuid, code = self._captcha_pair()
+            request = self.factory.post(
+                '/system/login',
+                {
+                    'username': 'tester',
+                    'password': 'wrong-password',
+                    'uuid': uuid,
+                    'code': code,
+                },
+                format='json',
+            )
+            response = self.view(request)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data.get('code'), 400)
+
+        uuid, code = self._captcha_pair()
+        request = self.factory.post(
+            '/system/login',
+            {
+                'username': 'tester',
+                'password': 'Password123!',
+                'uuid': uuid,
+                'code': code,
+            },
+            format='json',
+        )
+        response = self.view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data.get('code'), 429)

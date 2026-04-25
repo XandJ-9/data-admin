@@ -4,6 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework import status, viewsets
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from rest_framework_simplejwt.exceptions import InvalidToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from captcha.models import CaptchaStore
 from captcha.views import captcha_image
@@ -225,14 +227,69 @@ class CaptchaView(TokenObtainPairView):
 
 
 class LoginView(TokenObtainPairView):
+    LOGIN_FAIL_LIMIT = 5
+    LOGIN_FAIL_TTL_SECONDS = 10 * 60
+
+    def _client_ip(self, request):
+        xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+        if xff:
+            return xff.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', 'unknown')
+
+    def _build_fail_key(self, request, username):
+        return f"login:fail:{self._client_ip(request)}:{(username or '').lower()}"
+
+    def _captcha_valid(self, request):
+        code = str(request.data.get('code') or '').strip()
+        uuid = str(request.data.get('uuid') or '').strip()
+        if not code or not uuid:
+            return False
+        return CaptchaStore.objects.filter(hashkey=uuid, response__iexact=code).exists()
+
     @audit_log
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        username = str(request.data.get('username') or '').strip()
+        fail_key = self._build_fail_key(request, username)
+
+        fail_count = cache.get(fail_key, 0)
+        if fail_count >= self.LOGIN_FAIL_LIMIT:
+            return Response({'code': 429, 'msg': '登录失败次数过多，请10分钟后重试'}, status=status.HTTP_200_OK)
+
+        if not self._captcha_valid(request):
+            cache.set(fail_key, fail_count + 1, timeout=self.LOGIN_FAIL_TTL_SECONDS)
+            return Response({'code': 400, 'msg': '验证码错误或已过期'}, status=status.HTTP_200_OK)
+
+        # 验证码一次性使用，避免重放。
+        uuid = str(request.data.get('uuid') or '').strip()
+        CaptchaStore.objects.filter(hashkey=uuid).delete()
+
+        serializer = self.get_serializer(
+            data={
+                'username': username,
+                'password': request.data.get('password')
+            }
+        )
         try:
             serializer.is_valid(raise_exception=True)
-        except Exception as e:
-            return Response({'msg': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({'token': serializer.validated_data.get('access')})
+        except (ValidationError, AuthenticationFailed, InvalidToken):
+            cache.set(fail_key, fail_count + 1, timeout=self.LOGIN_FAIL_TTL_SECONDS)
+            return Response({'code': 400, 'msg': '用户名或密码错误'}, status=status.HTTP_200_OK)
+        except Exception:
+            cache.set(fail_key, fail_count + 1, timeout=self.LOGIN_FAIL_TTL_SECONDS)
+            return Response({'code': 500, 'msg': '登录失败，请稍后重试'}, status=status.HTTP_200_OK)
+
+        cache.delete(fail_key)
+        access_token = serializer.validated_data.get('access')
+        refresh_token = serializer.validated_data.get('refresh')
+        return Response(
+            {
+                'code': 200,
+                'msg': '操作成功',
+                'token': access_token,
+                'refreshToken': refresh_token,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class GetInfoView(generics.GenericAPIView):
