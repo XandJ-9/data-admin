@@ -59,3 +59,88 @@ export function testDatasourceByBody(data) {
     data: data
   })
 }
+
+// 获取数据库列表
+export function listDatabases(data) {
+  return request({
+    url: '/datasource/collection/databases',
+    method: 'post',
+    data: data,
+    headers: {
+      repeatSubmit: false
+    }
+  })
+}
+
+// 获取数据源表列表
+export function listTables(data) {
+  return request({
+    url: '/datasource/collection/tables',
+    method: 'post',
+    data: data,
+    headers: {
+      repeatSubmit: false
+    },
+    timeout: 60000
+  })
+}
+
+// 获取表字段列表
+export function listColumns(data) {
+  return request({
+    url: '/datasource/collection/columns',
+    method: 'post',
+    data: data,
+    headers: {
+      repeatSubmit: false
+    }
+  })
+}
+
+// 同步整库采集
+export function collectMeta(data) {
+  return request({
+    url: '/datasource/collection/collect',
+    method: 'post',
+    data: data
+  })
+}
+
+// 单表采集
+export function collectMetaTable(data) {
+  return request({
+    url: '/datasource/collection/collect-table',
+    method: 'post',
+    data: data
+  })
+}
+
+// 异步整库采集
+export function collectMetaAsync(data) {
+  return request({
+    url: '/datasource/collection/collect-async',
+    method: 'post',
+    data: data
+  })
+}
+
+// 查询采集状态
+export function getCollectStatus(taskId) {
+  return request({
+    url: '/datasource/collection/collect-status',
+    method: 'get',
+    params: { taskId },
+    headers: {
+      repeatSubmit: false
+    }
+  })
+}
+
+// 取消采集
+export function cancelCollect(taskId) {
+  return request({
+    url: '/datasource/collection/collect-cancel',
+    method: 'post',
+    data: { taskId }
+  })
+}

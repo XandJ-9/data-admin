@@ -4,20 +4,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django.db import transaction
 from django.db.models import OuterRef, Prefetch, Q, Subquery
-from django.utils import timezone
 from apps.system.views.core import BaseViewSet
 from apps.system.common import audit_log
 from apps.system.permission import HasRolePermission
-from apps.dbutils import list_tables, get_table_schema, list_tables_info, get_databases
-
-from apps.datasource.models import DataSource
 from .models import (
     AssetNamespace,
     DataAsset,
     DataAssetColumn,
     MetaTable,
     MetaColumn,
-    MetaCollectionTask,
     TableLineage,
 )
 from .serializers import (
@@ -32,13 +27,10 @@ from .serializers import (
     DataAssetSerializer,
     MetaTableSerializer, MetaTableQuerySerializer,
     MetaColumnSerializer, MetaColumnQuerySerializer,
-    MetaCollectionTaskSerializer, MetaCollectionTaskCreateSerializer,
     TableLineageSerializer, TableLineageCreateSerializer, TableLineageUpdateSerializer,
     TableLineageQuerySerializer, TableLineageGraphSerializer
 )
-from .collectors import create_collection_task, start_collection_task, cancel_collection_task, get_task_status
 from .services import collect_table_metadata, sync_standard_asset_from_meta_table
-from .utils import sanitize_collection_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -647,288 +639,6 @@ class MetaColumnViewSet(BaseViewSet):
                 if meta_table:
                     sync_standard_asset_from_meta_table(meta_table, user=request.user)
         return response
-
-
-# ==================== MetadataCollection ViewSet ====================
-
-class MetadataCollectionViewSet(BaseViewSet):
-    """元数据采集接口"""
-    permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = MetaCollectionTask.objects.filter(del_flag='0').select_related('data_source').order_by('-create_time')
-    serializer_class = MetaCollectionTaskSerializer
-    lookup_field = 'id'
-
-    def _raise_if_task_cancelled(self, task):
-        task.refresh_from_db(fields=['status'])
-        if task.status == 'cancelled':
-            raise InterruptedError('采集任务已取消')
-
-    def _load_ds(self, ds_id):
-        try:
-            return DataSource.objects.get(pk=int(ds_id), del_flag='0')
-        except Exception:
-            return None
-
-    def _build_info(self, ds):
-        return {
-            'type': ds.db_type,
-            'host': ds.host,
-            'port': ds.port,
-            'username': ds.username,
-            'password': ds.password,
-            'database': ds.db_name,
-            'params': ds.params or {},
-        }
-
-    def _collect_table(self, info, ds_id, table):
-        user = getattr(getattr(self, 'request', None), 'user', None)
-        collect_table_metadata(info, ds_id, table, user=user)
-
-    @action(detail=False, methods=['post'], url_path='databases')
-    def databases(self, request):
-        """获取数据库列表"""
-        ds_id = request.data.get('dataSourceId')
-        if not ds_id:
-            return self.error('缺少参数 dataSourceId')
-        ds = self._load_ds(ds_id)
-        if not ds:
-            return self.not_found('数据源不存在')
-        info = self._build_info(ds)
-        try:
-            dbs = get_databases(info)
-            return self.raw_response({'data': dbs})
-        except Exception as e:
-            logger.exception('获取数据库列表失败: data_source_id=%s, error=%s', ds_id, e)
-            return self.error(sanitize_collection_error_message(e))
-
-    @action(detail=False, methods=['post'], url_path='tables')
-    def tables(self, request):
-        """获取数据源表列表"""
-        ds_id = request.data.get('dataSourceId')
-        dbname = request.data.get('databaseName')
-        if not ds_id:
-            return self.error('缺少参数 dataSourceId')
-        ds = self._load_ds(ds_id)
-        if not ds:
-            return self.not_found('数据源不存在')
-        info = self._build_info(ds)
-        if dbname:
-            info['database'] = dbname
-        try:
-            rows = list_tables_info(info)
-            return self.raw_response({'rows': rows, 'total': len(rows)})
-        except Exception as e:
-            logger.exception('获取表列表失败: data_source_id=%s, database=%s, error=%s', ds_id, dbname or '', e)
-            return self.error(sanitize_collection_error_message(e))
-
-    @action(detail=False, methods=['post'], url_path='columns')
-    def columns(self, request):
-        """获取表字段列表"""
-        ds_id = request.data.get('dataSourceId')
-        table = request.data.get('tableName')
-        dbname = request.data.get('databaseName')
-        if not ds_id or not table:
-            return self.error('缺少参数 dataSourceId 或 tableName')
-        ds = self._load_ds(ds_id)
-        if not ds:
-            return self.not_found('数据源不存在')
-        info = self._build_info(ds)
-        if dbname:
-            info['database'] = dbname
-        try:
-            cols = get_table_schema(info, table)
-            rows = [
-                {
-                    'order': c.get('order') or 0,
-                    'name': c.get('name'),
-                    'type': c.get('type') or '',
-                    'notnull': bool(c.get('notnull')),
-                    'default': str(c.get('default') or ''),
-                    'primary': bool(c.get('primary')),
-                    'comment': c.get('comment') or '',
-                }
-                for c in cols
-            ]
-            return self.raw_response({'rows': rows, 'total': len(rows)})
-        except Exception as e:
-            logger.exception(
-                '获取字段列表失败: data_source_id=%s, database=%s, table=%s, error=%s',
-                ds_id,
-                dbname or '',
-                table,
-                e,
-            )
-            return self.error(sanitize_collection_error_message(e))
-
-    @action(detail=False, methods=['post'], url_path='collect')
-    def collect(self, request):
-        """同步整库采集"""
-        ds_id = request.data.get('dataSourceId')
-        dbname = request.data.get('databaseName')
-        if not ds_id:
-            return self.error('缺少参数 dataSourceId')
-        ds = self._load_ds(ds_id)
-        if not ds:
-            return self.not_found('数据源不存在')
-        info = self._build_info(ds)
-        if dbname:
-            info['database'] = dbname
-        user = getattr(request, 'user', None)
-        task = create_collection_task(ds.id, dbname or '', user)
-        if not task:
-            return self.error('启动采集任务失败，该数据源可能已有任务在运行')
-        try:
-            tbls = list_tables(info)
-            updated = MetaCollectionTask.objects.filter(pk=task.pk, status='pending').update(
-                status='running',
-                started_at=timezone.now(),
-                total_tables=len(tbls),
-            )
-            task.refresh_from_db(fields=['status', 'started_at', 'total_tables'])
-            if not updated:
-                self._raise_if_task_cancelled(task)
-            for t in tbls:
-                self._raise_if_task_cancelled(task)
-                task.current_table = t
-                try:
-                    self._collect_table(info, ds.id, t)
-                    task.collected_tables += 1
-                except Exception as exc:
-                    logger.exception(
-                        '同步采集单表失败: data_source_id=%s, database=%s, table=%s, error=%s',
-                        ds.id,
-                        dbname or '',
-                        t,
-                        exc,
-                    )
-                    task.failed_tables += 1
-                    task.error_message = '部分表采集失败，请查看服务端日志'
-                self._raise_if_task_cancelled(task)
-                task.progress = int((task.collected_tables / len(tbls)) * 100) if tbls else 100
-                task.save(update_fields=['current_table', 'collected_tables', 'failed_tables', 'progress', 'error_message'])
-            task.refresh_from_db(fields=['status'])
-            if task.status != 'cancelled':
-                task.status = 'completed' if task.failed_tables == 0 else 'failed'
-                task.progress = 100
-            task.completed_at = timezone.now()
-            task.save(update_fields=['status', 'progress', 'completed_at'])
-            if task.failed_tables:
-                return self.error(f'采集完成，但有 {task.failed_tables} 张表失败')
-            return self.ok('采集完成')
-        except InterruptedError as e:
-            task.completed_at = timezone.now()
-            task.save(update_fields=['completed_at'])
-            return self.error(str(e))
-        except Exception as e:
-            task.refresh_from_db(fields=['status'])
-            if task.status != 'cancelled':
-                task.status = 'failed'
-                task.error_message = '采集失败，请查看服务端日志'
-            task.completed_at = timezone.now()
-            task.save(update_fields=['status', 'error_message', 'completed_at'])
-            logger.exception('同步整库采集失败: data_source_id=%s, database=%s, error=%s', ds.id, dbname or '', e)
-            return self.error(sanitize_collection_error_message(e))
-
-    @action(detail=False, methods=['post'], url_path='collect-table')
-    def collect_table(self, request):
-        """单表采集"""
-        ds_id = request.data.get('dataSourceId')
-        dbname = request.data.get('databaseName')
-        table = request.data.get('tableName')
-        if not ds_id or not table:
-            return self.error('缺少参数 dataSourceId 或 tableName')
-        ds = self._load_ds(ds_id)
-        if not ds:
-            return self.not_found('数据源不存在')
-        info = self._build_info(ds)
-        if dbname:
-            info['database'] = dbname
-        user = getattr(request, 'user', None)
-        task = create_collection_task(ds.id, dbname or '', user)
-        if not task:
-            return self.error('启动采集任务失败，该数据源可能已有任务在运行')
-        try:
-            updated = MetaCollectionTask.objects.filter(pk=task.pk, status='pending').update(
-                status='running',
-                started_at=timezone.now(),
-                total_tables=1,
-                current_table=table,
-            )
-            task.refresh_from_db(fields=['status', 'started_at', 'total_tables', 'current_table'])
-            if not updated:
-                self._raise_if_task_cancelled(task)
-            self._raise_if_task_cancelled(task)
-            self._collect_table(info, ds.id, table)
-            self._raise_if_task_cancelled(task)
-            task.refresh_from_db(fields=['status'])
-            if task.status != 'cancelled':
-                task.status = 'completed'
-                task.collected_tables = 1
-                task.progress = 100
-            task.completed_at = timezone.now()
-            task.save(update_fields=['status', 'collected_tables', 'progress', 'completed_at'])
-            return self.ok('采集完成')
-        except InterruptedError as e:
-            task.completed_at = timezone.now()
-            task.save(update_fields=['completed_at'])
-            return self.error(str(e))
-        except Exception as e:
-            task.refresh_from_db(fields=['status'])
-            if task.status != 'cancelled':
-                task.status = 'failed'
-                task.error_message = '采集失败，请查看服务端日志'
-            task.completed_at = timezone.now()
-            task.save(update_fields=['status', 'error_message', 'completed_at'])
-            logger.exception(
-                '同步单表采集失败: data_source_id=%s, database=%s, table=%s, error=%s',
-                ds.id,
-                dbname or '',
-                table,
-                e,
-            )
-            return self.error(sanitize_collection_error_message(e))
-
-    @action(detail=False, methods=['post'], url_path='collect-async')
-    def collect_async(self, request):
-        """异步整库采集"""
-        ds_id = request.data.get('dataSourceId')
-        dbname = request.data.get('databaseName')
-        if not ds_id:
-            return self.error('缺少参数 dataSourceId')
-        ds = self._load_ds(ds_id)
-        if not ds:
-            return self.not_found('数据源不存在')
-        user = getattr(request, 'user', None)
-        task = start_collection_task(ds_id, dbname or '', user)
-        if not task:
-            return self.error('启动采集任务失败，该数据源可能已有任务在运行')
-        return self.data({
-            'taskId': task.task_id,
-            'message': '采集任务已启动'
-        }, msg='任务已启动')
-
-    @action(detail=False, methods=['get'], url_path='collect-status')
-    def collect_status(self, request):
-        """查询采集任务状态"""
-        task_id = request.query_params.get('taskId')
-        if not task_id:
-            return self.error('缺少参数 taskId')
-        status = get_task_status(task_id)
-        if not status:
-            return self.not_found('任务不存在')
-        return self.data(status)
-
-    @action(detail=False, methods=['post'], url_path='collect-cancel')
-    def collect_cancel(self, request):
-        """取消采集任务"""
-        task_id = request.data.get('taskId')
-        if not task_id:
-            return self.error('缺少参数 taskId')
-        success = cancel_collection_task(task_id)
-        if not success:
-            return self.error('任务不存在或未在运行')
-        return self.ok('任务已取消')
-
 
 # ==================== TableLineage ViewSet ====================
 

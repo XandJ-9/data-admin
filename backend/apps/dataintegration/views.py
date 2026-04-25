@@ -1,22 +1,14 @@
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
-from django.db import transaction
-from django.db.models import Q
 
-from apps.dataasset.models import DataAsset
-from apps.datasource.models import DataSource
-from apps.executors.base import ExecutorFactory
+from apps.common.pagination import StandardPagination
+from apps.datasource.models import SourceTableSnapshot
 from apps.system.permission import HasRolePermission
 from apps.system.views.core import BaseViewSet
-from apps.common.pagination import StandardPagination
-from apps.datatask.models import Task, TaskDependency, TaskInstance
-from apps.datatask.services import TaskService
 
-from .models import DataIntegrationTask
+from .models import DataIntegrationExecutionLog, DataIntegrationTask
 from .serializers import (
-    DataIntegrationExecutionDetailSerializer,
     DataIntegrationExecutionLogQuerySerializer,
     DataIntegrationExecutionLogSerializer,
     DataIntegrationTaskCreateSerializer,
@@ -24,7 +16,10 @@ from .serializers import (
     DataIntegrationTaskSerializer,
     DataIntegrationTaskUpdateSerializer,
     DataIntegrationTaskValidateSerializer,
+    SourceTableOptionSerializer,
+    SourceTableQuerySerializer,
 )
+from .services import execute_integration_task, validate_task_configuration
 
 
 class DataIntegrationTaskViewSet(BaseViewSet):
@@ -32,238 +27,209 @@ class DataIntegrationTaskViewSet(BaseViewSet):
     queryset = DataIntegrationTask.objects.select_related(
         'source_datasource',
         'target_datasource',
-        'source_asset',
+        'source_table_snapshot',
     ).all()
     serializer_class = DataIntegrationTaskSerializer
     pagination_class = StandardPagination
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        queryset = super().get_queryset()
         serializer = DataIntegrationTaskQuerySerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=False)
         validated_data = getattr(serializer, 'validated_data', {})
         if validated_data.get('taskName'):
-            qs = qs.filter(task_name__icontains=validated_data['taskName'])
+            queryset = queryset.filter(task_name__icontains=validated_data['taskName'])
         if validated_data.get('status'):
-            qs = qs.filter(status=validated_data['status'])
+            queryset = queryset.filter(status=validated_data['status'])
         if validated_data.get('executorType'):
-            qs = qs.filter(executor_type=validated_data['executorType'])
+            queryset = queryset.filter(executor_type=validated_data['executorType'])
         if validated_data.get('sourceDataSourceId'):
-            qs = qs.filter(source_datasource_id=validated_data['sourceDataSourceId'])
+            queryset = queryset.filter(source_datasource_id=validated_data['sourceDataSourceId'])
         if validated_data.get('targetDataSourceId'):
-            qs = qs.filter(target_datasource_id=validated_data['targetDataSourceId'])
-        return qs.order_by('-update_time', '-id')
+            queryset = queryset.filter(target_datasource_id=validated_data['targetDataSourceId'])
+        return queryset.order_by('-update_time', '-id')
+
+    def _get_source_table(self, source_table_id):
+        if not source_table_id:
+            return None
+        return SourceTableSnapshot.objects.filter(id=source_table_id, del_flag='0').first()
 
     def create(self, request, *args, **kwargs):
         serializer = DataIntegrationTaskCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
         username = getattr(request.user, 'username', '')
-
-        source_asset = self._get_source_asset(validated_data.get('sourceAssetId'))
-        with transaction.atomic():
-            task = DataIntegrationTask.objects.create(
-                task_name=validated_data['taskName'],
-                task_code=validated_data['taskCode'],
-                source_datasource_id=validated_data['sourceDataSourceId'],
-                target_datasource_id=validated_data['targetDataSourceId'],
-                source_asset=source_asset,
-                target_schema_name=validated_data.get('targetSchemaName', ''),
-                target_table_name=validated_data['targetTableName'],
-                load_type=validated_data['loadType'],
-                write_mode=validated_data['writeMode'],
-                executor_type=validated_data['executorType'],
-                schedule_type=validated_data['scheduleType'],
-                cron_expression=validated_data.get('cronExpression', ''),
-                owner=validated_data.get('owner', ''),
-                task_config=validated_data.get('taskConfig', {}),
-                remark=validated_data.get('remark', ''),
-                create_by=username,
-                update_by=username,
-            )
-            self._sync_platform_task(task, username=username)
-        return self.data(
-            DataIntegrationTaskSerializer(task).data,
-            msg='创建成功',
+        source_table = self._get_source_table(validated_data.get('sourceTableId'))
+        task = DataIntegrationTask.objects.create(
+            task_name=validated_data['taskName'],
+            task_code=validated_data['taskCode'],
+            source_datasource_id=validated_data['sourceDataSourceId'],
+            target_datasource_id=validated_data['targetDataSourceId'],
+            source_table_snapshot=source_table,
+            source_database_name=getattr(source_table, 'database_name', '') if source_table else '',
+            source_table_name=getattr(source_table, 'table_name', '') if source_table else '',
+            target_schema_name=validated_data.get('targetSchemaName', ''),
+            target_table_name=validated_data['targetTableName'],
+            load_type=validated_data['loadType'],
+            write_mode=validated_data['writeMode'],
+            executor_type=validated_data['executorType'],
+            status='active',
+            schedule_type=validated_data['scheduleType'],
+            cron_expression=validated_data.get('cronExpression', ''),
+            owner=validated_data.get('owner', ''),
+            task_config=validated_data.get('taskConfig', {}),
+            remark=validated_data.get('remark', ''),
+            create_by=username,
+            update_by=username,
         )
+        task = self.get_queryset().get(pk=task.pk)
+        return self.data(DataIntegrationTaskSerializer(task).data, msg='创建成功')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.del_flag = '1'
+        instance.update_by = getattr(request.user, 'username', '')
+        instance.save(update_fields=['del_flag', 'update_by', 'update_time'])
+        return self.ok(msg='删除成功')
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = DataIntegrationTaskUpdateSerializer(data=request.data, context={'instance': instance})
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
+        source_table = self._get_source_table(validated_data['sourceTableId']) if 'sourceTableId' in validated_data else instance.source_table_snapshot
+        if 'taskName' in validated_data:
+            instance.task_name = validated_data['taskName']
+        if 'sourceDataSourceId' in validated_data:
+            instance.source_datasource_id = validated_data['sourceDataSourceId']
+        if 'targetDataSourceId' in validated_data:
+            instance.target_datasource_id = validated_data['targetDataSourceId']
+        if 'sourceTableId' in validated_data:
+            instance.source_table_snapshot = source_table
+            instance.source_database_name = getattr(source_table, 'database_name', '') if source_table else ''
+            instance.source_table_name = getattr(source_table, 'table_name', '') if source_table else ''
+        if 'targetSchemaName' in validated_data:
+            instance.target_schema_name = validated_data['targetSchemaName']
+        if 'targetTableName' in validated_data:
+            instance.target_table_name = validated_data['targetTableName']
+        if 'loadType' in validated_data:
+            instance.load_type = validated_data['loadType']
+        if 'writeMode' in validated_data:
+            instance.write_mode = validated_data['writeMode']
+        if 'executorType' in validated_data:
+            instance.executor_type = validated_data['executorType']
+        if 'status' in validated_data:
+            instance.status = validated_data['status']
+        if 'scheduleType' in validated_data:
+            instance.schedule_type = validated_data['scheduleType']
+        if 'cronExpression' in validated_data:
+            instance.cron_expression = validated_data['cronExpression']
+        if 'owner' in validated_data:
+            instance.owner = validated_data['owner']
+        if 'taskConfig' in validated_data:
+            instance.task_config = validated_data['taskConfig']
+        if 'remark' in validated_data:
+            instance.remark = validated_data['remark']
+        instance.update_by = getattr(request.user, 'username', '')
+        instance.save()
+        instance = self.get_queryset().get(pk=instance.pk)
+        return self.data(DataIntegrationTaskSerializer(instance).data, msg='更新成功')
 
-        with transaction.atomic():
-            if 'taskName' in validated_data:
-                instance.task_name = validated_data['taskName']
-            if 'sourceDataSourceId' in validated_data:
-                instance.source_datasource_id = validated_data['sourceDataSourceId']
-            if 'targetDataSourceId' in validated_data:
-                instance.target_datasource_id = validated_data['targetDataSourceId']
-            if 'sourceAssetId' in validated_data:
-                instance.source_asset = self._get_source_asset(validated_data.get('sourceAssetId'))
-            if 'targetSchemaName' in validated_data:
-                instance.target_schema_name = validated_data['targetSchemaName']
-            if 'targetTableName' in validated_data:
-                instance.target_table_name = validated_data['targetTableName']
-            if 'loadType' in validated_data:
-                instance.load_type = validated_data['loadType']
-            if 'writeMode' in validated_data:
-                instance.write_mode = validated_data['writeMode']
-            if 'executorType' in validated_data:
-                instance.executor_type = validated_data['executorType']
-            if 'status' in validated_data:
-                instance.status = validated_data['status']
-            if 'scheduleType' in validated_data:
-                instance.schedule_type = validated_data['scheduleType']
-            if 'cronExpression' in validated_data:
-                instance.cron_expression = validated_data['cronExpression']
-            if 'owner' in validated_data:
-                instance.owner = validated_data['owner']
-            if 'taskConfig' in validated_data:
-                instance.task_config = validated_data['taskConfig']
-            if 'remark' in validated_data:
-                instance.remark = validated_data['remark']
-            instance.update_by = getattr(request.user, 'username', '')
-            instance.save()
-            self._sync_platform_task(instance, username=instance.update_by)
-        return self.data(
-            DataIntegrationTaskSerializer(instance).data,
-            msg='更新成功',
-        )
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        username = getattr(request.user, 'username', '')
-        affected_downstream_ids = []
-        with transaction.atomic():
-            instance.del_flag = '1'
-            instance.update_by = username
-            instance.save(update_fields=['del_flag', 'update_by'])
-
-            platform_task = Task.objects.filter(
-                source_module='dataintegration.task',
-                source_record_id=instance.id,
-                del_flag='0',
-            ).first()
-            if platform_task is not None:
-                related_dependencies = TaskDependency.objects.filter(
-                    del_flag='0',
-                ).filter(
-                    Q(upstream_task=platform_task) | Q(downstream_task=platform_task)
-                )
-                for dependency in related_dependencies:
-                    if dependency.upstream_task_id == platform_task.id:
-                        affected_downstream_ids.append(dependency.downstream_task_id)
-                    dependency.del_flag = '1'
-                    dependency.update_by = username
-                    dependency.save(update_fields=['del_flag', 'update_by'])
-                platform_task.del_flag = '1'
-                platform_task.update_by = username
-                platform_task.save(update_fields=['del_flag', 'update_by'])
-
-            for downstream_task_id in set(affected_downstream_ids):
-                TaskService.sync_dependency_schedule_type(downstream_task_id)
-        return self.ok(msg='删除成功')
+    @action(detail=False, methods=['get'], url_path='source-tables')
+    def source_tables(self, request):
+        serializer = SourceTableQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        queryset = SourceTableSnapshot.objects.filter(
+            data_source_id=serializer.validated_data['sourceDataSourceId'],
+            del_flag='0',
+        ).order_by('database_name', 'table_name')
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serialized = SourceTableOptionSerializer(page, many=True)
+            return self.get_paginated_response(serialized.data)
+        serialized = SourceTableOptionSerializer(queryset, many=True)
+        return self.raw_response({'code': 200, 'msg': '操作成功', 'rows': serialized.data, 'total': len(serialized.data)})
 
     @action(detail=False, methods=['post'], url_path='validate')
     def validate_task(self, request):
         serializer = DataIntegrationTaskValidateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            first_error = next(iter(serializer.errors.values()))
+            message = first_error[0] if isinstance(first_error, list) and first_error else first_error
+            return Response({'code': 400, 'msg': str(message)}, status=400)
         validated_data = serializer.validated_data
-        errors = []
-        if validated_data['sourceDataSourceId'] == validated_data['targetDataSourceId']:
-            errors.append('源数据源和目标数据源不能相同')
-        if validated_data['scheduleType'] == 'cron' and not validated_data.get('cronExpression'):
-            errors.append('定时调度模式必须配置 Cron 表达式')
-        if not errors:
-            source_asset = self._get_source_asset(validated_data.get('sourceAssetId'))
-            draft_task = DataIntegrationTask(
-                task_name=validated_data['taskName'],
-                task_code=validated_data['taskCode'],
-                source_datasource_id=validated_data['sourceDataSourceId'],
-                target_datasource_id=validated_data['targetDataSourceId'],
-                source_asset=source_asset,
-                target_schema_name=validated_data.get('targetSchemaName', ''),
-                target_table_name=validated_data['targetTableName'],
-                load_type=validated_data['loadType'],
-                write_mode=validated_data['writeMode'],
-                executor_type=validated_data['executorType'],
-                schedule_type=validated_data['scheduleType'],
-                cron_expression=validated_data.get('cronExpression', ''),
-                owner=validated_data.get('owner', ''),
-                task_config=validated_data.get('taskConfig', {}),
-                remark=validated_data.get('remark', ''),
-            )
-            draft_task.source_datasource = DataSource.objects.get(id=validated_data['sourceDataSourceId'], del_flag='0')
-            draft_task.target_datasource = DataSource.objects.get(id=validated_data['targetDataSourceId'], del_flag='0')
-            try:
-                executor = ExecutorFactory.create_executor(validated_data['executorType'], draft_task)
-                is_valid, validate_message = executor.validate()
-                if not is_valid:
-                    errors.append(validate_message)
-            except Exception as exc:
-                errors.append(str(exc))
-        if errors:
-            return self.error(msg='；'.join(errors))
+        source_table = self._get_source_table(validated_data.get('sourceTableId'))
+        task = DataIntegrationTask(
+            task_name=validated_data['taskName'],
+            task_code=validated_data['taskCode'],
+            source_datasource_id=validated_data['sourceDataSourceId'],
+            target_datasource_id=validated_data['targetDataSourceId'],
+            source_table_snapshot=source_table,
+            source_database_name=getattr(source_table, 'database_name', '') if source_table else '',
+            source_table_name=getattr(source_table, 'table_name', '') if source_table else '',
+            target_schema_name=validated_data.get('targetSchemaName', ''),
+            target_table_name=validated_data['targetTableName'],
+            load_type=validated_data['loadType'],
+            write_mode=validated_data['writeMode'],
+            executor_type=validated_data['executorType'],
+            schedule_type=validated_data['scheduleType'],
+            cron_expression=validated_data.get('cronExpression', ''),
+            task_config=validated_data.get('taskConfig', {}),
+            owner=validated_data.get('owner', ''),
+            remark=validated_data.get('remark', ''),
+        )
+        task.source_datasource = task.source_datasource
+        task.target_datasource = task.target_datasource
+        task.source_table_snapshot = source_table
+        is_valid, error_message = validate_task_configuration(task)
+        if not is_valid:
+            return Response({'code': 400, 'msg': error_message}, status=400)
         return self.ok(msg='校验通过')
 
     @action(detail=True, methods=['post'], url_path='execute')
     def execute_task(self, request, pk=None):
-        integration_task = self.get_object()
+        task = self.get_object()
         username = getattr(request.user, 'username', '')
-        result = TaskService.execute_integration_task(integration_task, username=username)
-        if result['ok']:
-            return self.data(result['data'], msg=result['msg'])
-        return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
+        execution_log = execute_integration_task(task, username)
+        if execution_log.status == 'failed':
+            return self.data(DataIntegrationExecutionLogSerializer(execution_log).data, msg='执行失败')
+        return self.data(DataIntegrationExecutionLogSerializer(execution_log).data, msg='执行成功')
 
     @action(detail=True, methods=['get'], url_path='executions')
     def executions(self, request, pk=None):
-        integration_task = self.get_object()
-        queryset = TaskInstance.objects.select_related('task').filter(
-            task__source_module='dataintegration.task',
-            task__source_record_id=integration_task.id,
-        )
+        task = self.get_object()
+        queryset = DataIntegrationExecutionLog.objects.filter(task=task, del_flag='0').order_by('-create_time', '-id')
         page = self.paginate_queryset(queryset)
+        serializer = DataIntegrationExecutionLogSerializer(page if page is not None else queryset, many=True)
         if page is not None:
-            serializer = DataIntegrationExecutionLogSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-        serializer = DataIntegrationExecutionLogSerializer(queryset, many=True)
-        return self.data(serializer.data)
-
-    def _get_source_asset(self, source_asset_id):
-        if source_asset_id in (None, ''):
-            return None
-        source_asset = DataAsset.objects.filter(id=source_asset_id, del_flag='0').first()
-        if source_asset is None:
-            raise DRFValidationError({'sourceAssetId': '源资产不存在'})
-        return source_asset
-
-    def _sync_platform_task(self, integration_task, username=''):
-        return TaskService.sync_integration_source_task(integration_task, username=username)
-
+        return self.raw_response({'code': 200, 'msg': '操作成功', 'rows': serializer.data, 'total': len(serializer.data)})
 
 
 class IntegrationExecutionLogViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = TaskInstance.objects.select_related('task').filter(task__source_module='dataintegration.task')
+    queryset = DataIntegrationExecutionLog.objects.select_related('task').all()
     serializer_class = DataIntegrationExecutionLogSerializer
     pagination_class = StandardPagination
-    http_method_names = ['get']
 
     def get_queryset(self):
-        queryset = super().get_queryset().filter(task__source_module='dataintegration.task')
+        queryset = super().get_queryset()
         serializer = DataIntegrationExecutionLogQuerySerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=False)
         validated_data = getattr(serializer, 'validated_data', {})
         if validated_data.get('taskId'):
-            queryset = queryset.filter(task__source_record_id=validated_data['taskId'])
+            queryset = queryset.filter(task_id=validated_data['taskId'])
         if validated_data.get('status'):
             queryset = queryset.filter(status=validated_data['status'])
-        return queryset.order_by('-create_time')
+        return queryset.order_by('-create_time', '-id')
 
     @action(detail=True, methods=['get'], url_path='detail')
-    def execution_detail(self, request, pk=None):
-        instance = self.get_object()
-        serializer = DataIntegrationExecutionDetailSerializer(instance)
-        return self.data(serializer.data)
+    def detail(self, request, pk=None):
+        instance = DataIntegrationExecutionLog.objects.filter(pk=pk, del_flag='0').first()
+        if instance is None:
+            return self.not_found('执行记录不存在')
+        return self.raw_response({
+            'code': 200,
+            'msg': '操作成功',
+            'data': DataIntegrationExecutionLogSerializer(instance).data,
+        })

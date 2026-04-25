@@ -57,6 +57,35 @@ pnpm dev
 - API 文档：`http://localhost:8000/api/docs/`
 - 默认账号：`admin` / `admin123`
 
+## 模块重建前检查
+
+当准备按 `ADR-011` 重做一个新模块时，先运行项目内置扫描器检查旧实现：
+
+```bash
+python scripts/module_rebuild_guard.py <模块名> --stage <connection|integration|development|orchestration|assetization> --fail-on-hits
+```
+
+示例：
+
+```bash
+python scripts/module_rebuild_guard.py your_module --stage development --keyword 模块中文名 --keyword 领域关键词
+```
+
+脚本默认会扫描 `backend/`、`frontend/src/`、`docs/`、`scripts/`、`deploy/` 以及根目录说明文件，尽量把后端实现、前端入口、菜单/路由、测试、脚本和文档中的旧表达一次性捞出来。
+
+如果确认某些旧路径就是待替换实现，再显式删除：
+
+```bash
+python scripts/module_rebuild_guard.py your_module \
+  --stage development \
+  --delete backend/apps/your_module \
+  --delete frontend/src/views/data/your_module \
+  --delete frontend/src/api/data/your_module.js \
+  --yes
+```
+
+> 默认流程：**先扫描、再判边界、后清场、再重建**。
+
 ## 项目结构
 
 ```

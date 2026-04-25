@@ -7,7 +7,6 @@ from .views import (
     DataAssetViewSet,
     MetaTableViewSet,
     MetaColumnViewSet,
-    MetadataCollectionViewSet,
     TableLineageViewSet
 )
 
@@ -17,7 +16,6 @@ router.register(r'asset', DataAssetViewSet, basename='dataasset-asset')
 router.register(r'asset-column', DataAssetColumnViewSet, basename='dataasset-asset-column')
 router.register(r'meta-table', MetaTableViewSet, basename='dataasset-meta-table')
 router.register(r'meta-column', MetaColumnViewSet, basename='dataasset-meta-column')
-router.register(r'collection', MetadataCollectionViewSet, basename='dataasset-collection')
 router.register(r'lineage', TableLineageViewSet, basename='dataasset-lineage')
 
 urlpatterns = [

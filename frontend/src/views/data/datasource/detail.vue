@@ -204,8 +204,16 @@
 
 <script setup name="DataSourceDetail">
 import { useRoute, useRouter } from 'vue-router'
-import { getDatasource } from '@/api/data/datasource'
-import { listDatabases, listTables, listColumns, collectMetaAsync, getCollectStatus, cancelCollect, collectMetaTable } from '@/api/data/asset'
+import {
+  cancelCollect,
+  collectMetaAsync,
+  collectMetaTable,
+  getCollectStatus,
+  getDatasource,
+  listColumns,
+  listDatabases,
+  listTables
+} from '@/api/data/datasource'
 
 const route = useRoute()
 const router = useRouter()
@@ -525,7 +533,7 @@ function backToDatabases() {
 
 // 返回数据源列表
 function goBack() {
-  router.push({ name: 'DataSource' })
+  router.push({ name: 'DataSourceManage' })
 }
 
 // 获取数据库类型标签颜色

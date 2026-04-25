@@ -1,5 +1,108 @@
 # 创建新模块指南
 
+## 0. 开发前置检查（必须先做）
+
+在创建任何新模块前，先把 `docs/adr/ADR-011-平台五阶段职责划分规范.md` 当作唯一边界依据，按下面流程执行：
+
+### 0.1 先判断模块属于哪个阶段
+
+必须先回答：
+
+1. 该模块属于 5 个阶段中的哪一个主阶段？
+2. 它的上游输入和下游交付物是什么？
+3. 是否侵入了其他阶段的核心职责？
+
+如果这 3 个问题答不清，先不要开始建模块。
+
+### 0.2 先全局检查是否已有旧实现
+
+新模块开发前，必须在当前项目内同时检查以下位置是否已有同职责旧代码：
+
+- `backend/apps/`
+- `frontend/src/api/`
+- `frontend/src/views/`
+- 菜单、路由、页面入口
+- `docs/requirements/`、`docs/changelog.md`、相关 ADR / 需求文档
+- 测试文件与兼容入口
+
+推荐先用关键词搜索“模块名 + 核心职责 + 历史命名”，而不是只看目录名，避免漏掉改名后的旧实现。
+
+### 0.3 发现旧实现时，先做替换清单
+
+如果项目中已存在同职责或近似职责的旧实现，先整理清楚以下内容：
+
+1. 哪些后端模型、接口、执行器、注册逻辑会被替换。
+2. 哪些前端 API、页面、菜单、跳转入口会被替换。
+3. 哪些测试、文档、菜单数据、兼容路由需要同步删除或迁移。
+4. 旧实现是“同阶段旧版本”，还是“历史阶段错位实现”。
+
+### 0.4 默认执行“先删后建”
+
+确认旧实现属于当前模块要替换的职责范围后，默认按以下原则处理：
+
+1. **先删除旧实现，再开始新实现**。
+2. **不要在旧代码旁边追加第二套新代码**。
+3. **不要长期保留同一职责的双入口、双页面、双接口、双模型表达**。
+
+只有在迁移窗口确实需要兼容时，才允许短期保留兼容层；但必须显式标注“真实归属、暂留原因、计划收敛点”。
+
+### 0.5 推荐直接使用项目扫描脚本
+
+项目根目录已提供 `scripts/module_rebuild_guard.py`，可在真正创建模块前先扫描旧实现：
+
+```bash
+python scripts/module_rebuild_guard.py <模块名> --stage <connection|integration|development|orchestration|assetization> --fail-on-hits
+```
+
+例如：
+
+```bash
+python scripts/module_rebuild_guard.py your_module --stage development --keyword 模块中文名 --keyword 领域关键词
+```
+
+脚本默认会覆盖 `backend/`、`frontend/src/`、`docs/`、`scripts/`、`deploy/` 和根目录说明文件，优先帮助你发现旧页面入口、路由、菜单、测试、兼容脚本与文档残留。
+
+确认要清场的旧路径后，再显式删除：
+
+```bash
+python scripts/module_rebuild_guard.py your_module \
+  --stage development \
+  --delete backend/apps/your_module \
+  --delete frontend/src/views/data/your_module \
+  --delete frontend/src/api/data/your_module.js \
+  --yes
+```
+
+默认要求是：**删除完成后重新执行一次扫描，直到不再出现同职责旧实现候选，再开始真正的新模块开发。**
+
+### 0.6 开工前先确定分支与交付粒度
+
+开始动手前，还必须先明确这次开发如何交付：
+
+1. **一个分支只做一个主目标**
+   - 不要在同一分支内同时塞“模块重构 + 页面优化 + 菜单调整 + 顺手修 bug”
+   - 如果需求横跨多个模块，先拆成多个可独立合并的分支
+
+2. **优先使用短生命周期分支**
+   - 推荐：`创建分支 → 开发 → 自测 → 提交 PR / 合并 → 删除分支`
+   - 不要长期挂着一个“总重构分支”持续叠加所有后续任务
+
+3. **分支命名要直接表达目标**
+   - 新功能：`feat/<topic>`
+   - 缺陷修复：`fix/<topic>`
+   - 模块重构：`refactor/<module>`
+   - 文档整理：`docs/<topic>`
+   - 紧急修复：`hotfix/<topic>`
+
+4. **提交与 PR 必须按“可验证单元”拆分**
+   - 一个 commit 只表达一件事
+   - 一个 PR 只交付一个可验收闭环
+   - 大模块重建应拆成多个 PR，例如“恢复模块”“接回路由”“收敛菜单入口”分别提交
+
+5. **合并前同步文档**
+   - 分支准备合并前，必须同步更新 `docs/requirements/active_tasks.md` 与 `docs/changelog.md`
+   - 若改动会影响长期协作方式，还要同步更新 `CLAUDE.md` 或相关开发规范
+
 ## 后端模块
 
 ### 1. 创建 Django 应用
@@ -168,6 +271,12 @@ export function delMyModel(id) {
 
 ## 验证清单
 
+- [ ] 已按 ADR-011 明确模块所属阶段、上游输入、下游交付物
+- [ ] 已全局检查当前项目是否存在同职责旧实现
+- [ ] 若存在旧实现，已先整理替换范围并删除旧代码，再开始重建
+- [ ] 若保留兼容层，已明确真实归属、暂留原因与后续收敛方向
+- [ ] 已先确定本轮使用的分支、交付范围与 PR 拆分方式
+- [ ] 当前分支只承载一个主目标，没有混入无关改动
 - [ ] 模型继承 `BaseModel`，设置 `db_table` 和 `indexes`
 - [ ] 序列化器继承 `BaseModelSerializer`
 - [ ] 视图集继承 `BaseViewSet`，设置权限类
@@ -176,3 +285,4 @@ export function delMyModel(id) {
 - [ ] 数据库迁移已执行
 - [ ] 前端 API 文件已创建
 - [ ] 菜单已通过 UI 添加
+- [ ] 合并前已同步更新 `docs/requirements/active_tasks.md` 与 `docs/changelog.md`

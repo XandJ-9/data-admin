@@ -106,16 +106,16 @@
 - `GET /data-api/dataasset/asset-column`
 - `GET /data-api/dataasset/asset-column/{id}`
 
-### 元数据采集
+### 源数据探查与采集（由数据源管理模块承载）
 
-- `POST /data-api/dataasset/collection/databases`
-- `POST /data-api/dataasset/collection/tables`
-- `POST /data-api/dataasset/collection/columns`
-- `POST /data-api/dataasset/collection/collect`
-- `POST /data-api/dataasset/collection/collect-table`
-- `POST /data-api/dataasset/collection/collect-async`
-- `GET /data-api/dataasset/collection/collect-status`
-- `POST /data-api/dataasset/collection/collect-cancel`
+- `POST /data-api/datasource/collection/databases`
+- `POST /data-api/datasource/collection/tables`
+- `POST /data-api/datasource/collection/columns`
+- `POST /data-api/datasource/collection/collect`
+- `POST /data-api/datasource/collection/collect-table`
+- `POST /data-api/datasource/collection/collect-async`
+- `GET /data-api/datasource/collection/collect-status`
+- `POST /data-api/datasource/collection/collect-cancel`
 
 ### 表级血缘
 

@@ -5,7 +5,6 @@ from .models import (
     DataAssetColumn,
     MetaTable,
     MetaColumn,
-    MetaCollectionTask,
     TableLineage,
 )
 
@@ -43,16 +42,6 @@ class MetaColumnAdmin(admin.ModelAdmin):
     list_display = ['id', 'table', 'name', 'type', 'order', 'primary', 'del_flag']
     search_fields = ['name', 'type']
     list_filter = ['table__data_source', 'primary', 'del_flag']
-
-
-@admin.register(MetaCollectionTask)
-class MetaCollectionTaskAdmin(admin.ModelAdmin):
-    list_display = [
-        'id', 'task_id', 'data_source', 'status', 'scope_level', 'run_mode',
-        'progress', 'total_tables', 'collected_tables'
-    ]
-    search_fields = ['task_id']
-    list_filter = ['status', 'data_source', 'scope_level', 'run_mode']
 
 
 @admin.register(TableLineage)

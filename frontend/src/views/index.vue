@@ -14,8 +14,8 @@
         <el-card shadow="hover" class="stat-card card-table">
           <div class="stat-icon"><el-icon :size="32"><Grid /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.tableTotal ?? '-' }}</div>
-            <div class="stat-label">元数据表</div>
+            <div class="stat-value">{{ stats.connectedTotal ?? '-' }}</div>
+            <div class="stat-label">已连通数据源</div>
           </div>
         </el-card>
       </el-col>
@@ -23,8 +23,8 @@
         <el-card shadow="hover" class="stat-card card-col">
           <div class="stat-icon"><el-icon :size="32"><List /></el-icon></div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.columnTotal ?? '-' }}</div>
-            <div class="stat-label">元数据字段</div>
+            <div class="stat-value">{{ stats.pendingTotal ?? '-' }}</div>
+            <div class="stat-label">待处理连接</div>
           </div>
         </el-card>
       </el-col>
@@ -41,10 +41,10 @@
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>各数据源资产概览</span>
+              <span>连接状态分布</span>
             </div>
           </template>
-          <div ref="assetDistChartRef" class="chart-container"></div>
+          <div ref="connectivityChartRef" class="chart-container"></div>
         </el-card>
       </el-col>
     </el-row>
@@ -54,28 +54,24 @@
 <script setup name="Index">
 import { Connection, Grid, List } from '@element-plus/icons-vue'
 import { listDatasource } from '@/api/data/datasource'
-import { listMetaTables, listMetaColumns } from '@/api/data/asset'
 import * as echarts from 'echarts'
 
 const stats = ref({})
 const dsList = ref([])
 
 const dsTypeChartRef = ref(null)
-const assetDistChartRef = ref(null)
+const connectivityChartRef = ref(null)
 
 let dsTypeChart = null
-let assetDistChart = null
+let connectivityChart = null
 
 function loadStats() {
-  const p1 = listDatasource({ pageNum: 1, pageSize: 1 })
-  const p2 = listMetaTables({ pageNum: 1, pageSize: 1 })
-  const p3 = listMetaColumns({ pageNum: 1, pageSize: 1 })
-
-  Promise.all([p1, p2, p3]).then(([r1, r2, r3]) => {
+  listDatasource({ pageNum: 1, pageSize: 1000 }).then(response => {
+    const rows = response.rows || []
     stats.value = {
-      dsTotal: r1.total ?? 0,
-      tableTotal: r2.total ?? 0,
-      columnTotal: r3.total ?? 0,
+      dsTotal: rows.length,
+      connectedTotal: rows.filter(item => item.connectivityStatus === 'success').length,
+      pendingTotal: rows.filter(item => item.connectivityStatus !== 'success').length,
     }
   })
 }
@@ -85,22 +81,8 @@ function loadDatasources() {
     dsList.value = res.rows || []
     nextTick(() => {
       renderDsTypeChart()
-      loadAssetDist()
+      renderConnectivityChart()
     })
-  })
-}
-
-function loadAssetDist() {
-  if (!dsList.value.length) return
-  const reqs = dsList.value.map(ds =>
-    listMetaTables({ pageNum: 1, pageSize: 1, dataSourceId: ds.dataSourceId }).then(r => ({
-      name: ds.dataSourceName,
-      count: r.total ?? 0,
-    }))
-  )
-  Promise.all(reqs).then(items => {
-    const data = items.filter(item => item.count > 0).sort((left, right) => right.count - left.count)
-    nextTick(() => renderAssetDistChart(data))
   })
 }
 
@@ -125,27 +107,36 @@ function renderDsTypeChart() {
   })
 }
 
-function renderAssetDistChart(data) {
-  if (!assetDistChartRef.value) return
-  if (!assetDistChart) assetDistChart = echarts.init(assetDistChartRef.value)
+function renderConnectivityChart() {
+  if (!connectivityChartRef.value) return
+  if (!connectivityChart) connectivityChart = echarts.init(connectivityChartRef.value)
 
-  assetDistChart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { top: 10, right: 30, bottom: 20, left: 100 },
-    xAxis: { type: 'value', minInterval: 1 },
-    yAxis: { type: 'category', data: data.map(item => item.name), inverse: true },
+  const statusCount = { success: 0, failed: 0, unknown: 0 }
+  dsList.value.forEach(ds => {
+    const key = ds.connectivityStatus || 'unknown'
+    statusCount[key] = (statusCount[key] || 0) + 1
+  })
+
+  connectivityChart.setOption({
+    tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+    legend: { bottom: 0 },
     series: [{
-      type: 'bar',
-      data: data.map(item => item.count),
-      itemStyle: { color: '#409EFF' },
-      label: { show: true, position: 'right' },
+      type: 'pie',
+      radius: ['40%', '65%'],
+      center: ['50%', '45%'],
+      label: { formatter: '{b}\n{c}' },
+      data: [
+        { name: '已连通', value: statusCount.success || 0 },
+        { name: '连接异常', value: statusCount.failed || 0 },
+        { name: '未测试', value: statusCount.unknown || 0 },
+      ],
     }],
   })
 }
 
 function handleResize() {
   dsTypeChart?.resize()
-  assetDistChart?.resize()
+  connectivityChart?.resize()
 }
 
 onMounted(() => {
@@ -157,7 +148,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   dsTypeChart?.dispose()
-  assetDistChart?.dispose()
+  connectivityChart?.dispose()
 })
 </script>
 
@@ -231,4 +222,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-

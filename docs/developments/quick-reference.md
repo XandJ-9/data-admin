@@ -26,6 +26,35 @@ pnpm install                                   # 安装依赖
 pnpm dev                                       # 启动开发服务器（端口 80）
 ```
 
+## 开发流程速记
+
+### Git 分支命名
+
+```bash
+feat/<topic>       # 新功能
+fix/<topic>        # 缺陷修复
+refactor/<module>  # 模块重构
+docs/<topic>       # 文档整理
+hotfix/<topic>     # 紧急修复
+```
+
+### 推荐交付顺序
+
+```bash
+git switch -c <type>/<topic>   # 创建独立分支
+# 开发 + 自测
+git add -A
+git commit -m "<type>(<scope>): 中文描述"
+git push -u origin <type>/<topic>
+```
+
+### 执行原则
+
+- `main` 始终保持可发布
+- 一个分支只做一个主目标
+- 一个 PR 只交付一个可验证结果
+- 合并前同步更新 `docs/requirements/active_tasks.md` 与 `docs/changelog.md`
+
 ## 生产环境部署
 
 ### 快速部署流程

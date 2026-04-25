@@ -4,3 +4,4 @@
 
 - 每个重要架构决策建议单独写一份 ADR 文档，编号递增，如：ADR-001-数据库选型.md
 - 参考模板：https://adr.github.io/
+- 最新补充：`ADR-011-平台五阶段职责划分规范.md`，用于固化 Connection & Discovery → Assetization & Service 的阶段职责边界。

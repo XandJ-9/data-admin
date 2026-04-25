@@ -8,7 +8,7 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from apps.common.encrypt import encrypt_password
 
 from .models import DataSource
-from .views import DataSourceViewSet, _sanitize_db_error_message
+from .views import DataSourceDiscoveryViewSet, DataSourceViewSet, _sanitize_db_error_message
 
 
 class _FailingExecutor:
@@ -51,7 +51,7 @@ class DataSourceSecurityTests(TestCase):
         )
         view = DataSourceViewSet.as_view({'post': 'test_by_body'})
         request = self.factory.post(
-            '/data-api/datasource/test',
+            '/data-api/datasource/datasource/test',
             {
                 'dataSourceName': 'test-source',
                 'dbType': 'mysql',
@@ -100,7 +100,7 @@ class DataSourceConnectivityTests(TestCase):
         mock_get_executor.return_value = _PassingExecutor()
         datasource = self.create_datasource()
         view = DataSourceViewSet.as_view({'post': 'test_by_id'})
-        request = self.factory.post(f'/data-api/datasource/{datasource.id}/test', {}, format='json')
+        request = self.factory.post(f'/data-api/datasource/datasource/{datasource.id}/test', {}, format='json')
         force_authenticate(request, user=self.user)
 
         response = view(request, pk=str(datasource.id))
@@ -121,7 +121,7 @@ class DataSourceConnectivityTests(TestCase):
         )
         view = DataSourceViewSet.as_view({'put': 'update'})
         request = self.factory.put(
-            f'/data-api/datasource/{datasource.id}/',
+            f'/data-api/datasource/datasource/{datasource.id}',
             {
                 'dataSourceId': datasource.id,
                 'dataSourceName': datasource.name,
@@ -148,3 +148,56 @@ class DataSourceConnectivityTests(TestCase):
         self.assertEqual(datasource.connectivity_status, 'unknown')
         self.assertEqual(datasource.connectivity_message, '')
         self.assertIsNone(datasource.connectivity_tested_at)
+
+
+class DataSourceDiscoveryTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='tester', password='password123')
+        self.data_source = DataSource.objects.create(
+            name='sqlite-demo',
+            db_type='sqlite',
+            db_name='/tmp/demo.sqlite3',
+            status='0',
+        )
+
+    @patch('apps.datasource.views.discover_databases')
+    def test_databases_should_return_fallback_rows(self, mock_discover_databases):
+        mock_discover_databases.return_value = ['/tmp/demo.sqlite3']
+        view = DataSourceDiscoveryViewSet.as_view({'post': 'databases'})
+        request = self.factory.post('/data-api/datasource/collection/databases', {'dataSourceId': self.data_source.id}, format='json')
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data'], ['/tmp/demo.sqlite3'])
+
+    @patch('apps.datasource.views.discover_tables')
+    def test_tables_should_return_normalized_table_rows(self, mock_discover_tables):
+        mock_discover_tables.return_value = [
+            {
+                'tableName': 'orders',
+                'databaseName': 'demo',
+                'tableType': 'BASE TABLE',
+                'tableComment': '订单表',
+                'comment': '订单表',
+                'createTime': '',
+                'updateTime': '',
+            }
+        ]
+        view = DataSourceDiscoveryViewSet.as_view({'post': 'tables'})
+        request = self.factory.post(
+            '/data-api/datasource/collection/tables',
+            {'dataSourceId': self.data_source.id, 'databaseName': 'demo'},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['total'], 1)
+        self.assertEqual(response.data['rows'][0]['tableComment'], '订单表')
+        self.assertEqual(response.data['rows'][0]['tableType'], 'BASE TABLE')
+

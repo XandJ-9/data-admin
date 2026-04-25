@@ -1,54 +1,38 @@
-import json
 import logging
 
 from django.db.models import ProtectedError
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ViewSet
 from rest_framework.decorators import action
 
-from apps.system.views.core import BaseViewSet
-from apps.system.permission import HasRolePermission
-from apps.dbutils.factory import get_executor
 from apps.common.encrypt import decrypt_password, encrypt_password
+from apps.common.mixins import BaseViewMixin
+from apps.dbutils.factory import get_executor
+from apps.system.permission import HasRolePermission
+from apps.system.views.core import BaseViewSet
 
-from .models import DataSource
+from .collectors import create_async_task, create_sync_task, discover_columns, discover_databases, discover_tables
+from .executor_info import build_executor_info, build_executor_info_from_payload
+from .models import DataSource, SourceMetadataCollectionTask
 from .serializers import (
-    DataSourceSerializer, DataSourceQuerySerializer,
-    DataSourceUpdateSerializer, DataSourceCreateSerializer, DataSourceTestSerializer,
+    CollectionStatusQuerySerializer,
+    DataSourceCreateSerializer,
+    DataSourceQuerySerializer,
+    DataSourceSerializer,
+    DataSourceTestSerializer,
+    DataSourceUpdateSerializer,
+    DiscoveryRequestSerializer,
+    TableDiscoveryRequestSerializer,
 )
+from .utils import public_error_message, sanitize_db_error_message
 
 logger = logging.getLogger(__name__)
 
 
 def _sanitize_db_error_message(exc):
-    error_message = str(exc or '').lower()
-    if any(keyword in error_message for keyword in (
-        'access denied',
-        'authentication failed',
-        'password authentication failed',
-        'login failed',
-        'invalid credentials',
-    )):
-        return '连接失败：认证失败，请检查用户名和密码'
-    if any(keyword in error_message for keyword in (
-        'connection refused',
-        'could not connect',
-        'timeout',
-        'timed out',
-        'network is unreachable',
-        'name or service not known',
-        'temporary failure in name resolution',
-    )):
-        return '连接失败：无法连接到数据库，请检查主机、端口和网络'
-    if any(keyword in error_message for keyword in (
-        'unknown database',
-        'does not exist',
-        'unknown schema',
-        'catalog',
-        'schema',
-    )):
-        return '连接失败：数据库配置无效，请检查库名或 schema'
-    return '连接失败：请检查连接配置'
+    return sanitize_db_error_message(exc)
 
 
 def _update_connectivity_snapshot(instance, status, message=''):
@@ -59,140 +43,97 @@ def _update_connectivity_snapshot(instance, status, message=''):
 
 
 class DataSourceViewSet(BaseViewSet):
-    """数据源管理"""
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = DataSource.objects.all().order_by('name')
     serializer_class = DataSourceSerializer
+    create_serializer_class = DataSourceCreateSerializer
     update_body_serializer_class = DataSourceUpdateSerializer
     update_body_id_field = 'dataSourceId'
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        s = DataSourceQuerySerializer(data=self.request.query_params)
-        s.is_valid(raise_exception=False)
-        vd = getattr(s, 'validated_data', {})
-        if vd.get('dataSourceName'):
-            qs = qs.filter(name__icontains=vd['dataSourceName'])
-        if vd.get('dbType'):
-            qs = qs.filter(db_type=vd['dbType'])
-        if vd.get('status'):
-            qs = qs.filter(status=vd['status'])
-        return qs
+        queryset = super().get_queryset()
+        serializer = DataSourceQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=False)
+        validated_data = getattr(serializer, 'validated_data', {})
+        if validated_data.get('dataSourceName'):
+            queryset = queryset.filter(name__icontains=validated_data['dataSourceName'])
+        if validated_data.get('dbType'):
+            queryset = queryset.filter(db_type=validated_data['dbType'])
+        if validated_data.get('status'):
+            queryset = queryset.filter(status=validated_data['status'])
+        return queryset
 
     def destroy(self, request, *args, **kwargs):
-        """删除数据源，捕获外键保护异常并返回友好提示"""
         try:
             return super().destroy(request, *args, **kwargs)
         except ProtectedError:
-            return self.error(msg='无法删除：该数据源被数据集成任务引用，请先删除相关任务后再试')
-
-    def create(self, request, *args, **kwargs):
-        s = DataSourceCreateSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        s.save()
-        return self.ok(msg='创建成功')
+            return self.error(msg='无法删除：该数据源仍被其他模块引用')
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        s = DataSourceUpdateSerializer(instance, data=request.data)
-        s.is_valid(raise_exception=True)
+        serializer = DataSourceUpdateSerializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
 
         connection_fields = ('db_type', 'host', 'port', 'db_name', 'username', 'params')
-        connection_config_changed = any(
-            field in s.validated_data and s.validated_data[field] != getattr(instance, field)
+        connection_changed = any(
+            field in serializer.validated_data and serializer.validated_data[field] != getattr(instance, field)
             for field in connection_fields
         )
 
-        # 密码处理：空则不改，非空则加密新密码
-        _password = s.validated_data.get('password', '')
-        if _password:
-            s.validated_data['password'] = encrypt_password(_password)
-            connection_config_changed = True
+        raw_password = serializer.validated_data.get('password', '')
+        if raw_password:
+            serializer.validated_data['password'] = encrypt_password(raw_password)
+            connection_changed = True
         else:
-            s.validated_data.pop('password', None)
+            serializer.validated_data.pop('password', None)
 
-        if connection_config_changed:
-            s.validated_data['connectivity_status'] = 'unknown'
-            s.validated_data['connectivity_message'] = ''
-            s.validated_data['connectivity_tested_at'] = None
+        if connection_changed:
+            serializer.validated_data['connectivity_status'] = 'unknown'
+            serializer.validated_data['connectivity_message'] = ''
+            serializer.validated_data['connectivity_tested_at'] = None
 
-        s.save()
+        serializer.save(update_by=getattr(request.user, 'username', ''))
         return self.ok(msg='更新成功')
-
-    def _parse_params(self, params_str):
-        """解析连接参数字符串为字典"""
-        if not params_str:
-            return {}
-        try:
-            return json.loads(params_str)
-        except (json.JSONDecodeError, TypeError):
-            logger.warning(f"无法解析连接参数: {params_str}")
-            return {}
 
     @action(detail=True, methods=['post'], url_path='test')
     def test_by_id(self, request, pk=None):
-        """测试数据源连接（按ID）"""
-        obj = self.get_object()
-        db_info = {
-            'type': obj.db_type,
-            'host': obj.host,
-            'port': obj.port,
-            'username': obj.username,
-            'password': decrypt_password(obj.password),
-            'database': obj.db_name,
-            'params': self._parse_params(obj.params),
-        }
-
+        data_source = self.get_object()
         try:
-            ex = get_executor(db_info)
+            executor = get_executor(build_executor_info(data_source))
             try:
-                ex.test_connection()
-                _update_connectivity_snapshot(obj, 'success', '连接成功')
-                return self.ok('连接成功')
-            except Exception as e:
-                logger.exception(f"数据源连接测试失败: {obj.name}, 错误: {str(e)}")
-                message = _sanitize_db_error_message(e)
-                _update_connectivity_snapshot(obj, 'failed', message)
+                executor.test_connection()
+                _update_connectivity_snapshot(data_source, 'success', '连接成功')
+                return self.ok(msg='连接成功')
+            except Exception as exc:
+                logger.exception('数据源连接测试失败: datasource=%s', data_source.name)
+                message = _sanitize_db_error_message(exc)
+                _update_connectivity_snapshot(data_source, 'failed', message)
                 return self.error(msg=message)
             finally:
                 try:
-                    ex.close()
+                    executor.close()
                 except Exception:
                     pass
-        except ValueError as e:
-            message = f'不支持的数据库类型: {str(e)}'
-            _update_connectivity_snapshot(obj, 'failed', message)
+        except ValueError as exc:
+            message = f'不支持的数据库类型: {exc}'
+            _update_connectivity_snapshot(data_source, 'failed', message)
             return self.error(msg=message)
 
     @action(detail=False, methods=['post'], url_path='test')
     def test_by_body(self, request):
-        """测试数据源连接（按请求体，不落库）"""
-        s = DataSourceTestSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        vd = s.validated_data
+        serializer = DataSourceTestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
 
-        # 如果带了 dataSourceId 且密码为空，从库里取已加密密码并解密
-        ds_id = request.data.get('dataSourceId')
-        if ds_id:
+        password = validated_data.get('password', '')
+        data_source_id = request.data.get('dataSourceId')
+        if data_source_id and not password:
             try:
-                instance = DataSource.objects.get(id=ds_id)
-                _password = vd.get('password', '')
-                if not _password:
-                    vd['password'] = decrypt_password(instance.password)
+                password = decrypt_password(DataSource.objects.get(pk=data_source_id, del_flag='0').password)
             except DataSource.DoesNotExist:
-                pass
+                password = ''
 
-        db_info = {
-            'type': vd.get('db_type', ''),
-            'host': vd.get('host', ''),
-            'port': vd.get('port', 0),
-            'username': vd.get('username', ''),
-            'password': vd.get('password', ''),
-            'database': vd.get('db_name', ''),
-            'params': self._parse_params(vd.get('params')),
-        }
-
-        # SQLite特殊处理
+        db_info = build_executor_info_from_payload(validated_data, password=password)
         if db_info['type'] == 'sqlite':
             db_info['host'] = ''
             db_info['port'] = 0
@@ -200,17 +141,156 @@ class DataSourceViewSet(BaseViewSet):
             db_info['password'] = ''
 
         try:
-            ex = get_executor(db_info)
+            executor = get_executor(db_info)
             try:
-                ex.test_connection()
-                return self.ok('连接成功')
-            except Exception as e:
-                logger.exception(f"数据源连接测试失败: {vd.get('db_type')}, 错误: {str(e)}")
-                return self.error(msg=_sanitize_db_error_message(e))
+                executor.test_connection()
+                return self.ok(msg='连接成功')
+            except Exception as exc:
+                logger.exception('数据源连接测试失败: db_type=%s', validated_data.get('db_type'))
+                return self.error(msg=_sanitize_db_error_message(exc))
             finally:
                 try:
-                    ex.close()
+                    executor.close()
                 except Exception:
                     pass
-        except ValueError as e:
-            return self.error(msg=f'不支持的数据库类型: {str(e)}')
+        except ValueError as exc:
+            return self.error(msg=f'不支持的数据库类型: {exc}')
+
+
+class DataSourceDiscoveryViewSet(BaseViewMixin, ViewSet):
+    permission_classes = [IsAuthenticated, HasRolePermission]
+
+    def _get_data_source(self, data_source_id):
+        return get_object_or_404(DataSource.objects.filter(del_flag='0'), pk=data_source_id)
+
+    def databases(self, request):
+        serializer = DiscoveryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data_source = self._get_data_source(serializer.validated_data['data_source_id'])
+        try:
+            return self.data(discover_databases(data_source))
+        except Exception as exc:
+            logger.exception('获取数据库列表失败: datasource_id=%s', data_source.id)
+            return self.error(msg=public_error_message(exc))
+
+    def tables(self, request):
+        serializer = DiscoveryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        data_source = self._get_data_source(validated_data['data_source_id'])
+        try:
+            rows = discover_tables(data_source, validated_data.get('database_name', ''))
+            return self.raw_response({'code': 200, 'msg': '操作成功', 'rows': rows, 'total': len(rows)})
+        except Exception as exc:
+            logger.exception('获取数据表列表失败: datasource_id=%s', data_source.id)
+            return self.error(msg=public_error_message(exc))
+
+    def columns(self, request):
+        serializer = TableDiscoveryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        data_source = self._get_data_source(validated_data['data_source_id'])
+        try:
+            rows = discover_columns(
+                data_source,
+                validated_data.get('table_name', ''),
+                validated_data.get('database_name', ''),
+            )
+            return self.raw_response({'code': 200, 'msg': '操作成功', 'rows': rows, 'total': len(rows)})
+        except Exception as exc:
+            logger.exception('获取字段列表失败: datasource_id=%s', data_source.id)
+            return self.error(msg=public_error_message(exc))
+
+    def collect(self, request):
+        serializer = DiscoveryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        data_source = self._get_data_source(validated_data['data_source_id'])
+        try:
+            task = create_sync_task(
+                data_source,
+                'database' if validated_data.get('database_name') else 'full',
+                database_name=validated_data.get('database_name', ''),
+            )
+        except ValueError as exc:
+            return self.error(msg=public_error_message(exc))
+        if task.status == 'failed':
+            return self.error(msg=task.error_message or '采集失败')
+        return self.data({'taskId': task.task_id}, msg='采集完成')
+
+    def collect_table(self, request):
+        serializer = TableDiscoveryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        data_source = self._get_data_source(validated_data['data_source_id'])
+        try:
+            task = create_sync_task(
+                data_source,
+                'table',
+                database_name=validated_data.get('database_name', ''),
+                table_name=validated_data.get('table_name', ''),
+            )
+        except ValueError as exc:
+            return self.error(msg=public_error_message(exc))
+        if task.status == 'failed':
+            return self.error(msg=task.error_message or '采集失败')
+        return self.data({'taskId': task.task_id}, msg='采集完成')
+
+    def collect_async(self, request):
+        serializer = DiscoveryRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        data_source = self._get_data_source(validated_data['data_source_id'])
+        try:
+            task = create_async_task(
+                data_source,
+                'database' if validated_data.get('database_name') else 'full',
+                database_name=validated_data.get('database_name', ''),
+            )
+        except ValueError as exc:
+            return self.error(msg=public_error_message(exc))
+        return self.data({'taskId': task.task_id}, msg='采集任务已启动')
+
+    def collect_status(self, request):
+        serializer = CollectionStatusQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        task = SourceMetadataCollectionTask.objects.filter(
+            task_id=serializer.validated_data['task_id'],
+            del_flag='0',
+        ).first()
+        if task is None:
+            return self.not_found(msg='采集任务不存在')
+        return self.data(
+            {
+                'taskId': task.task_id,
+                'status': task.status,
+                'databaseName': task.database_name,
+                'tableName': task.table_name,
+                'currentTable': task.current_table,
+                'totalTables': task.total_tables,
+                'collectedTables': task.collected_tables,
+                'errorMessage': task.error_message,
+                'cancelRequested': task.cancel_requested,
+                'startedAt': task.started_at.strftime('%Y-%m-%d %H:%M:%S') if task.started_at else None,
+                'finishedAt': task.finished_at.strftime('%Y-%m-%d %H:%M:%S') if task.finished_at else None,
+                'progress': 0 if task.total_tables <= 0 else round(task.collected_tables * 100 / task.total_tables),
+            }
+        )
+
+    def collect_cancel(self, request):
+        serializer = CollectionStatusQuerySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = SourceMetadataCollectionTask.objects.filter(
+            task_id=serializer.validated_data['task_id'],
+            del_flag='0',
+        ).first()
+        if task is None:
+            return self.not_found(msg='采集任务不存在')
+        if task.status in ('completed', 'failed', 'cancelled'):
+            return self.ok(msg='任务已结束')
+        task.cancel_requested = True
+        if task.status == 'pending':
+            task.status = 'cancelled'
+            task.finished_at = timezone.now()
+        task.save(update_fields=['cancel_requested', 'status', 'finished_at', 'update_time'])
+        return self.ok(msg='任务已取消')

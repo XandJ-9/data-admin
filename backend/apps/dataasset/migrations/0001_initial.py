@@ -9,36 +9,10 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
+        ('datasource', '0001_initial'),
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='DataSource',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('create_by', models.CharField(blank=True, max_length=64)),
-                ('update_by', models.CharField(blank=True, max_length=64)),
-                ('create_time', models.DateTimeField(auto_now_add=True)),
-                ('update_time', models.DateTimeField(auto_now=True)),
-                ('del_flag', models.CharField(choices=[('0', '正常'), ('1', '删除')], default='0', max_length=1)),
-                ('name', models.CharField(max_length=64, verbose_name='数据源名称')),
-                ('db_type', models.CharField(max_length=20, verbose_name='数据库类型')),
-                ('host', models.CharField(blank=True, default='', max_length=128, verbose_name='主机')),
-                ('port', models.IntegerField(default=0, verbose_name='端口')),
-                ('db_name', models.CharField(blank=True, default='', max_length=128, verbose_name='数据库名')),
-                ('username', models.CharField(blank=True, default='', max_length=128, verbose_name='用户名')),
-                ('password', models.CharField(blank=True, default='', max_length=256, verbose_name='密码')),
-                ('params', models.TextField(blank=True, default='', verbose_name='连接参数(JSON 或 KV)')),
-                ('status', models.CharField(choices=[('0', '正常'), ('1', '停用')], default='0', max_length=1, verbose_name='状态')),
-                ('remark', models.CharField(blank=True, default='', max_length=500, verbose_name='备注')),
-            ],
-            options={
-                'verbose_name': '数据源',
-                'verbose_name_plural': '数据源',
-                'db_table': 'dataasset_datasource',
-                'indexes': [models.Index(fields=['name'], name='dataasset_d_name_cc0358_idx'), models.Index(fields=['db_type'], name='dataasset_d_db_type_d0e0ab_idx'), models.Index(fields=['status'], name='dataasset_d_status_9cdf07_idx'), models.Index(fields=['del_flag'], name='dataasset_d_del_fla_891397_idx')],
-            },
-        ),
         migrations.CreateModel(
             name='MetaTable',
             fields=[
@@ -51,7 +25,7 @@ class Migration(migrations.Migration):
                 ('table_name', models.CharField(max_length=256, verbose_name='表名')),
                 ('comment', models.CharField(blank=True, default='', max_length=1024, verbose_name='表注释')),
                 ('database', models.CharField(blank=True, default='', max_length=256, verbose_name='数据库名')),
-                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='meta_tables', to='dataasset.datasource')),
+                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='meta_tables', to='datasource.datasource')),
             ],
             options={
                 'verbose_name': '元数据表',
@@ -75,7 +49,7 @@ class Migration(migrations.Migration):
                 ('default', models.CharField(blank=True, default='', max_length=512, verbose_name='默认值')),
                 ('primary', models.BooleanField(default=False, verbose_name='是否主键')),
                 ('comment', models.CharField(blank=True, default='', max_length=1024, verbose_name='字段注释')),
-                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='meta_columns', to='dataasset.datasource')),
+                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='meta_columns', to='datasource.datasource')),
                 ('table', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='columns', to='dataasset.metatable')),
             ],
             options={
@@ -125,7 +99,7 @@ class Migration(migrations.Migration):
                 ('started_at', models.DateTimeField(blank=True, null=True, verbose_name='开始时间')),
                 ('completed_at', models.DateTimeField(blank=True, null=True, verbose_name='完成时间')),
                 ('thread_id', models.CharField(blank=True, max_length=64, verbose_name='线程ID')),
-                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='collection_tasks', to='dataasset.datasource')),
+                ('data_source', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='legacy_collection_tasks', to='datasource.datasource')),
             ],
             options={
                 'verbose_name': '元数据采集任务',

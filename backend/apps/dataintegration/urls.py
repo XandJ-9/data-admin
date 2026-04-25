@@ -10,3 +10,4 @@ router.register(r'executionlog', IntegrationExecutionLogViewSet, basename='datai
 urlpatterns = [
     path('', include(router.urls)),
 ]
+

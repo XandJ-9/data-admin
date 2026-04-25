@@ -8,8 +8,7 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.datasource.models import DataSource
 
-from .models import AssetNamespace, DataAsset, DataAssetColumn, MetaColumn, MetaCollectionTask, MetaTable
-from .collectors import MetadataCollectionExecutor, cancel_collection_task, start_collection_task
+from .models import AssetNamespace, DataAsset, DataAssetColumn, MetaColumn, MetaTable
 from .services import collect_table_metadata, sync_standard_asset_from_meta_table
 from .views import AssetNamespaceViewSet, DataAssetColumnViewSet, DataAssetViewSet, MetaColumnViewSet, MetaTableViewSet
 
@@ -230,75 +229,6 @@ class DataAssetModelRefactorTests(TestCase):
         asset = DataAsset.objects.get(object_name='orders')
         self.assertTrue(DataAssetColumn.objects.filter(asset=asset, column_name='id').exists())
         self.assertFalse(DataAssetColumn.objects.filter(asset=asset, column_name='deleted_col').exists())
-
-    @patch('apps.dataasset.collectors.MetadataCollectionExecutor.start', return_value=True)
-    def test_start_collection_task_should_split_presto_scope(self, mock_start):
-        self.data_source.db_type = 'trino'
-        self.data_source.save(update_fields=['db_type'])
-
-        with self.captureOnCommitCallbacks(execute=True):
-            task = start_collection_task(self.data_source.id, database_name='lakehouse.analytics', user=self.user)
-
-        self.assertIsNotNone(task)
-        self.assertEqual(task.scope_level, 'schema')
-        self.assertEqual(task.scope_catalog_name, 'lakehouse')
-        self.assertEqual(task.scope_schema_name, 'analytics')
-        self.assertEqual(task.scope_asset_name, '')
-        mock_start.assert_called_once()
-
-    @patch('apps.dataasset.collectors.MetadataCollectionExecutor.start', return_value=True)
-    def test_start_collection_task_should_reject_existing_active_task(self, mock_start):
-        MetaCollectionTask.objects.create(
-            task_id='existing-task',
-            data_source=self.data_source,
-            status='running',
-        )
-
-        with self.captureOnCommitCallbacks(execute=True):
-            task = start_collection_task(self.data_source.id, database_name='sales', user=self.user)
-
-        self.assertIsNone(task)
-        mock_start.assert_not_called()
-
-    @patch('apps.dataasset.collectors.MetadataCollectionExecutor.start', side_effect=RuntimeError('cant start thread'))
-    def test_start_collection_task_should_mark_failed_when_executor_start_raises(self, mock_start):
-        with self.captureOnCommitCallbacks(execute=True):
-            task = start_collection_task(self.data_source.id, database_name='sales', user=self.user)
-
-        self.assertIsNotNone(task)
-        failed_task = MetaCollectionTask.objects.get(pk=task.pk)
-        self.assertEqual(failed_task.status, 'failed')
-        self.assertEqual(failed_task.error_message, '采集失败，请检查数据源配置或稍后重试')
-        mock_start.assert_called_once()
-
-    def test_cancel_collection_task_should_fallback_to_database_state(self):
-        task = MetaCollectionTask.objects.create(
-            task_id='pending-task',
-            data_source=self.data_source,
-            status='pending',
-        )
-
-        cancelled = cancel_collection_task(task.task_id)
-
-        task.refresh_from_db()
-        self.assertTrue(cancelled)
-        self.assertEqual(task.status, 'cancelled')
-
-    @patch('apps.dataasset.collectors.list_tables')
-    def test_executor_should_not_restart_cancelled_pending_task(self, mock_list_tables):
-        task = MetaCollectionTask.objects.create(
-            task_id='cancelled-before-start',
-            data_source=self.data_source,
-            status='cancelled',
-        )
-        executor = MetadataCollectionExecutor(task.task_id)
-        executor.task = task
-
-        executor._run_collection(self.data_source.id, '', self.user)
-
-        task.refresh_from_db()
-        self.assertEqual(task.status, 'cancelled')
-        mock_list_tables.assert_not_called()
 
     @patch('apps.dbutils.get_table_schema')
     @patch('apps.dbutils.get_table_info')
@@ -1005,4 +935,3 @@ class DataAssetModelRefactorTests(TestCase):
         self.assertEqual(response.data['rows'][0]['assetCategory'], 'warehouse')
         self.assertEqual(response.data['rows'][0]['warehouseLayer'], 'DWS')
         self.assertEqual(response.data['rows'][0]['businessDomain'], '交易')
-

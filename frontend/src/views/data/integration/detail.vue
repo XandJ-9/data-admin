@@ -33,13 +33,13 @@
         :form="form"
         :rules="rules"
         :data-source-options="dataSourceOptions"
-        :source-asset-options="sourceAssetOptions"
+        :source-table-options="sourceTableOptions"
         :asset-loading="assetLoading"
         :status-options="STATUS_OPTIONS"
         :supported-executors="supportedExecutors"
         :current-executor-hint="currentExecutorHint"
         @source-ds-change="handleSourceDataSourceChange"
-        @source-asset-change="handleSourceAssetChange"
+        @source-table-change="handleSourceAssetChange"
         @target-table-input="handleTargetTableInput"
       />
 
@@ -111,10 +111,10 @@ import { executorLabel, loadTypeLabel, scheduleTypeLabel, statusLabel, statusTag
 
 const route = useRoute()
 
-const {
-  STATUS_OPTIONS,
-  assetLoading,
-  currentExecutorHint,
+  const {
+    STATUS_OPTIONS,
+    assetLoading,
+    currentExecutorHint,
   dataSourceOptions,
   executionDetailVisible,
   executionDialogVisible,
@@ -123,11 +123,11 @@ const {
   executionQueryParams,
   executionTotal,
   form,
-  formRef,
-  goBack,
-  handleExecute,
-  handleSourceAssetChange,
-  handleSourceDataSourceChange,
+    formRef,
+    goBack,
+    handleExecute,
+    handleSourceAssetChange,
+    handleSourceDataSourceChange,
   handleTargetTableInput,
   handleValidate,
   isEditMode,
@@ -135,11 +135,11 @@ const {
   loading,
   openExecutionDetail,
   openExecutionDialog,
-  pageTitle,
-  rules,
-  selectedExecution,
-  sourceAssetOptions,
-  submitting,
+    pageTitle,
+    rules,
+    selectedExecution,
+    sourceTableOptions,
+    submitting,
   supportedExecutors,
   submitForm,
   taskSnapshot,
@@ -147,7 +147,7 @@ const {
 } = useIntegrationTaskForm()
 
 const routeText = computed(() => {
-  const sourceName = sourceAssetOptions.value.find(item => item.id === form.value.sourceAssetId)?.objectName || '未选择源表'
+  const sourceName = sourceTableOptions.value.find(item => item.id === form.value.sourceTableId)?.objectName || '未选择源表'
   const targetName = form.value.targetSchemaName ? `${form.value.targetSchemaName}.${form.value.targetTableName || '未命名目标表'}` : (form.value.targetTableName || '未命名目标表')
   return `${sourceName} -> ${targetName}`
 })

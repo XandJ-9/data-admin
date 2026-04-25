@@ -6,7 +6,6 @@ from .models import (
     DataAssetColumn,
     MetaTable,
     MetaColumn,
-    MetaCollectionTask,
     TableLineage,
 )
 
@@ -343,52 +342,6 @@ class MetaColumnQuerySerializer(serializers.Serializer):
     securityLevel = serializers.CharField(required=False, allow_blank=True)
     standardCode = serializers.CharField(required=False, allow_blank=True)
     dataSourceName = serializers.CharField(required=False, allow_blank=True)
-
-
-# ==================== MetaCollectionTask Serializers ====================
-
-class MetaCollectionTaskSerializer(CamelCaseModelSerializer):
-    """元数据采集任务序列化器"""
-    taskId = serializers.IntegerField(source='id', read_only=True)
-    taskUuid = serializers.CharField(source='task_id')
-    dataSourceId = serializers.IntegerField(source='data_source_id')
-    dataSourceName = serializers.CharField(source='data_source.name', read_only=True, required=False)
-    status = serializers.CharField(required=False)
-    progress = serializers.IntegerField(required=False)
-    currentTable = serializers.CharField(source='current_table', required=False, allow_blank=True)
-    totalTables = serializers.IntegerField(source='total_tables', required=False)
-    collectedTables = serializers.IntegerField(source='collected_tables', required=False)
-    failedTables = serializers.IntegerField(source='failed_tables', required=False)
-    databaseName = serializers.CharField(source='database_name', required=False, allow_blank=True)
-    scopeLevel = serializers.CharField(source='scope_level', required=False, allow_blank=True)
-    scopeCatalogName = serializers.CharField(source='scope_catalog_name', required=False, allow_blank=True)
-    scopeSchemaName = serializers.CharField(source='scope_schema_name', required=False, allow_blank=True)
-    scopeAssetName = serializers.CharField(source='scope_asset_name', required=False, allow_blank=True)
-    runMode = serializers.CharField(source='run_mode', required=False, allow_blank=True)
-    errorMessage = serializers.CharField(source='error_message', required=False, allow_blank=True)
-    startedAt = serializers.DateTimeField(source='started_at', required=False, allow_null=True)
-    completedAt = serializers.DateTimeField(source='completed_at', required=False, allow_null=True)
-    threadId = serializers.CharField(source='thread_id', required=False, allow_blank=True)
-
-    class Meta:
-        model = MetaCollectionTask
-        fields = [
-            'taskId', 'taskUuid', 'dataSourceId', 'dataSourceName', 'status', 'progress',
-            'currentTable', 'totalTables', 'collectedTables', 'failedTables', 'databaseName',
-            'scopeLevel', 'scopeCatalogName', 'scopeSchemaName', 'scopeAssetName', 'runMode',
-            'errorMessage', 'startedAt', 'completedAt', 'threadId'
-        ]
-
-
-class MetaCollectionTaskCreateSerializer(serializers.Serializer):
-    """元数据采集任务创建序列化器"""
-    dataSourceId = serializers.IntegerField(required=True)
-    databaseName = serializers.CharField(required=False, allow_blank=True)
-    scopeLevel = serializers.CharField(required=False, allow_blank=True)
-    scopeCatalogName = serializers.CharField(required=False, allow_blank=True)
-    scopeSchemaName = serializers.CharField(required=False, allow_blank=True)
-    scopeAssetName = serializers.CharField(required=False, allow_blank=True)
-    runMode = serializers.CharField(required=False, allow_blank=True)
 
 
 # ==================== TableLineage Serializers ====================

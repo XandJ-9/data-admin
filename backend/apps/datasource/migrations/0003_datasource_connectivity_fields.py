@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('datasource', '0002_encrypt_existing_passwords'),
     ]
@@ -29,3 +28,4 @@ class Migration(migrations.Migration):
             field=models.DateTimeField(blank=True, null=True, verbose_name='最近连通性测试时间'),
         ),
     ]
+
