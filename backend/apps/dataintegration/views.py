@@ -1,5 +1,6 @@
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from apps.common.pagination import StandardPagination
 from apps.datasource.models import SourceTableSnapshot
@@ -152,7 +153,10 @@ class DataIntegrationTaskViewSet(BaseViewSet):
     @action(detail=False, methods=['post'], url_path='validate')
     def validate_task(self, request):
         serializer = DataIntegrationTaskValidateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            first_error = next(iter(serializer.errors.values()))
+            message = first_error[0] if isinstance(first_error, list) and first_error else first_error
+            return Response({'code': 400, 'msg': str(message)}, status=400)
         validated_data = serializer.validated_data
         source_table = self._get_source_table(validated_data.get('sourceTableId'))
         task = DataIntegrationTask(
@@ -179,7 +183,7 @@ class DataIntegrationTaskViewSet(BaseViewSet):
         task.source_table_snapshot = source_table
         is_valid, error_message = validate_task_configuration(task)
         if not is_valid:
-            return self.error(msg=error_message)
+            return Response({'code': 400, 'msg': error_message}, status=400)
         return self.ok(msg='校验通过')
 
     @action(detail=True, methods=['post'], url_path='execute')
@@ -221,5 +225,11 @@ class IntegrationExecutionLogViewSet(BaseViewSet):
 
     @action(detail=True, methods=['get'], url_path='detail')
     def detail(self, request, pk=None):
-        instance = self.get_object()
-        return self.data(DataIntegrationExecutionLogSerializer(instance).data)
+        instance = DataIntegrationExecutionLog.objects.filter(pk=pk, del_flag='0').first()
+        if instance is None:
+            return self.not_found('执行记录不存在')
+        return self.raw_response({
+            'code': 200,
+            'msg': '操作成功',
+            'data': DataIntegrationExecutionLogSerializer(instance).data,
+        })

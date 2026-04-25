@@ -70,15 +70,6 @@
           v-hasPermi="['system:datasource:remove']"
         >删除</el-button>
       </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          icon="View"
-          @click="handleOpenSourceView()"
-          v-hasPermi="['system:datasource:view']"
-        >源数据查看</el-button>
-      </el-col>
       <right-toolbar
         v-model:showSearch="showSearch"
         @queryTable="getList"
@@ -127,8 +118,8 @@
         </template>
       </el-table-column>
       <el-table-column label="创建时间" prop="createTime" width="180" align="center" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="360"
-      v-hasPermi="['system:datasource:edit','system:datasource:query','system:datasource:view']"
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="300"
+      v-hasPermi="['system:datasource:edit','system:datasource:query']"
       >
         <template #default="scope">
           <el-button
@@ -145,12 +136,6 @@
             @click="handleViewDetail(scope.row)"
             v-hasPermi="['system:datasource:query']"
           >详情</el-button>
-          <el-button
-            link
-            type="primary"
-            @click="handleOpenSourceView(scope.row)"
-            v-hasPermi="['system:datasource:view']"
-          >源数据</el-button>
           <el-button
             link
             type="primary"
@@ -513,11 +498,6 @@ function handleDbTypeChange(value) {
 function handleViewDetail(row) {
   if (!row?.dataSourceId) return
   router.push({ name: 'DataSourceDetail', params: { id: row.dataSourceId } })
-}
-
-function handleOpenSourceView(row) {
-  const query = row?.dataSourceId ? { dataSourceId: row.dataSourceId } : undefined
-  router.push({ name: 'DataSourceView', query })
 }
 
 /** 获取数据库类型标签颜色 */

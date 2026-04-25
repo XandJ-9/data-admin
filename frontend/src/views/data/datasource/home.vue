@@ -11,7 +11,7 @@
         <div class="hero-actions">
           <el-button type="primary" @click="goToList()">进入数据源列表</el-button>
           <el-button plain type="primary" @click="goToList('create')">新增数据源</el-button>
-          <el-button text type="primary" @click="goToView">查看源数据</el-button>
+          <el-button text type="primary" @click="goToView()">快捷查看源数据</el-button>
         </div>
         <div class="hero-tags">
           <el-tag size="small" type="primary" effect="light" round>连接配置管理</el-tag>
@@ -24,7 +24,7 @@
           <span class="highlight-label">首页定位</span>
           <ul>
             <li>先判断当前连接规模、可用性和待处理连接</li>
-            <li>再进入列表维护连接信息，或进入源数据页浏览库表</li>
+            <li>再进入列表维护连接信息，或通过快捷入口直接查看源数据</li>
             <li>数据集成、建模加工和服务发布继续在后续模块完成</li>
           </ul>
         </div>
@@ -200,7 +200,7 @@ const capabilities = [
   },
   {
     title: '源数据发现',
-    description: '直接浏览数据库、表和字段，并按库或表触发元数据采集，完成“发现”阶段。',
+    description: '通过首页快捷入口或独立菜单进入源数据查看页，快速浏览数据库、表和字段。',
     points: ['查看库表结构', '触发整库或单表采集', '适合验证接入范围'],
     actionText: '进入源数据查看',
     action: () => goToView(),
@@ -208,7 +208,7 @@ const capabilities = [
   },
   {
     title: '原始元数据采集',
-    description: '在详情页或源数据查看页按库、按表执行采集，把源端结构沉淀为 Phase 1 的原始快照。',
+    description: '在数据源详情页按库、按表执行采集，把源端结构沉淀为 Phase 1 的原始快照。',
     points: ['支持整库与单表采集', '支持异步任务状态跟踪', '为后续阶段保留标准化输入'],
     actionText: '进入数据源详情',
     action: () => {
@@ -237,7 +237,7 @@ const workflowSteps = [
   {
     order: '03',
     title: '浏览源数据',
-    description: '进入源数据查看或详情页，确认有哪些库表可被浏览和采集。',
+    description: '先通过源数据查看页快速筛查范围，需要深入处理时再进入数据源详情页。',
   },
   {
     order: '04',
