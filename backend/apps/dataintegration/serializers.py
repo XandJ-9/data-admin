@@ -1,9 +1,10 @@
 from rest_framework import serializers
 
+from apps.datatask.models import TaskInstance
 from apps.datasource.models import DataSource, SourceTableSnapshot
 from apps.system.serializers import BaseModelSerializer
 
-from .models import DataIntegrationExecutionLog, DataIntegrationTask
+from .models import DataIntegrationTask
 
 
 class SourceTableOptionSerializer(serializers.Serializer):
@@ -200,7 +201,7 @@ class DataIntegrationTaskValidateSerializer(DataIntegrationTaskCreateSerializer)
         return value
 
 
-class DataIntegrationExecutionLogSerializer(BaseModelSerializer):
+class DataIntegrationExecutionSerializer(serializers.ModelSerializer):
     taskInstanceId = serializers.IntegerField(source='id', read_only=True)
     instanceId = serializers.CharField(source='instance_id', read_only=True)
     triggerMode = serializers.CharField(source='trigger_mode', read_only=True)
@@ -212,10 +213,11 @@ class DataIntegrationExecutionLogSerializer(BaseModelSerializer):
     errorMessage = serializers.CharField(source='error_message', read_only=True)
     runtimeConfig = serializers.JSONField(source='runtime_config', read_only=True)
     resultSummary = serializers.JSONField(source='result_summary', read_only=True)
-    rawOutput = serializers.CharField(source='raw_output', read_only=True)
+    rawOutput = serializers.SerializerMethodField()
+    createTime = serializers.DateTimeField(source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
 
     class Meta:
-        model = DataIntegrationExecutionLog
+        model = TaskInstance
         fields = [
             'taskInstanceId',
             'instanceId',
@@ -233,8 +235,17 @@ class DataIntegrationExecutionLogSerializer(BaseModelSerializer):
             'createTime',
         ]
 
+    def get_rawOutput(self, obj):
+        summary = obj.result_summary or {}
+        return (
+            summary.get('rawOutput')
+            or summary.get('raw_output')
+            or summary.get('log_file')
+            or obj.error_message
+            or ''
+        )
+
 
 class DataIntegrationExecutionLogQuerySerializer(serializers.Serializer):
     taskId = serializers.IntegerField(required=False)
     status = serializers.CharField(required=False, allow_blank=True)
-

@@ -1,3 +1,10 @@
+# [v1.4.61] - 2026-04-25
+- [Refactor] `apps.dataintegration` 已新增注册式 `task_source.py`，并通过 `AppConfig.ready()` 接入统一任务中心，`datatask` 不再直接 import 数据集成模型执行或回写。
+- [Refactor] 数据集成创建、更新、删除现与统一 `Task` 生命周期事务内同步，任务运维对状态/调度的修改也会回写到 `DataIntegrationTask`。
+- [Refactor] 已删除 `DataIntegrationExecutionLog` 旧运行记录模型，数据集成执行事实统一收敛到 `datatask.TaskInstance`。
+- [Refactor] `/data-api/dataintegration/task/*/execute`、`executions` 和 `executionlog/*/detail` 当前统一返回 `TaskInstance` 投影视图，不再维护第二套执行日志链路。
+- [Refactor] 数据集成执行器上下文现统一复用 `apps.datasource.executor_info`，移除模块内重复的密码解密与连接信息拼装逻辑。
+
 # [v1.4.60] - 2026-04-25
 - [Docs] 已将“主干稳定、短分支交付、单分支单目标”的开发流程正式写入 `CLAUDE.md`，作为项目默认交付原则。
 - [Docs] `docs/developments/creating-modules.md` 已补充分支命名、提交粒度、PR 拆分和合并前文档同步要求。

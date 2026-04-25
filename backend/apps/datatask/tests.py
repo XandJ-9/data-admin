@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from apps.datadev.models import DataDevScript, DataDevScriptExecution, DataDevScriptVersion
 from apps.dataintegration.models import DataIntegrationTask
+from apps.dataintegration.task_source import sync_source_task
 from apps.datasource.models import DataSource
 from .models import Task, TaskDependency, TaskInstance
 from .scheduler import TaskSchedulerService
@@ -168,7 +169,7 @@ class TaskViewSetTests(TestCase):
             remark='集成任务备注',
             create_by='alice',
         )
-        self.platform_integration_task = TaskService.sync_integration_source_task(
+        self.platform_integration_task = sync_source_task(
             self.integration_task,
             username='alice',
         )

@@ -6,3 +6,6 @@ class DataintegrationConfig(AppConfig):
     name = 'apps.dataintegration'
     verbose_name = '数据集成'
 
+    def ready(self):
+        import apps.executors  # noqa: F401
+        import apps.dataintegration.task_source  # noqa: F401

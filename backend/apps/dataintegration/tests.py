@@ -4,9 +4,10 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
+from apps.datatask.models import Task, TaskInstance
 from apps.datasource.models import DataSource, SourceTableSnapshot
 
-from .models import DataIntegrationExecutionLog, DataIntegrationTask
+from .models import DataIntegrationTask
 from .views import DataIntegrationTaskViewSet, IntegrationExecutionLogViewSet
 
 
@@ -67,9 +68,11 @@ class DataIntegrationTaskViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         integration_task = DataIntegrationTask.objects.get(task_code='sync_order_info')
+        platform_task = Task.objects.get(source_module='dataintegration.task', source_record_id=integration_task.id, del_flag='0')
         self.assertEqual(response.data['data']['taskId'], integration_task.id)
         self.assertEqual(integration_task.source_table_snapshot_id, self.source_table.id)
         self.assertEqual(integration_task.source_table_name, 'order_info')
+        self.assertEqual(platform_task.task_type, 'DATA_SYNC')
 
     def test_validate_task_should_reject_same_datasource(self):
         view = DataIntegrationTaskViewSet.as_view({'post': 'validate_task'})
@@ -132,9 +135,46 @@ class DataIntegrationTaskViewSetTests(TestCase):
         response = view(request, pk=str(integration_task.id))
 
         self.assertEqual(response.status_code, 200)
-        execution_log = DataIntegrationExecutionLog.objects.get(task=integration_task)
-        self.assertEqual(execution_log.status, 'success')
-        self.assertEqual(execution_log.result_summary['total_rows'], 1200)
+        task_instance = TaskInstance.objects.get(task__source_module='dataintegration.task', task__source_record_id=integration_task.id)
+        self.assertEqual(task_instance.status, 'success')
+        self.assertEqual(task_instance.result_summary['total_rows'], 1200)
+        self.assertEqual(response.data['data']['taskInstanceId'], task_instance.id)
+
+    @patch('apps.executors.base.ExecutorFactory.create_executor')
+    def test_execute_task_should_return_failure_payload_with_200(self, mock_create_executor):
+        class _MockExecutor:
+            def validate(self):
+                return True, ''
+
+            def execute(self):
+                return {'status': 'failed', 'error_message': '模拟执行失败'}
+
+        mock_create_executor.return_value = _MockExecutor()
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_exec_fail',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_table_snapshot=self.source_table,
+            source_database_name='biz',
+            source_table_name='order_info',
+            target_schema_name='ods',
+            target_table_name='ods_order_info',
+            load_type='full',
+            write_mode='overwrite',
+            executor_type='mock',
+            schedule_type='manual',
+            create_by='tester',
+        )
+        view = DataIntegrationTaskViewSet.as_view({'post': 'execute_task'})
+        request = self.factory.post(f'/data-api/dataintegration/task/{integration_task.id}/execute', {}, format='json')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        self.assertEqual(response.data['data']['status'], 'failed')
 
     def test_execution_detail_should_return_runtime_payload(self):
         integration_task = DataIntegrationTask.objects.create(
@@ -145,21 +185,76 @@ class DataIntegrationTaskViewSetTests(TestCase):
             target_table_name='ods_order_info',
             create_by='tester',
         )
-        execution_log = DataIntegrationExecutionLog.objects.create(
-            task=integration_task,
+        platform_task = Task.objects.create(
+            task_name='订单贴源同步',
+            task_code='data_sync_dataintegration_task_1',
+            task_type='DATA_SYNC',
+            source_module='dataintegration.task',
+            source_record_id=integration_task.id,
+            create_by='tester',
+        )
+        task_instance = TaskInstance.objects.create(
+            task=platform_task,
             instance_id='instance-demo',
             status='success',
             runtime_config={'batchSize': 1000},
             result_summary={'total_rows': 200},
-            create_by='tester',
+            triggered_by='tester',
         )
-        view = IntegrationExecutionLogViewSet.as_view({'get': 'detail'})
-        request = self.factory.get(f'/data-api/dataintegration/executionlog/{execution_log.id}/detail')
+        view = IntegrationExecutionLogViewSet.as_view({'get': 'execution_detail'})
+        request = self.factory.get(f'/data-api/dataintegration/executionlog/{task_instance.id}/detail')
         force_authenticate(request, user=self.user)
 
-        response = view(request, pk=str(execution_log.id))
+        response = view(request, pk=str(task_instance.id))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['data']['instanceId'], 'instance-demo')
         self.assertEqual(response.data['data']['runtimeConfig']['batchSize'], 1000)
 
+    def test_executions_should_not_create_platform_task_on_read(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_read_only',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            target_table_name='ods_order_info',
+            create_by='tester',
+        )
+        view = DataIntegrationTaskViewSet.as_view({'get': 'executions'})
+        request = self.factory.get(f'/data-api/dataintegration/task/{integration_task.id}/executions')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['total'], 0)
+        self.assertFalse(Task.objects.filter(source_module='dataintegration.task', source_record_id=integration_task.id).exists())
+
+    def test_delete_task_should_soft_delete_platform_task(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_delete',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            target_table_name='ods_order_info',
+            create_by='tester',
+        )
+        platform_task = Task.objects.create(
+            task_name='订单贴源同步',
+            task_code='data_sync_dataintegration_task_delete',
+            task_type='DATA_SYNC',
+            source_module='dataintegration.task',
+            source_record_id=integration_task.id,
+            create_by='tester',
+        )
+        view = DataIntegrationTaskViewSet.as_view({'delete': 'destroy'})
+        request = self.factory.delete(f'/data-api/dataintegration/task/{integration_task.id}')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        integration_task.refresh_from_db()
+        platform_task.refresh_from_db()
+        self.assertEqual(integration_task.del_flag, '1')
+        self.assertEqual(platform_task.del_flag, '1')
