@@ -39,6 +39,13 @@ from .serializers import (
     ScriptVersionCreateSerializer,
     ScriptVersionSerializer,
 )
+from .task_source import (
+    build_datamodel_create_sql,
+    execute_model_task,
+    execute_script,
+    sync_model_source_task,
+    sync_script_source_task,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -386,7 +393,7 @@ class ScriptViewSet(BaseViewSet):
                 return Response({'code': 400, 'msg': message, 'errors': detail})
             return Response({'code': 400, 'msg': str(detail), 'errors': detail})
         username = request.user.username if hasattr(request, 'user') else ''
-        task = TaskService.sync_datadev_source_task(script, username=username)
+        task = sync_script_source_task(script, username=username)
         return self.data({'taskId': task.id, 'taskCode': task.task_code}, msg='已发布到任务运维')
 
     @action(detail=True, methods=['post'], url_path='execute')
@@ -394,7 +401,7 @@ class ScriptViewSet(BaseViewSet):
         script = self.get_object()
         username = request.user.username if hasattr(request, 'user') else ''
         runtime_params = request.data.get('params') or {}
-        result = TaskService.execute_datadev_script(
+        result = execute_script(
             script,
             username=username,
             runtime_params=runtime_params,
@@ -513,7 +520,7 @@ class DataModelViewSet(BaseViewSet):
         serializer = DataModelDetailSerializer(instance)
         result = serializer.data
         result['fields'] = result.get('fields', [])
-        result['generatedSql'] = TaskService.build_datamodel_create_sql(instance)
+        result['generatedSql'] = build_datamodel_create_sql(instance)
         return self.data(result)
 
     def create(self, request, *args, **kwargs):
@@ -537,7 +544,7 @@ class DataModelViewSet(BaseViewSet):
                 update_by=username,
             )
             self._replace_fields(model, vd['fields'], username)
-            TaskService.sync_datamodel_source_task(model, username=username)
+            sync_model_source_task(model, username=username)
         return self.data({'modelId': model.id}, msg='创建成功')
 
     def update(self, request, *args, **kwargs):
@@ -560,7 +567,7 @@ class DataModelViewSet(BaseViewSet):
             instance.update_by = username
             instance.save()
             self._replace_fields(instance, vd['fields'], username)
-            TaskService.sync_datamodel_source_task(instance, username=username)
+            sync_model_source_task(instance, username=username)
         return self.data({'modelId': instance.id}, msg='保存成功')
 
     def destroy(self, request, *args, **kwargs):
@@ -575,7 +582,7 @@ class DataModelViewSet(BaseViewSet):
     def submit_model(self, request, pk=None):
         model = self.get_object()
         username = request.user.username if hasattr(request, 'user') else ''
-        result = TaskService.execute_datamodel_task(model, username=username)
+        result = execute_model_task(model, username=username)
         if result['ok']:
             return self.data(result['data'], msg=result['msg'])
         if result['data'] is None:

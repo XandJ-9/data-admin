@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 from unittest.mock import patch
 
+from apps.datadev.task_source import sync_script_source_task
 from apps.datadev.models import DataDevScript, DataDevScriptExecution, DataDevScriptVersion
 from apps.dataintegration.models import DataIntegrationTask
 from apps.dataintegration.task_source import sync_source_task
@@ -199,15 +200,7 @@ class TaskViewSetTests(TestCase):
             is_current=True,
             create_by='bob',
         )
-        self.platform_script_task, _ = TaskService.upsert_source_task(
-            task_name=self.script.script_name,
-            task_type='SQL_COMPUTE',
-            source_module='datadev.script',
-            source_record_id=self.script.id,
-            owner='bob',
-            task_config={'scriptId': self.script.id, 'sqlText': 'SELECT 1 AS order_cnt'},
-            username='bob',
-        )
+        self.platform_script_task = sync_script_source_task(self.script, username='bob')
 
     def test_task_list_supports_task_type_filter(self):
         view = TaskViewSet.as_view({'get': 'list'})

@@ -1,3 +1,10 @@
+### 2026-04-25: datadev 后端边界收敛
+
+- ✅ `datadev` 已新增 `task_source.py` 并通过 `AppConfig.ready()` 注册 `datadev.script` / `datadev.model` 两类来源，`datatask` 不再保留 datadev 的直连执行与回写分支
+- ✅ 脚本发布到任务运维、脚本执行、模型任务同步、模型建表提交等业务逻辑已从 `datatask` 迁回 `datadev` 自身来源处理器
+- ✅ `datadev/views.py` 现统一改为调用 datadev 自身的来源处理函数，`datatask` 仅保留通用 Task / TaskInstance / 依赖与分发协议
+- ✅ datadev 脚本执行中的普通数据源连接上下文已改为复用 `apps.datasource.executor_info`，不再在业务模块内手动拼接明文连接信息
+
 ### 2026-04-25: 数据集成后端边界收敛
 
 - ✅ `dataintegration` 已新增 `task_source.py` 并通过 `AppConfig.ready()` 注册到统一任务中心，`datatask` 不再保留针对数据集成的直连执行/回写分支

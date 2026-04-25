@@ -8,3 +8,4 @@ class DatadevConfig(AppConfig):
 
     def ready(self):
         import apps.executors  # noqa: F401
+        import apps.datadev.task_source  # noqa: F401
