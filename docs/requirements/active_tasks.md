@@ -1,3 +1,9 @@
+### 2026-04-25: 开发流程与 Git 分支规范固化
+
+- ✅ 已将“主干稳定、短分支交付、单分支单目标”的开发流程写入 `CLAUDE.md`，作为后续默认交付原则
+- ✅ `docs/developments/creating-modules.md` 已补充分支命名、提交粒度、PR 拆分与合并前文档同步要求
+- ✅ `docs/developments/quick-reference.md` 已新增 Git 分支命名与推荐交付顺序，便于日常快速执行
+
 ### 2026-04-25: 数据源管理恢复源数据查看快捷入口
 
 - ✅ 数据源模块首页已恢复“快捷查看源数据”入口，用户可直接跳转到既有 `frontend/src/views/data/datasource/view.vue`
