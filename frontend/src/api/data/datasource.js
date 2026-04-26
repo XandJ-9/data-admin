@@ -96,3 +96,34 @@ export function listColumns(data) {
     }
   })
 }
+
+export function collectTableToAsset(data) {
+  return request({
+    url: '/datasource/collection/collect-table',
+    method: 'post',
+    data: data,
+    headers: {
+      repeatSubmit: false
+    },
+    timeout: 60000
+  })
+}
+
+export function collectDatabaseToAsset(data) {
+  return request({
+    url: '/datasource/collection/collect-database',
+    method: 'post',
+    data: data,
+    headers: {
+      repeatSubmit: false
+    },
+    timeout: 60000
+  })
+}
+
+export function getDatabaseAssetSyncRun(runId) {
+  return request({
+    url: '/datasource/collection/collect-database/' + runId,
+    method: 'get'
+  })
+}

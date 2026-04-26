@@ -2,14 +2,13 @@ import hashlib
 
 from rest_framework import serializers
 
-from apps.datatask.models import Task
+from apps.datatask.models import Task, TaskInstance
 from apps.system.serializers import BaseModelSerializer
 from .models import (
     DataDevDirectory,
     DataDevModel,
     DataDevModelField,
     DataDevScript,
-    DataDevScriptExecution,
     DataDevScriptVersion,
 )
 
@@ -133,24 +132,24 @@ class ScriptVersionCreateSerializer(serializers.Serializer):
 
 
 class ScriptExecutionSerializer(serializers.ModelSerializer):
-    taskId = serializers.IntegerField(source='task_instance.task_id', read_only=True, allow_null=True)
-    taskInstanceId = serializers.IntegerField(source='task_instance_id', read_only=True, allow_null=True)
-    executionId = serializers.CharField(source='execution_id', read_only=True)
-    scriptId = serializers.IntegerField(source='script_id', read_only=True)
-    scriptName = serializers.CharField(source='script.script_name', read_only=True, default='')
-    versionNumber = serializers.IntegerField(source='version.version_number', read_only=True, default=None)
+    taskId = serializers.IntegerField(source='task_id', read_only=True)
+    taskInstanceId = serializers.IntegerField(source='id', read_only=True)
+    executionId = serializers.CharField(source='instance_id', read_only=True)
+    scriptId = serializers.IntegerField(source='task.source_record_id', read_only=True, allow_null=True)
+    scriptName = serializers.CharField(source='task.task_name', read_only=True, default='')
+    versionNumber = serializers.SerializerMethodField()
     executorType = serializers.CharField(source='executor_type', read_only=True)
-    executorParams = serializers.JSONField(source='executor_params', read_only=True)
-    startTime = serializers.DateTimeField(source='start_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
-    endTime = serializers.DateTimeField(source='end_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
-    durationSeconds = serializers.IntegerField(source='duration_seconds', read_only=True)
+    executorParams = serializers.SerializerMethodField()
+    startTime = serializers.DateTimeField(source='started_at', read_only=True, format='%Y-%m-%d %H:%M:%S')
+    endTime = serializers.DateTimeField(source='finished_at', read_only=True, format='%Y-%m-%d %H:%M:%S')
+    durationSeconds = serializers.FloatField(source='duration_seconds', read_only=True)
     resultSummary = serializers.JSONField(source='result_summary', read_only=True)
     errorMessage = serializers.CharField(source='error_message', read_only=True)
-    executedBy = serializers.CharField(source='executed_by', read_only=True)
+    executedBy = serializers.CharField(source='triggered_by', read_only=True)
     createTime = serializers.DateTimeField(source='create_time', read_only=True, format='%Y-%m-%d %H:%M:%S')
 
     class Meta:
-        model = DataDevScriptExecution
+        model = TaskInstance
         fields = [
             'taskId', 'taskInstanceId',
             'executionId', 'scriptId', 'scriptName', 'status',
@@ -158,6 +157,16 @@ class ScriptExecutionSerializer(serializers.ModelSerializer):
             'startTime', 'endTime', 'durationSeconds',
             'resultSummary', 'errorMessage', 'executedBy', 'createTime',
         ]
+
+    def get_versionNumber(self, obj):
+        version_id = (obj.runtime_config or {}).get('scriptVersionId')
+        if not version_id:
+            return None
+        version = DataDevScriptVersion.objects.filter(id=version_id).only('version_number').first()
+        return version.version_number if version is not None else None
+
+    def get_executorParams(self, obj):
+        return (obj.runtime_config or {}).get('params') or {}
 
 
 class ScriptExecutionQuerySerializer(serializers.Serializer):

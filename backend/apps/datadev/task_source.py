@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import logging
 import re
-import uuid
 from datetime import timedelta
 from types import SimpleNamespace
 
 from django.utils import timezone
 
 from apps.datasource.executor_info import build_executor_info
+from apps.datasource.models import DataSource
 from apps.datatask.source_registry import SourceHandler, register_source_handler
 
-from .models import DataDevModel, DataDevScript, DataDevScriptExecution
+from .models import DataDevModel, DataDevScript
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def build_script_task_config(*, script, version, datasource, sql: str) -> dict:
     }
 
 
-def sync_script_source_task(script, username: str = ''):
+def sync_script_source_task(script, username: str = '', preserve_existing_status: bool = True):
     from apps.datatask.models import Task
     from apps.datatask.services import TaskService
 
@@ -82,7 +82,7 @@ def sync_script_source_task(script, username: str = ''):
         task_type='SQL_COMPUTE',
         source_module=SCRIPT_SOURCE_MODULE,
         source_record_id=script.id,
-        status=existing_task.status if existing_task else default_status,
+        status=existing_task.status if existing_task and preserve_existing_status else default_status,
         schedule_type=preserved_schedule_type,
         cron_expression=preserved_cron_expression,
         owner=script.owner or username,
@@ -121,7 +121,8 @@ def sync_script_platform_snapshot(task, changed_fields: set[str] | None = None, 
     script.save(update_fields=update_fields + ['update_by', 'update_time'])
 
 
-def _normalize_engine_type(script, runtime_params: dict) -> tuple[str, dict | None]:
+def _normalize_engine_type(script, runtime_params: dict, datasource=None) -> tuple[str, dict | None]:
+    datasource = datasource if datasource is not None else script.datasource
     configured_engine_type = str(getattr(script, 'engine_type', '') or '').strip().lower()
     if configured_engine_type in ('spark-sql', 'sparksql'):
         configured_engine_type = 'spark'
@@ -162,8 +163,8 @@ def _normalize_engine_type(script, runtime_params: dict) -> tuple[str, dict | No
         }
         return normalized_executor_type, modeling_info
 
-    if script.datasource is not None:
-        normalized_executor_type = str(script.datasource.db_type or '').lower()
+    if datasource is not None:
+        normalized_executor_type = str(datasource.db_type or '').lower()
         if normalized_executor_type in ('spark-sql', 'sparksql', 'spark'):
             normalized_executor_type = 'spark'
         elif normalized_executor_type in ('hive', 'hiveserver2', 'hive2'):
@@ -184,6 +185,7 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
     from apps.executors.base import ExecutorFactory
 
     runtime_params = runtime_params or {}
+    execution_runtime_config = runtime_config or {}
     task = platform_task
     if task is None:
         task = Task.objects.filter(
@@ -191,15 +193,35 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
             source_record_id=script.id,
             del_flag='0',
         ).first()
+        if task is None:
+            task = sync_script_source_task(script, username=username)
 
     current_version = script.versions.filter(is_current=True).first()
-    if task is not None:
+    override_version_id = execution_runtime_config.get('scriptVersionId')
+    override_sql_text = execution_runtime_config.get('sqlText')
+    has_runtime_datasource_override = 'datasourceId' in execution_runtime_config
+    runtime_datasource_id = execution_runtime_config.get('datasourceId')
+    if override_version_id:
+        current_version = script.versions.filter(id=override_version_id).first() or current_version
+    if override_sql_text:
+        sql = override_sql_text
+    elif task is not None:
         version_id = (task.task_config or {}).get('currentVersionId')
         if version_id:
             current_version = script.versions.filter(id=version_id).first() or current_version
         sql = (task.task_config or {}).get('sqlText') or (current_version.content if current_version else '')
     else:
         sql = current_version.content if current_version else ''
+    runtime_datasource = None
+    if has_runtime_datasource_override:
+        if runtime_datasource_id not in (None, ''):
+            runtime_datasource = DataSource.objects.filter(pk=runtime_datasource_id, del_flag='0').first()
+    elif task is not None:
+        task_datasource_id = (task.task_config or {}).get('datasourceId')
+        if task_datasource_id not in (None, ''):
+            runtime_datasource = DataSource.objects.filter(pk=task_datasource_id, del_flag='0').first()
+    if runtime_datasource is None:
+        runtime_datasource = script.datasource
 
     if not current_version:
         return {'ok': False, 'msg': '脚本没有当前版本', 'data': None}
@@ -208,24 +230,28 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
 
     runtime_params_with_sql = {**runtime_params, '_sqlText': sql}
     try:
-        normalized_executor_type, modeling_info = _normalize_engine_type(script, runtime_params_with_sql)
+        normalized_executor_type, modeling_info = _normalize_engine_type(
+            script,
+            runtime_params_with_sql,
+            datasource=runtime_datasource,
+        )
     except ValueError as exc:
         return {'ok': False, 'msg': str(exc), 'data': None}
+    if modeling_info is None and runtime_datasource is None and normalized_executor_type not in ('spark', 'hive', 'mvp'):
+        return {'ok': False, 'msg': '执行数据源不存在，请重新发布任务', 'data': None}
 
-    task_instance = None
-    if task is not None:
-        task_instance = TaskService.create_task_instance(
-            task=task,
-            trigger_mode=trigger_mode,
-            runtime_config={
-                'scriptVersionId': current_version.id,
-                'params': runtime_params,
-                **(runtime_config or {}),
-            },
-            triggered_by=username or trigger_mode,
-            executor_type=normalized_executor_type,
-        )
-        TaskService.mark_instance_running(task_instance, executor_type=normalized_executor_type)
+    task_instance = TaskService.create_task_instance(
+        task=task,
+        trigger_mode=trigger_mode,
+        runtime_config={
+            'scriptVersionId': current_version.id,
+            'params': runtime_params,
+            **execution_runtime_config,
+        },
+        triggered_by=username or trigger_mode,
+        executor_type=normalized_executor_type,
+    )
+    TaskService.mark_instance_running(task_instance, executor_type=normalized_executor_type)
 
     start_time = timezone.now()
     start_perf = timezone.now().timestamp()
@@ -259,7 +285,7 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
                 config={
                     'engine': normalized_executor_type,
                     'sql': sql,
-                    'datasource': _build_runtime_datasource(script.datasource) if modeling_info is None else None,
+                    'datasource': _build_runtime_datasource(runtime_datasource) if modeling_info is None else None,
                     'runtimeParams': runtime_params,
                 },
             )
@@ -278,7 +304,7 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
             else:
                 rows = [dict(zip(columns, row)) for row in raw_rows]
         else:
-            info = build_executor_info(script.datasource)
+            info = build_executor_info(runtime_datasource)
             executor = get_executor(info)
             query_result = executor.execute_query(sql=sql)
             columns = query_result.get('columns', [])
@@ -322,6 +348,7 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
         result_summary['rawError'] = engine_result['raw_error']
     task_result_summary = {
         'columns': columns,
+        'rows': rows,
         'rowCount': len(rows),
         'error': error_msg,
         'engine': normalized_executor_type,
@@ -334,35 +361,27 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
     if engine_result.get('design_only'):
         result_summary['designOnly'] = True
         task_result_summary['designOnly'] = True
-    if task_instance is not None:
-        TaskService.finalize_instance(
-            instance=task_instance,
-            status=status,
-            result_summary=task_result_summary,
-            error_message=error_msg,
-        )
-
-    execution = DataDevScriptExecution.objects.create(
-        script=script,
-        version=current_version,
-        task_instance=task_instance,
-        execution_id=task_instance.instance_id if task_instance else uuid.uuid4().hex,
+    if engine_result.get('raw_output'):
+        task_result_summary['rawOutput'] = engine_result['raw_output']
+    if engine_result.get('raw_error'):
+        task_result_summary['rawError'] = engine_result['raw_error']
+    TaskService.finalize_instance(
+        instance=task_instance,
         status=status,
-        executor_type=normalized_executor_type,
-        executor_params=runtime_params,
-        start_time=start_time,
-        end_time=end_time,
-        duration_seconds=duration,
-        result_summary=result_summary,
+        result_summary=task_result_summary,
         error_message=error_msg,
-        executed_by=username,
+        started_at=start_time,
+        finished_at=end_time,
+        duration_seconds=duration,
     )
     if status == 'failed':
         return {
             'ok': False,
             'msg': f'执行失败: {error_msg}',
             'data': {
-                'executionId': execution.execution_id,
+                'taskId': task.id,
+                'taskInstanceId': task_instance.id,
+                'executionId': task_instance.instance_id,
                 'status': 'failed',
                 'rawOutput': result_summary.get('rawOutput', ''),
                 'rawError': result_summary.get('rawError', ''),
@@ -372,7 +391,9 @@ def execute_script(script, *, username: str = '', runtime_params: dict | None = 
         'ok': True,
         'msg': '执行成功',
         'data': {
-            'executionId': execution.execution_id,
+            'taskId': task.id,
+            'taskInstanceId': task_instance.id,
+            'executionId': task_instance.instance_id,
             'status': 'success',
             'columns': columns,
             'rows': rows,
@@ -494,6 +515,7 @@ def execute_model_task(
     username: str = '',
     trigger_mode: str = 'manual',
     runtime_config: dict | None = None,
+    platform_task=None,
 ) -> dict:
     from apps.datatask.models import Task
     from apps.datatask.services import TaskService
@@ -510,50 +532,45 @@ def execute_model_task(
         if not field.field_comment:
             return {'ok': False, 'msg': f'字段 {field.field_name} 缺少字段注释', 'data': None}
 
-    sql_text = build_datamodel_create_sql(model)
-    existing_task = Task.objects.filter(
-        source_module=MODEL_SOURCE_MODULE,
-        source_record_id=model.id,
-        del_flag='0',
-    ).first()
-    preserved_status, preserved_schedule_type, preserved_cron_expression = TaskService.get_task_governance_defaults(
-        existing_task
-    )
-    task, _ = TaskService.upsert_source_task(
-        task_name=model.model_name,
-        task_type='SQL_COMPUTE',
-        source_module=MODEL_SOURCE_MODULE,
-        source_record_id=model.id,
-        status=preserved_status,
-        schedule_type=preserved_schedule_type,
-        cron_expression=preserved_cron_expression,
-        owner=model.owner or username,
-        task_config=build_datamodel_task_config(model, sql_text),
-        remark=model.remark or (existing_task.remark if existing_task else ''),
-        username=username,
-    )
+    execution_runtime_config = runtime_config or {}
+    task = platform_task
+    if task is None:
+        task = Task.objects.filter(
+            source_module=MODEL_SOURCE_MODULE,
+            source_record_id=model.id,
+            del_flag='0',
+        ).first()
+        if task is None:
+            task = sync_model_source_task(model, username=username)
+    task_config = task.task_config or {}
+    sql_text = execution_runtime_config.get('sqlText') or task_config.get('sqlText') or build_datamodel_create_sql(model)
+    runtime_layer = execution_runtime_config.get('layer') or task_config.get('layer') or model.layer
+    runtime_table_name = execution_runtime_config.get('tableName') or task_config.get('tableName') or model.table_name
+    runtime_schema_name = execution_runtime_config.get('schemaName') or task_config.get('schemaName') or model.schema_name
+    runtime_engine_type = execution_runtime_config.get('engineType') or task_config.get('engineType') or model.engine_type
     merged_runtime_config = {
-        **(runtime_config or {}),
-        'layer': model.layer,
-        'tableName': model.table_name,
-        'schemaName': model.schema_name,
-        'engineType': model.engine_type,
+        **execution_runtime_config,
+        'layer': runtime_layer,
+        'tableName': runtime_table_name,
+        'schemaName': runtime_schema_name,
+        'engineType': runtime_engine_type,
+        'sqlText': sql_text,
     }
     task_instance = TaskService.create_task_instance(
         task=task,
         trigger_mode=trigger_mode,
         runtime_config=merged_runtime_config,
         triggered_by=username or trigger_mode,
-        executor_type=model.engine_type,
+        executor_type=runtime_engine_type,
     )
-    TaskService.mark_instance_running(task_instance, executor_type=model.engine_type)
+    TaskService.mark_instance_running(task_instance, executor_type=runtime_engine_type)
 
     start_time = timezone.now()
     start_perf = timezone.now().timestamp()
     executor = ExecutorFactory.create_executor(
-        model.engine_type,
+        runtime_engine_type,
         model,
-        config={'engine': model.engine_type, 'sql': sql_text},
+        config={'engine': runtime_engine_type, 'sql': sql_text},
     )
     status = 'success'
     error_msg = ''
@@ -589,9 +606,9 @@ def execute_model_task(
     if status == 'success' and not columns and not rows:
         columns = ['layer', 'tableName', 'engineType', 'owner']
         rows = [{
-            'layer': model.layer,
-            'tableName': model.table_name,
-            'engineType': model.engine_type,
+            'layer': runtime_layer,
+            'tableName': runtime_table_name,
+            'engineType': runtime_engine_type,
             'owner': model.owner,
         }]
 
@@ -602,9 +619,9 @@ def execute_model_task(
     result_summary = {
         'columns': columns,
         'rowCount': len(rows),
-        'engine': model.engine_type,
-        'tableName': model.table_name,
-        'layer': model.layer,
+        'engine': runtime_engine_type,
+        'tableName': runtime_table_name,
+        'layer': runtime_layer,
         'error': error_msg,
     }
     TaskService.finalize_instance(
@@ -612,11 +629,17 @@ def execute_model_task(
         status=status,
         result_summary=result_summary,
         error_message=error_msg,
+        started_at=start_time,
+        finished_at=end_time,
+        duration_seconds=duration,
     )
     if status == 'success':
         model.status = 'deployed'
         model.update_by = username
         model.save(update_fields=['status', 'update_by', 'update_time'])
+        if task.status != 'active':
+            task.status = 'active'
+            task.save(update_fields=['status', 'update_time'])
     if status == 'failed':
         return {
             'ok': False,
@@ -656,6 +679,7 @@ def _execute_model_from_platform(platform_task, source_record, username: str, tr
         username=username,
         trigger_mode=trigger_mode,
         runtime_config=runtime_config,
+        platform_task=platform_task,
     )
 
 

@@ -30,7 +30,7 @@ from .serializers import (
     TableLineageSerializer, TableLineageCreateSerializer, TableLineageUpdateSerializer,
     TableLineageQuerySerializer, TableLineageGraphSerializer
 )
-from .services import collect_table_metadata, sync_standard_asset_from_meta_table
+from .facades import sync_standard_asset_from_meta_table_via_facade
 
 logger = logging.getLogger(__name__)
 
@@ -390,7 +390,7 @@ class MetaTableViewSet(BaseViewSet):
             serializer = MetaTableSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
-            sync_standard_asset_from_meta_table(serializer.instance, user=request.user)
+            sync_standard_asset_from_meta_table_via_facade(serializer.instance, user=request.user)
         return self.ok()
 
     @audit_log
@@ -403,7 +403,7 @@ class MetaTableViewSet(BaseViewSet):
             self.perform_update(serializer)
             if 'dataSourceId' in request.data:
                 MetaColumn.objects.filter(table=serializer.instance).update(data_source_id=serializer.instance.data_source_id)
-            sync_standard_asset_from_meta_table(serializer.instance, user=request.user)
+            sync_standard_asset_from_meta_table_via_facade(serializer.instance, user=request.user)
         return self.ok()
 
     @audit_log
@@ -578,7 +578,7 @@ class MetaColumnViewSet(BaseViewSet):
                 column.save(update_fields=['update_by'])
             else:
                 column.save()
-            sync_standard_asset_from_meta_table(column.table, user=request.user)
+            sync_standard_asset_from_meta_table_via_facade(column.table, user=request.user)
         return self.ok()
 
     @audit_log
@@ -624,8 +624,8 @@ class MetaColumnViewSet(BaseViewSet):
                 instance.update_by = request.user.username
             instance.save()
             if original_table.id != instance.table_id:
-                sync_standard_asset_from_meta_table(original_table, user=request.user)
-            sync_standard_asset_from_meta_table(instance.table, user=request.user)
+                sync_standard_asset_from_meta_table_via_facade(original_table, user=request.user)
+            sync_standard_asset_from_meta_table_via_facade(instance.table, user=request.user)
         return self.ok()
 
     @audit_log
@@ -637,7 +637,7 @@ class MetaColumnViewSet(BaseViewSet):
             for table_id in set(table_ids):
                 meta_table = MetaTable.objects.filter(pk=table_id, del_flag='0').first()
                 if meta_table:
-                    sync_standard_asset_from_meta_table(meta_table, user=request.user)
+                    sync_standard_asset_from_meta_table_via_facade(meta_table, user=request.user)
         return response
 
 # ==================== TableLineage ViewSet ====================

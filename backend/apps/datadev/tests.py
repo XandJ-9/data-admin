@@ -12,7 +12,7 @@ from apps.datasource.models import DataSource
 from apps.datatask.models import Task, TaskInstance
 from apps.datatask.services import TaskService
 from .models import DataDevDirectory, DataDevModel, DataDevModelField, DataDevScript
-from .models import DataDevScriptExecution, DataDevScriptVersion
+from .models import DataDevScriptVersion
 from .task_source import sync_model_source_task, sync_script_source_task
 from .views import DataDevDirectoryViewSet, DataModelViewSet, ScriptViewSet
 
@@ -272,7 +272,7 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         )
 
     @patch('apps.dbutils.factory.get_executor')
-    def test_execute_script_without_publish_should_not_create_platform_task(self, mock_get_executor):
+    def test_execute_script_should_create_platform_task_instance(self, mock_get_executor):
         class _MockQueryExecutor:
             def execute_query(self, sql):
                 return {'columns': ['order_cnt'], 'rows': [(1,)]}
@@ -293,11 +293,14 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 200)
-        self.assertFalse(Task.objects.filter(source_module='datadev.script', source_record_id=self.script.pk, del_flag='0').exists())
-        self.assertEqual(TaskInstance.objects.count(), 0)
-        execution = DataDevScriptExecution.objects.get(script=self.script)
-        self.assertIsNone(execution.task_instance_id)
-        self.assertEqual(execution.executor_type, 'mysql')
+        task = Task.objects.get(source_module='datadev.script', source_record_id=self.script.pk, del_flag='0')
+        self.assertEqual(task.status, 'draft')
+        task_instance = TaskInstance.objects.get(task=task)
+        self.assertEqual(task_instance.executor_type, 'mysql')
+        self.assertEqual(task_instance.status, 'success')
+        self.assertEqual(response.data['data']['taskId'], task.id)
+        self.assertEqual(response.data['data']['taskInstanceId'], task_instance.id)
+        self.assertEqual(response.data['data']['executionId'], task_instance.instance_id)
 
     def test_execute_script_without_datasource_should_run_in_mvp_mode(self):
         self.script.datasource = None
@@ -314,9 +317,8 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         response = view(request, pk=str(self.script.pk))
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(Task.objects.filter(source_module='datadev.script', source_record_id=self.script.pk, del_flag='0').exists())
-        execution = DataDevScriptExecution.objects.get(script=self.script)
-        self.assertIsNone(execution.task_instance_id)
+        task = Task.objects.get(source_module='datadev.script', source_record_id=self.script.pk, del_flag='0')
+        execution = TaskInstance.objects.get(task=task)
         self.assertEqual(execution.executor_type, 'mvp')
         self.assertTrue(execution.result_summary['designOnly'])
         self.assertTrue(response.data['data']['designOnly'])
@@ -347,10 +349,11 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         response = view(request, pk=str(self.script.pk))
 
         self.assertEqual(response.status_code, 200)
-        execution = DataDevScriptExecution.objects.get(script=self.script)
+        task = Task.objects.get(source_module='datadev.script', source_record_id=self.script.pk, del_flag='0')
+        execution = TaskInstance.objects.get(task=task)
         self.assertEqual(execution.executor_type, 'spark')
         self.assertFalse(response.data['data']['designOnly'])
-        self.assertIsNone(execution.task_instance_id)
+        self.assertEqual(execution.status, 'success')
 
     @patch('apps.executors.base.ExecutorFactory.create_executor')
     def test_execute_script_without_datasource_should_support_modeling_execution(self, mock_create_executor):
@@ -386,12 +389,13 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         response = view(request, pk=str(self.script.pk))
 
         self.assertEqual(response.status_code, 200)
-        execution = DataDevScriptExecution.objects.get(script=self.script)
+        task = Task.objects.get(source_module='datadev.script', source_record_id=self.script.pk, del_flag='0')
+        execution = TaskInstance.objects.get(task=task)
         self.assertEqual(execution.executor_type, 'spark')
         self.assertEqual(execution.result_summary['executionMode'], 'modeling')
         self.assertEqual(response.data['data']['executionMode'], 'modeling')
         self.assertEqual(response.data['data']['rows'][0]['targetTableName'], 'dwd_order_summary')
-        self.assertIsNone(execution.task_instance_id)
+        self.assertEqual(execution.status, 'success')
 
     def test_execute_script_modeling_should_require_governance_fields(self):
         self.script.datasource = None
@@ -437,15 +441,20 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         response = view(request, pk=str(self.script.pk))
 
         self.assertEqual(response.status_code, 200)
-        execution = DataDevScriptExecution.objects.get(script=self.script)
+        task = Task.objects.get(source_module='datadev.script', source_record_id=self.script.pk, del_flag='0')
+        execution = TaskInstance.objects.get(task=task)
         self.assertEqual(execution.executor_type, 'spark')
         self.assertEqual(execution.result_summary['rowCount'], 1)
         self.assertEqual(response.data['data']['rows'], [{'order_cnt': '1'}])
-        self.assertIsNone(execution.task_instance_id)
+        self.assertEqual(execution.status, 'success')
 
     def test_publish_task_requires_target_model_for_transform_job(self):
         self.script.target_model = None
         self.script.save(update_fields=['target_model'])
+        self.version.is_released = True
+        self.version.save(update_fields=['is_released'])
+        self.script.status = 'published'
+        self.script.save(update_fields=['status'])
         view = ScriptViewSet.as_view({'post': 'publish_task'})
         request = self.factory.post(f'/data-api/datadev/scripts/{self.script.pk}/publish-task', {}, format='json')
         force_authenticate(request, user=self.user)
@@ -457,6 +466,10 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         self.assertIn('绑定目标模型', response.data['msg'])
 
     def test_publish_task_should_create_platform_task(self):
+        self.version.is_released = True
+        self.version.save(update_fields=['is_released'])
+        self.script.status = 'published'
+        self.script.save(update_fields=['status'])
         view = ScriptViewSet.as_view({'post': 'publish_task'})
         request = self.factory.post(f'/data-api/datadev/scripts/{self.script.pk}/publish-task', {}, format='json')
         force_authenticate(request, user=self.user)
@@ -500,9 +513,112 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
         self.assertTrue(result['ok'])
         self.assertEqual(captured_sql['sql'], 'SELECT 1 AS order_cnt')
         task_instance = TaskInstance.objects.get(task=task)
-        execution = DataDevScriptExecution.objects.get(task_instance=task_instance)
-        self.assertEqual(execution.version_id, self.version.id)
-        self.assertNotEqual(execution.version_id, version2.id)
+        self.assertEqual(task_instance.runtime_config['scriptVersionId'], self.version.id)
+        self.assertNotEqual(task_instance.runtime_config['scriptVersionId'], version2.id)
+
+    @patch('apps.dbutils.factory.get_executor')
+    def test_direct_execute_should_not_override_published_task_snapshot(self, mock_get_executor):
+        captured_sql = {}
+
+        class _MockQueryExecutor:
+            def execute_query(self, sql):
+                captured_sql['sql'] = sql
+                return {'columns': ['order_cnt'], 'rows': [(2,)]}
+
+            def close(self):
+                return None
+
+        mock_get_executor.return_value = _MockQueryExecutor()
+        task = sync_script_source_task(self.script, username='script_runner')
+        self.script.versions.update(is_current=False)
+        version2 = DataDevScriptVersion.objects.create(
+            script=self.script,
+            version_number=2,
+            content='SELECT 2 AS order_cnt',
+            content_hash='hash-v2',
+            is_current=True,
+            is_released=False,
+            create_by='script_runner',
+        )
+        view = ScriptViewSet.as_view({'post': 'execute_script'})
+        request = self.factory.post(
+            f'/data-api/datadev/scripts/{self.script.pk}/execute',
+            {},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(self.script.pk))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured_sql['sql'], 'SELECT 2 AS order_cnt')
+        task.refresh_from_db()
+        self.assertEqual(task.task_config['currentVersionId'], self.version.id)
+        self.assertEqual(task.task_config['sqlText'], 'SELECT 1 AS order_cnt')
+        task_instance = TaskInstance.objects.get(task=task)
+        self.assertEqual(task_instance.runtime_config['scriptVersionId'], version2.id)
+
+    @patch('apps.dbutils.factory.get_executor')
+    def test_platform_execute_script_should_keep_task_snapshot_datasource(self, mock_get_executor):
+        captured_info = {}
+
+        class _MockQueryExecutor:
+            def execute_query(self, sql):
+                return {'columns': ['order_cnt'], 'rows': [(1,)]}
+
+            def close(self):
+                return None
+
+        def _capture_executor(info):
+            captured_info.update(info)
+            return _MockQueryExecutor()
+
+        mock_get_executor.side_effect = _capture_executor
+        task = sync_script_source_task(self.script, username='script_runner')
+        snapshot_datasource_id = task.task_config['datasourceId']
+        alternate_datasource = DataSource.objects.create(
+            name='替代执行库',
+            db_type='mysql',
+            host='127.0.0.2',
+            port=3309,
+            db_name='alt_demo',
+            username='root',
+            password='secret',
+            create_by='tester',
+        )
+        self.script.datasource = alternate_datasource
+        self.script.save(update_fields=['datasource'])
+
+        result = TaskService.execute_task(task, username='scheduler', trigger_mode='manual')
+
+        self.assertTrue(result['ok'])
+        self.assertEqual(snapshot_datasource_id, self.datasource.id)
+        self.assertEqual(captured_info['host'], self.datasource.host)
+        self.assertEqual(captured_info['port'], self.datasource.port)
+        self.assertEqual(captured_info['database'], self.datasource.db_name)
+
+    def test_direct_execute_should_respect_cleared_datasource_over_task_snapshot(self):
+        task = sync_script_source_task(self.script, username='script_runner')
+        self.script.datasource = None
+        self.script.engine_type = 'mvp'
+        self.script.save(update_fields=['datasource', 'engine_type'])
+        view = ScriptViewSet.as_view({'post': 'execute_script'})
+        request = self.factory.post(
+            f'/data-api/datadev/scripts/{self.script.pk}/execute',
+            {},
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(self.script.pk))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        task.refresh_from_db()
+        self.assertEqual(task.task_config['datasourceId'], self.datasource.id)
+        task_instance = TaskInstance.objects.get(task=task)
+        self.assertEqual(task_instance.executor_type, 'mvp')
+        self.assertTrue(task_instance.result_summary['designOnly'])
 
 
 class ScriptTaskLifecycleSyncTests(TestCase):
@@ -554,6 +670,11 @@ class ScriptTaskLifecycleSyncTests(TestCase):
         self.assertEqual(create_response.status_code, 200)
         script = DataDevScript.objects.get(script_code='script_lifecycle_sync')
         self.assertFalse(Task.objects.filter(source_module='datadev.script', source_record_id=script.id, del_flag='0').exists())
+        current_version = script.versions.get(is_current=True)
+        current_version.is_released = True
+        current_version.save(update_fields=['is_released'])
+        script.status = 'published'
+        script.save(update_fields=['status'])
 
         publish_view = ScriptViewSet.as_view({'post': 'publish_task'})
         publish_request = self.factory.post(f'/data-api/datadev/scripts/{script.id}/publish-task', {}, format='json')
@@ -576,6 +697,65 @@ class ScriptTaskLifecycleSyncTests(TestCase):
         self.assertEqual(destroy_response.status_code, 200)
         task.refresh_from_db()
         self.assertEqual(task.del_flag, '1')
+
+    @patch('apps.dbutils.factory.get_executor')
+    def test_publish_task_should_promote_draft_task_after_direct_execution(self, mock_get_executor):
+        class _MockQueryExecutor:
+            def execute_query(self, sql):
+                return {'columns': ['order_cnt'], 'rows': [(1,)]}
+
+            def close(self):
+                return None
+
+        mock_get_executor.return_value = _MockQueryExecutor()
+        script = DataDevScript.objects.create(
+            script_name='直接执行后发布脚本',
+            script_code='script_publish_after_execute',
+            script_type='sql',
+            script_role='transform',
+            datasource=DataSource.objects.create(
+                name='执行库',
+                db_type='mysql',
+                host='127.0.0.1',
+                port=3310,
+                db_name='execute_demo',
+                username='root',
+                password='secret',
+                create_by='tester',
+            ),
+            target_model=self.model,
+            owner='script_admin',
+            create_by='script_admin',
+        )
+        DataDevScriptVersion.objects.create(
+            script=script,
+            version_number=1,
+            content='SELECT 1 AS order_cnt',
+            content_hash='hash-v1',
+            is_current=True,
+            is_released=True,
+            create_by='script_admin',
+        )
+
+        execute_view = ScriptViewSet.as_view({'post': 'execute_script'})
+        execute_request = self.factory.post(f'/data-api/datadev/scripts/{script.id}/execute', {}, format='json')
+        force_authenticate(execute_request, user=self.user)
+        execute_response = execute_view(execute_request, pk=str(script.id))
+
+        self.assertEqual(execute_response.status_code, 200)
+        draft_task = Task.objects.get(source_module='datadev.script', source_record_id=script.id, del_flag='0')
+        self.assertEqual(draft_task.status, 'draft')
+
+        script.status = 'published'
+        script.save(update_fields=['status'])
+        publish_view = ScriptViewSet.as_view({'post': 'publish_task'})
+        publish_request = self.factory.post(f'/data-api/datadev/scripts/{script.id}/publish-task', {}, format='json')
+        force_authenticate(publish_request, user=self.user)
+        publish_response = publish_view(publish_request, pk=str(script.id))
+
+        self.assertEqual(publish_response.status_code, 200)
+        draft_task.refresh_from_db()
+        self.assertEqual(draft_task.status, 'active')
 
 
 class DataModelViewSetTests(TestCase):
@@ -750,6 +930,7 @@ class DataModelViewSetTests(TestCase):
         task = Task.objects.get(source_module='datadev.model', source_record_id=model.id, del_flag='0')
         task_instance = TaskInstance.objects.get(task=task)
         self.assertEqual(task_instance.status, 'success')
+        self.assertEqual(task.status, 'active')
         self.assertEqual(submit_response.data['data']['rows'][0]['tableName'], 'ads_campaign_summary')
 
         destroy_view = DataModelViewSet.as_view({'delete': 'destroy'})
@@ -816,3 +997,55 @@ class DataModelViewSetTests(TestCase):
         self.assertEqual(task_instance.runtime_config['dependencyFingerprint'], '10:instance-1')
         self.assertEqual(task_instance.runtime_config['scheduleTick'], '2026-04-25T12:00:00Z')
         self.assertEqual(task_instance.runtime_config['tableName'], 'dws_user_tag_summary')
+
+    @patch('apps.executors.base.ExecutorFactory.create_executor')
+    def test_platform_execute_model_should_keep_task_snapshot_sql(self, mock_create_executor):
+        captured_config = {}
+        model = DataDevModel.objects.create(
+            model_name='快照模型',
+            model_code='dwd_snapshot_model',
+            layer='DWD',
+            table_name='dwd_snapshot_model',
+            schema_name='dwd',
+            table_comment='快照模型',
+            engine_type='spark',
+            owner='snapshot_owner',
+            create_by='model_admin',
+            update_by='model_admin',
+        )
+        DataDevModelField.objects.create(
+            model=model,
+            field_name='order_id',
+            field_type='STRING',
+            field_comment='订单ID',
+            is_nullable=False,
+            ordinal_position=1,
+            create_by='model_admin',
+            update_by='model_admin',
+        )
+
+        class _Executor:
+            def validate(self):
+                return True, ''
+
+            def execute(self):
+                return {'status': 'success', 'columns': [], 'rows': [], 'duration_seconds': 1}
+
+        def _capture_executor(engine, source_record, config):
+            captured_config['engine'] = engine
+            captured_config['sql'] = config['sql']
+            return _Executor()
+
+        mock_create_executor.side_effect = _capture_executor
+        task = sync_model_source_task(model, username='model_admin')
+        snapshot_sql = task.task_config['sqlText']
+
+        model.table_name = 'dwd_snapshot_model_new'
+        model.save(update_fields=['table_name'])
+
+        result = TaskService.execute_task(task, username='scheduler', trigger_mode='manual')
+
+        self.assertTrue(result['ok'])
+        self.assertEqual(captured_config['sql'], snapshot_sql)
+        task.refresh_from_db()
+        self.assertEqual(task.task_config['sqlText'], snapshot_sql)

@@ -191,7 +191,16 @@ const statusOptions = [
 ]
 
 const canOpenSourceDetail = computed(() => {
-  return !!taskDetail.value.sourceRecordId && ['dataintegration.task', 'datadev.script'].includes(taskDetail.value.sourceModule)
+  if (taskDetail.value.sourceModule === 'datasource.collection') {
+    return !!taskDetail.value.taskConfig?.dataSourceId
+  }
+  if (!taskDetail.value.sourceRecordId) {
+    return false
+  }
+  if (['dataintegration.task', 'datadev.script'].includes(taskDetail.value.sourceModule)) {
+    return true
+  }
+  return false
 })
 
 const sourceDetailText = computed(() => {
@@ -200,6 +209,9 @@ const sourceDetailText = computed(() => {
   }
   if (taskDetail.value.sourceModule === 'datadev.script') {
     return '进入加工作业'
+  }
+  if (taskDetail.value.sourceModule === 'datasource.collection') {
+    return '进入数据源详情'
   }
   return '进入来源详情'
 })
@@ -212,6 +224,9 @@ const canViewSourceDetail = computed(() => {
   }
   if (taskDetail.value.sourceModule === 'datadev.script') {
     return checkPermi(['datadev:ide:view'])
+  }
+  if (taskDetail.value.sourceModule === 'datasource.collection') {
+    return checkPermi(['system:datasource:query'])
   }
   return false
 })
@@ -289,6 +304,23 @@ function openSourceDetail() {
   }
   if (taskDetail.value.sourceModule === 'datadev.script') {
     router.push(`/datadev/ide/detail/${taskDetail.value.sourceRecordId}`)
+    return
+  }
+  if (taskDetail.value.sourceModule === 'datasource.collection' && taskDetail.value.taskConfig?.dataSourceId) {
+    const latestInstanceId = taskDetail.value.taskConfig?.collectionScope === 'database'
+      ? (instanceList.value[0]?.instanceId || '')
+      : ''
+    router.push({
+      name: 'DataSourceDetail',
+      params: { id: taskDetail.value.taskConfig.dataSourceId },
+      query: {
+        from: 'task-detail',
+        returnTaskId: route.params.id,
+        databaseName: taskDetail.value.taskConfig.databaseName || '',
+        tableName: taskDetail.value.taskConfig.tableName || '',
+        runId: latestInstanceId,
+      },
+    })
   }
 }
 

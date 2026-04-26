@@ -35,17 +35,18 @@ class MysqlExecutor(DataSourceExecutor):
         try:
             cur.execute(
                 """
-                SELECT TABLE_NAME, TABLE_SCHEMA, TABLE_COMMENT, CREATE_TIME, UPDATE_TIME
+                SELECT TABLE_NAME, TABLE_SCHEMA, TABLE_TYPE, TABLE_COMMENT, CREATE_TIME, UPDATE_TIME
                 FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA = DATABASE()
                 ORDER BY TABLE_NAME
                 """
             )
             rows = []
-            for tname, dbname, comment, ctime, utime in cur.fetchall():
+            for tname, dbname, table_type, comment, ctime, utime in cur.fetchall():
                 rows.append({
                     'tableName': tname,
                     'databaseName': dbname,
+                    'tableType': table_type or 'TABLE',
                     'comment': comment or '',
                     'createTime': self._format_cell(ctime) if ctime else '',
                     'updateTime': self._format_cell(utime) if utime else ''
@@ -99,7 +100,7 @@ class MysqlExecutor(DataSourceExecutor):
         try:
             cur.execute(
                 """
-                SELECT TABLE_NAME, TABLE_SCHEMA, TABLE_COMMENT, CREATE_TIME, UPDATE_TIME
+                SELECT TABLE_NAME, TABLE_SCHEMA, TABLE_TYPE, TABLE_COMMENT, CREATE_TIME, UPDATE_TIME
                 FROM information_schema.TABLES
                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
                 """,
@@ -110,14 +111,16 @@ class MysqlExecutor(DataSourceExecutor):
                 return {
                     'tableName': table,
                     'databaseName': self.info.get('database') or '',
+                    'tableType': 'TABLE',
                     'comment': '',
                     'createTime': '',
                     'updateTime': ''
                 }
-            tname, dbname, comment, ctime, utime = row
+            tname, dbname, table_type, comment, ctime, utime = row
             return {
                 'tableName': tname,
                 'databaseName': dbname,
+                'tableType': table_type or 'TABLE',
                 'comment': comment or '',
                 'createTime': self._format_cell(ctime) if ctime else '',
                 'updateTime': self._format_cell(utime) if utime else ''

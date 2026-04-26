@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.pagination import StandardPagination
+from apps.datatask.models import Task, TaskInstance
 from apps.datatask.services import TaskService
 from apps.system.permission import HasRolePermission
 from apps.system.views.core import BaseViewSet
@@ -19,7 +20,6 @@ from .models import (
     DataDevModel,
     DataDevModelField,
     DataDevScript,
-    DataDevScriptExecution,
     DataDevScriptVersion,
 )
 from .serializers import (
@@ -48,6 +48,14 @@ from .task_source import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_missing_task_table_error(exc) -> bool:
+    raw_message = str(exc or '').lower()
+    missing_table_markers = ['datatask_task', 'datatask_task_instance']
+    return any(marker in raw_message for marker in missing_table_markers) and (
+        'no such table' in raw_message or 'does not exist' in raw_message
+    )
 
 
 class DataDevDirectoryViewSet(BaseViewSet):
@@ -393,7 +401,17 @@ class ScriptViewSet(BaseViewSet):
                 return Response({'code': 400, 'msg': message, 'errors': detail})
             return Response({'code': 400, 'msg': str(detail), 'errors': detail})
         username = request.user.username if hasattr(request, 'user') else ''
-        task = sync_script_source_task(script, username=username)
+        existing_task = Task.objects.filter(
+            source_module='datadev.script',
+            source_record_id=script.id,
+            del_flag='0',
+        ).first()
+        preserve_existing_status = existing_task is not None and existing_task.status != 'draft'
+        task = sync_script_source_task(
+            script,
+            username=username,
+            preserve_existing_status=preserve_existing_status,
+        )
         return self.data({'taskId': task.id, 'taskCode': task.task_code}, msg='已发布到任务运维')
 
     @action(detail=True, methods=['post'], url_path='execute')
@@ -401,11 +419,23 @@ class ScriptViewSet(BaseViewSet):
         script = self.get_object()
         username = request.user.username if hasattr(request, 'user') else ''
         runtime_params = request.data.get('params') or {}
-        result = execute_script(
-            script,
-            username=username,
-            runtime_params=runtime_params,
-        )
+        current_version = script.versions.filter(is_current=True).first()
+        try:
+            result = execute_script(
+                script,
+                username=username,
+                runtime_params=runtime_params,
+                runtime_config={
+                    'datasourceId': script.datasource_id,
+                    'scriptVersionId': current_version.id if current_version else None,
+                    'sqlText': current_version.content if current_version else '',
+                },
+            )
+        except Exception as exc:
+            logger.exception('执行加工作业失败: script_id=%s', script.id)
+            if _is_missing_task_table_error(exc):
+                return self.error(msg='系统表未完成迁移，请先执行后端数据库迁移')
+            raise
         if result['ok']:
             return self.data(result['data'], msg=result['msg'])
         if result['data'] is None:
@@ -415,14 +445,17 @@ class ScriptViewSet(BaseViewSet):
     @action(detail=True, methods=['get'], url_path='executions')
     def list_executions(self, request, pk=None):
         script = self.get_object()
-        qs = script.executions.select_related('version', 'task_instance').all()
+        qs = TaskInstance.objects.select_related('task').filter(
+            task__source_module='datadev.script',
+            task__source_record_id=script.id,
+        ).order_by('-create_time', '-id')
         serializer = ScriptExecutionQuerySerializer(data=request.query_params)
         serializer.is_valid(raise_exception=False)
         vd = getattr(serializer, 'validated_data', {})
         if vd.get('status'):
             qs = qs.filter(status=vd['status'])
         if vd.get('executedBy'):
-            qs = qs.filter(executed_by=vd['executedBy'])
+            qs = qs.filter(triggered_by=vd['executedBy'])
         page = self.paginate_queryset(qs)
         if page is not None:
             return self.get_paginated_response(ScriptExecutionSerializer(page, many=True).data)
@@ -440,6 +473,8 @@ class ScriptViewSet(BaseViewSet):
         current_version = script.versions.filter(is_current=True).first()
         if current_version is None or not current_version.content.strip():
             raise DRFValidationError({'detail': '发布任务前请先保存加工作业内容'})
+        if not current_version.is_released or script.status != 'published':
+            raise DRFValidationError({'detail': '发布到任务运维前请先发布正式版本'})
         if script.script_role != 'explore' and script.target_model_id is None:
             raise DRFValidationError({'targetModelId': '当前作业类型发布前必须绑定目标模型'})
         if script.target_model_id is None:
@@ -459,7 +494,7 @@ class ScriptViewSet(BaseViewSet):
 
 class ScriptExecutionViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
-    queryset = DataDevScriptExecution.objects.select_related('script', 'version', 'task_instance').all()
+    queryset = TaskInstance.objects.select_related('task').filter(task__source_module='datadev.script')
     serializer_class = ScriptExecutionSerializer
     pagination_class = StandardPagination
     http_method_names = ['get']
@@ -472,8 +507,8 @@ class ScriptExecutionViewSet(BaseViewSet):
         if vd.get('status'):
             qs = qs.filter(status=vd['status'])
         if vd.get('executedBy'):
-            qs = qs.filter(executed_by=vd['executedBy'])
-        return qs
+            qs = qs.filter(triggered_by=vd['executedBy'])
+        return qs.order_by('-create_time', '-id')
 
     def list(self, request, *args, **kwargs):
         qs = self.filter_queryset(self.get_queryset())
@@ -483,7 +518,10 @@ class ScriptExecutionViewSet(BaseViewSet):
         return self.data(ScriptExecutionSerializer(qs, many=True).data)
 
     def retrieve(self, request, *args, **kwargs):
-        return self.data(ScriptExecutionSerializer(self.get_object()).data)
+        instance = self.get_object()
+        if instance.task.source_module != 'datadev.script':
+            return self.not_found('执行记录不存在')
+        return self.data(ScriptExecutionSerializer(instance).data)
 
 
 class DataModelViewSet(BaseViewSet):
@@ -582,7 +620,13 @@ class DataModelViewSet(BaseViewSet):
     def submit_model(self, request, pk=None):
         model = self.get_object()
         username = request.user.username if hasattr(request, 'user') else ''
-        result = execute_model_task(model, username=username)
+        try:
+            result = execute_model_task(model, username=username)
+        except Exception as exc:
+            logger.exception('提交数据模型失败: model_id=%s', model.id)
+            if _is_missing_task_table_error(exc):
+                return self.error(msg='系统表未完成迁移，请先执行后端数据库迁移')
+            raise
         if result['ok']:
             return self.data(result['data'], msg=result['msg'])
         if result['data'] is None:

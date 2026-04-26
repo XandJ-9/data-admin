@@ -2,6 +2,7 @@ export function taskTypeLabel(value) {
   const mapping = {
     DATA_SYNC: '数据集成',
     SQL_COMPUTE: '加工作业',
+    ASSET_COLLECTION: '资产采集',
   }
   return mapping[value] || value || '-'
 }
@@ -10,6 +11,7 @@ export function taskTypeTag(value) {
   const mapping = {
     DATA_SYNC: 'success',
     SQL_COMPUTE: 'warning',
+    ASSET_COLLECTION: 'primary',
   }
   return mapping[value] || 'info'
 }
@@ -69,6 +71,7 @@ export function sourceModuleLabel(value) {
   const mapping = {
     'dataintegration.task': '数据集成',
     'datadev.script': '建模与加工',
+    'datasource.collection': '源数据采集',
   }
   return mapping[value] || value || '未归类'
 }
@@ -77,6 +80,7 @@ export function sourceModuleTag(value) {
   const mapping = {
     'dataintegration.task': 'success',
     'datadev.script': 'warning',
+    'datasource.collection': 'primary',
   }
   return mapping[value] || 'info'
 }

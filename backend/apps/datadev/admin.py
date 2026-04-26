@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import DataDevDirectory, DataDevScript, DataDevScriptVersion, DataDevScriptExecution
+from .models import DataDevDirectory, DataDevScript, DataDevScriptVersion
 
 
 @admin.register(DataDevDirectory)
@@ -21,10 +21,3 @@ class DataDevScriptVersionAdmin(admin.ModelAdmin):
     list_display = ['id', 'script', 'version_number', 'is_current', 'is_released', 'create_by', 'create_time']
     list_filter = ['is_current', 'is_released']
     search_fields = ['script__script_name']
-
-
-@admin.register(DataDevScriptExecution)
-class DataDevScriptExecutionAdmin(admin.ModelAdmin):
-    list_display = ['id', 'script', 'execution_id', 'status', 'executor_type', 'executed_by', 'start_time', 'duration_seconds']
-    list_filter = ['status', 'executor_type']
-    search_fields = ['execution_id', 'script__script_name']

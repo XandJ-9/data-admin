@@ -38,6 +38,7 @@ class SqliteExecutor(DataSourceExecutor):
                 rows.append({
                     'tableName': tname,
                     'databaseName': dbname,
+                    'tableType': 'TABLE',
                     'comment': '',
                     'createTime': '',
                     'updateTime': ''
@@ -77,6 +78,7 @@ class SqliteExecutor(DataSourceExecutor):
         return {
             'tableName': table,
             'databaseName': dbname,
+            'tableType': 'TABLE',
             'comment': '',
             'createTime': '',
             'updateTime': ''

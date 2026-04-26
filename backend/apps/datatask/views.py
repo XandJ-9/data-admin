@@ -123,10 +123,13 @@ class TaskViewSet(BaseViewSet):
             task,
             username=getattr(request.user, 'username', ''),
         )
+        payload = result['data']
+        if isinstance(payload, TaskInstance):
+            payload = TaskInstanceSerializer(payload).data
         if result['ok']:
-            return self.data(result['data'], msg=result['msg'])
-        return self.error(msg=result['msg']) if result['data'] is None else Response(
-            {'code': 400, 'msg': result['msg'], 'data': result['data']}
+            return self.data(payload, msg=result['msg'])
+        return self.error(msg=result['msg']) if payload is None else Response(
+            {'code': 400, 'msg': result['msg'], 'data': payload}
         )
 
 

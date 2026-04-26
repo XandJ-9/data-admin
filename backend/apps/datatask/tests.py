@@ -5,7 +5,7 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from unittest.mock import patch
 
 from apps.datadev.task_source import sync_script_source_task
-from apps.datadev.models import DataDevScript, DataDevScriptExecution, DataDevScriptVersion
+from apps.datadev.models import DataDevScript, DataDevScriptVersion
 from apps.dataintegration.models import DataIntegrationTask
 from apps.dataintegration.task_source import sync_source_task
 from apps.datasource.models import DataSource
@@ -301,7 +301,7 @@ class TaskViewSetTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 200)
         self.assertTrue(
-            DataDevScriptExecution.objects.filter(script=self.script, task_instance__task=self.platform_script_task).exists()
+            TaskInstance.objects.filter(task=self.platform_script_task, status='success').exists()
         )
 
 

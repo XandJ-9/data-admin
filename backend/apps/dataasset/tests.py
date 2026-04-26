@@ -9,7 +9,7 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from apps.datasource.models import DataSource
 
 from .models import AssetNamespace, DataAsset, DataAssetColumn, MetaColumn, MetaTable
-from .services import collect_table_metadata, sync_standard_asset_from_meta_table
+from .facades import collect_table_metadata_via_facade, sync_standard_asset_from_meta_table_via_facade
 from .views import AssetNamespaceViewSet, DataAssetColumnViewSet, DataAssetViewSet, MetaColumnViewSet, MetaTableViewSet
 
 
@@ -58,7 +58,7 @@ class DataAssetModelRefactorTests(TestCase):
             },
         ]
 
-        meta_table = collect_table_metadata({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
+        meta_table = collect_table_metadata_via_facade({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
 
         namespace = AssetNamespace.objects.get(data_source=self.data_source, catalog_name='sales', schema_name='')
         asset = DataAsset.objects.get(namespace=namespace, object_name='orders')
@@ -96,7 +96,7 @@ class DataAssetModelRefactorTests(TestCase):
             },
         ]
 
-        collect_table_metadata({'type': 'presto'}, self.data_source.id, 'orders', user=self.user)
+        collect_table_metadata_via_facade({'type': 'presto'}, self.data_source.id, 'orders', user=self.user)
 
         namespace = AssetNamespace.objects.get(data_source=self.data_source, catalog_name='lakehouse', schema_name='analytics')
         asset = DataAsset.objects.get(namespace=namespace, object_name='orders')
@@ -132,7 +132,7 @@ class DataAssetModelRefactorTests(TestCase):
             },
         ]
 
-        collect_table_metadata({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
+        collect_table_metadata_via_facade({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
         asset = DataAsset.objects.get(object_name='orders')
         original_column = DataAssetColumn.objects.get(asset=asset, column_name='buyer_name')
 
@@ -157,7 +157,7 @@ class DataAssetModelRefactorTests(TestCase):
             },
         ]
 
-        collect_table_metadata({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
+        collect_table_metadata_via_facade({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
 
         updated_column = DataAssetColumn.objects.get(asset=asset, column_name='buyer_name')
         self.assertEqual(updated_column.id, original_column.id)
@@ -182,13 +182,13 @@ class DataAssetModelRefactorTests(TestCase):
             primary=True,
             comment='主键',
         )
-        sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         meta_table.table_name = 'orders_v2'
         meta_table.database = 'sales_dw'
         meta_table.comment = '订单表新版本'
         meta_table.save()
-        sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         assets = DataAsset.objects.filter(legacy_meta_table_id=meta_table.id)
         self.assertEqual(assets.count(), 1)
@@ -224,7 +224,7 @@ class DataAssetModelRefactorTests(TestCase):
             del_flag='1',
         )
 
-        sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         asset = DataAsset.objects.get(object_name='orders')
         self.assertTrue(DataAssetColumn.objects.filter(asset=asset, column_name='id').exists())
@@ -261,7 +261,7 @@ class DataAssetModelRefactorTests(TestCase):
         mock_get_table_schema.return_value = []
 
         with self.assertRaisesMessage(ValueError, '字段采集结果为空'):
-            collect_table_metadata({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
+            collect_table_metadata_via_facade({'type': 'mysql'}, self.data_source.id, 'orders', user=self.user)
 
         self.assertEqual(MetaColumn.objects.filter(table=meta_table, del_flag='0').count(), 1)
 
@@ -272,7 +272,7 @@ class DataAssetModelRefactorTests(TestCase):
             database='sales',
             comment='订单表',
         )
-        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         view = MetaTableViewSet.as_view({'get': 'list'})
         request = self.factory.get('/data-api/dataasset/meta-table', {'tableName': 'orders'})
@@ -306,7 +306,7 @@ class DataAssetModelRefactorTests(TestCase):
             create_by='legacy_creator',
             update_by='legacy_updater',
         )
-        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         meta_view = MetaTableViewSet.as_view({'get': 'list'})
         meta_request = self.factory.get('/data-api/dataasset/meta-table', {'tableName': 'orders'})
@@ -354,7 +354,7 @@ class DataAssetModelRefactorTests(TestCase):
             primary=True,
             comment='主键',
         )
-        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
         old_time = timezone.now() - timedelta(days=2)
         new_time = timezone.now()
         MetaTable.objects.filter(pk=meta_table.pk).update(update_time=old_time)
@@ -384,7 +384,7 @@ class DataAssetModelRefactorTests(TestCase):
             database='sales',
             comment='订单表',
         )
-        sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         asset_view = DataAssetViewSet.as_view({'get': 'list'})
         asset_request = self.factory.get('/data-api/dataasset/asset', {'databaseName': 'sales'})
@@ -418,7 +418,7 @@ class DataAssetModelRefactorTests(TestCase):
             primary=False,
             comment='买家姓名',
         )
-        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         view = MetaColumnViewSet.as_view({'get': 'list'})
         request = self.factory.get(
@@ -474,7 +474,7 @@ class DataAssetModelRefactorTests(TestCase):
             primary=False,
             comment='买家姓名',
         )
-        sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         view = DataAssetColumnViewSet.as_view({'get': 'list'})
         request = self.factory.get('/data-api/dataasset/asset-column', {'tableId': meta_table.id})
@@ -560,7 +560,7 @@ class DataAssetModelRefactorTests(TestCase):
             primary=False,
             comment='买家姓名',
         )
-        sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         update_view = MetaTableViewSet.as_view({'put': 'update'})
         update_request = self.factory.put(
@@ -585,7 +585,7 @@ class DataAssetModelRefactorTests(TestCase):
         self.assertEqual(meta_column.data_source_id, second_data_source.id)
         self.assertEqual(asset.namespace.data_source_id, second_data_source.id)
 
-    @patch('apps.dataasset.views.sync_standard_asset_from_meta_table', side_effect=RuntimeError('sync failed'))
+    @patch('apps.dataasset.views.sync_standard_asset_from_meta_table_via_facade', side_effect=RuntimeError('sync failed'))
     def test_meta_table_write_should_roll_back_when_standard_sync_fails(self, mock_sync):
         view = MetaTableViewSet.as_view({'post': 'create'})
         request = self.factory.post(
@@ -740,8 +740,8 @@ class DataAssetModelRefactorTests(TestCase):
             primary=False,
             comment='买家姓名',
         )
-        source_asset = sync_standard_asset_from_meta_table(source_table, user=self.user)
-        target_asset = sync_standard_asset_from_meta_table(target_table, user=self.user)
+        source_asset = sync_standard_asset_from_meta_table_via_facade(source_table, user=self.user)
+        target_asset = sync_standard_asset_from_meta_table_via_facade(target_table, user=self.user)
 
         update_view = MetaColumnViewSet.as_view({'put': 'update'})
         update_request = self.factory.put(
@@ -784,7 +784,7 @@ class DataAssetModelRefactorTests(TestCase):
             primary=True,
             comment='主键',
         )
-        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
 
         list_view = AssetNamespaceViewSet.as_view({'get': 'list'})
         list_request = self.factory.get('/data-api/dataasset/asset-namespace', {'dataSourceId': self.data_source.id})
@@ -836,7 +836,7 @@ class DataAssetModelRefactorTests(TestCase):
             primary=True,
             comment='主键',
         )
-        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
         DataAssetColumn.objects.filter(asset=asset, column_name='buyer_name').update(del_flag='1')
 
         detail_view = DataAssetViewSet.as_view({'get': 'retrieve'})
@@ -877,7 +877,7 @@ class DataAssetModelRefactorTests(TestCase):
             metric_unit='元',
         )
 
-        asset = sync_standard_asset_from_meta_table(meta_table, user=self.user)
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
         column = DataAssetColumn.objects.get(asset=asset, legacy_meta_column_id=meta_column.id)
 
         self.assertEqual(asset.asset_category, 'warehouse')
@@ -915,8 +915,8 @@ class DataAssetModelRefactorTests(TestCase):
             business_domain='交易',
             owner='alice',
         )
-        sync_standard_asset_from_meta_table(source_meta, user=self.user)
-        sync_standard_asset_from_meta_table(warehouse_meta, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(source_meta, user=self.user)
+        sync_standard_asset_from_meta_table_via_facade(warehouse_meta, user=self.user)
 
         view = MetaTableViewSet.as_view({'get': 'list'})
         request = self.factory.get('/data-api/dataasset/meta-table', {

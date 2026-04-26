@@ -6,3 +6,5 @@ class DatasourceConfig(AppConfig):
     name = 'apps.datasource'
     verbose_name = '数据源管理'
 
+    def ready(self):
+        from . import task_source  # noqa: F401

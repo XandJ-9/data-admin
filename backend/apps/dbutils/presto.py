@@ -138,7 +138,7 @@ class PrestoExecutor(DataSourceExecutor):
         try:
             cur.execute(
                 """
-                SELECT table_name, table_schema
+                SELECT table_name, table_schema, table_type
                 FROM information_schema.tables
                 WHERE table_schema = %s
                 ORDER BY table_name
@@ -147,12 +147,13 @@ class PrestoExecutor(DataSourceExecutor):
             )
             rs = cur.fetchall()
             rows = []
-            for tname, schema in rs:
+            for tname, schema, table_type in rs:
                 comment = '' # self._get_table_comment(schema, tname)
                 ctime, utime = ('','') #self._get_table_times(schema, tname)
                 rows.append({
                     'tableName': tname,
                     'databaseName': f"{self.catalog}.{schema}",
+                    'tableType': table_type or 'TABLE',
                     'comment': comment,
                     'createTime': ctime,
                     'updateTime': utime
@@ -215,7 +216,7 @@ class PrestoExecutor(DataSourceExecutor):
             try:
                 cur.execute(
                     """
-                    SELECT table_name, table_schema, COALESCE(table_comment,'')
+                    SELECT table_name, table_schema, table_type, COALESCE(table_comment,'')
                     FROM information_schema.tables
                     WHERE table_schema = %s AND table_name = %s
                     """,
@@ -228,15 +229,17 @@ class PrestoExecutor(DataSourceExecutor):
                     return {
                         'tableName': table,
                         'databaseName': f"{self.catalog}.{self.schema}",
+                        'tableType': 'TABLE',
                         'comment': comment,
                         'createTime': ctime,
                         'updateTime': utime
                     }
-                tname, schema, comment = row
+                tname, schema, table_type, comment = row
                 ctime, utime = self._get_table_times(schema, tname)
                 return {
                     'tableName': tname,
                     'databaseName': f"{self.catalog}.{schema}",
+                    'tableType': table_type or 'TABLE',
                     'comment': comment or '',
                     'createTime': ctime,
                     'updateTime': utime
@@ -247,6 +250,7 @@ class PrestoExecutor(DataSourceExecutor):
                 return {
                     'tableName': table,
                     'databaseName': f"{self.catalog}.{self.schema}",
+                    'tableType': 'TABLE',
                     'comment': comment,
                     'createTime': ctime,
                     'updateTime': utime

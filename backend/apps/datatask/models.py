@@ -9,6 +9,7 @@ class Task(BaseModel):
     TASK_TYPE_CHOICES = [
         ('DATA_SYNC', '数据同步'),
         ('SQL_COMPUTE', 'SQL计算'),
+        ('ASSET_COLLECTION', '资产采集'),
     ]
     STATUS_CHOICES = [
         ('draft', '草稿'),

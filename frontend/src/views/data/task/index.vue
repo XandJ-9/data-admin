@@ -366,6 +366,7 @@ const sourceDistribution = computed(() => buildDistribution(
   [
     { label: '数据集成', value: filteredTasks.value.filter(item => item.sourceModule === 'dataintegration.task').length, color: '#67C23A' },
     { label: '建模与加工', value: filteredTasks.value.filter(item => item.sourceModule === 'datadev.script').length, color: '#E6A23C' },
+    { label: '源数据采集', value: filteredTasks.value.filter(item => item.sourceModule === 'datasource.collection').length, color: '#409EFF' },
     { label: '未归类', value: filteredTasks.value.filter(item => !item.sourceModule).length, color: '#909399' },
   ],
   filteredTasks.value.length,

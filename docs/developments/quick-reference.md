@@ -1,233 +1,74 @@
 # 快速参考
 
-## 项目概览
+## 当前环境
 
-- **后端**：Django 5.2 + DRF 3.16 + SimpleJWT + Channels 4.3
-- **前端**：Vue 3.5 + Element Plus 2.10 + Vite 6 + Pinia 3.0
-- **包管理器**：`uv`（后端）、`pnpm`（前端）
-- **数据库**：SQLite（开发环境），支持连接外部 MySQL/PostgreSQL/Presto/StarRocks
+- 后端：Django 5.2 + DRF 3.16 + Channels
+- 前端：Vue 3.5 + Element Plus 2.10 + Vite 6
+- 包管理器：`uv` / `pnpm`
+- 开发数据库：SQLite
 
 ## 启动命令
 
 ### 后端
+
 ```bash
 cd backend
-uv sync                                        # 安装依赖
-uv run manage.py migrate                       # 数据库迁移
-uv run manage.py initdata                      # 初始化管理员、角色、菜单
-uv run python manage.py sync_menu_data         # 将当前数据库菜单同步回 menu_data.json
-uv run manage.py runserver 0.0.0.0:8000        # 启动服务
+uv sync
+uv run python manage.py migrate
+uv run python manage.py initdata
+uv run python manage.py runserver 0.0.0.0:8000
 ```
 
 ### 前端
+
 ```bash
 cd frontend
-pnpm install                                   # 安装依赖
-pnpm dev                                       # 启动开发服务器（端口 80）
+pnpm install
+pnpm dev
 ```
 
-## 开发流程速记
-
-### Git 分支命名
+## 常用验证命令
 
 ```bash
-feat/<topic>       # 新功能
-fix/<topic>        # 缺陷修复
-refactor/<module>  # 模块重构
-docs/<topic>       # 文档整理
-hotfix/<topic>     # 紧急修复
-```
-
-### 推荐交付顺序
-
-```bash
-git switch -c <type>/<topic>   # 创建独立分支
-# 开发 + 自测
-git add -A
-git commit -m "<type>(<scope>): 中文描述"
-git push -u origin <type>/<topic>
-```
-
-### 执行原则
-
-- `main` 始终保持可发布
-- 一个分支只做一个主目标
-- 一个 PR 只交付一个可验证结果
-- 合并前同步更新 `docs/requirements/active_tasks.md` 与 `docs/changelog.md`
-
-## 生产环境部署
-
-### 快速部署流程
-
-```bash
-# 1. 后端部署
 cd backend
-uv sync
-cat > .env.production << EOF
-DEBUG=False
-ALLOWED_HOSTS=your.domain.com
-SECRET_KEY=<generate-random-key>
-DATABASE_ENGINE=django.db.backends.mysql
-DATABASE_NAME=dataadmin
-DATABASE_USER=dataadmin_user
-DATABASE_PASSWORD=<password>
-DATABASE_HOST=localhost
-DATABASE_PORT=3306
-REDIS_URL=redis://localhost:6379/0
-EOF
+uv run python manage.py check
+uv run python manage.py makemigrations --check
+uv run python manage.py test apps.datasource apps.dataasset apps.dataintegration apps.datadev apps.datatask apps.system
 
-python manage.py migrate
-python manage.py init_system
-python manage.py collectstatic --noinput
-
-# 启动应用服务器（必须使用 Daphne）
-# 本项目使用 Django Channels，Gunicorn+Uvicorn Worker 无法正确路由 WebSocket
-daphne -b 127.0.0.1 -p 8000 config.asgi:application
-
-# 2. 前端部署
 cd ../frontend
-pnpm install --prod
 pnpm build:prod
-# 输出到 dist/ 目录，由 Nginx 提供静态文件服务
 ```
 
-### 应用服务器说明
+## 当前访问地址
 
-本项目**必须使用 Daphne** 作为应用服务器。
+- 前端：`http://localhost:80/data-admin/`
+- API：`http://localhost:8000/data-api/`
+- Swagger：`http://localhost:8000/api/docs/`
+- 默认账号：`admin / admin123`
 
-| 服务器 | 是否可用 | 原因 |
-|--------|----------|------|
-| **Daphne** | ✅ 必须使用 | Django Channels 官方 ASGI 服务器，正确处理 `ProtocolTypeRouter` 的 HTTP/WebSocket 协议分发 |
-| Gunicorn + Uvicorn Worker | ❌ 不可用 | 无法正确路由 WebSocket 请求到 Django Channels，WebSocket 连接会 404 |
-| Gunicorn (WSGI) | ❌ 不可用 | WSGI 协议不支持 WebSocket |
-| Hypercorn | ⚠️ 未验证 | 理论支持 ASGI，但未经本项目测试 |
+## Git 分支命名
 
 ```bash
-# 安装（已包含在 pyproject.toml 中）
-pip install daphne
-
-# 启动
-daphne -b 0.0.0.0 -p 8000 config.asgi:application
+feat/<topic>
+fix/<topic>
+refactor/<module>
+docs/<topic>
+hotfix/<topic>
 ```
 
-### 部署检查清单
+## 当前模块入口
 
-- [ ] 设置 `SECRET_KEY`（强随机密钥）
-- [ ] 配置数据库（MySQL 5.7+ 或 PostgreSQL 12+）
-- [ ] 配置 Redis（缓存和会话存储）
-- [ ] 前端构建并生成 dist/ 产物
-- [ ] 配置 Nginx 反向代理（含 WebSocket）
-- [ ] 配置 HTTPS 证书（推荐 Let's Encrypt）
-- [ ] 配置 Systemd 服务自启
-- [ ] 配置日志轮转（logrotate）
-
-### 部署验证
-
-```bash
-# 检查后端健康状态
-curl http://localhost:8000/data-api/system/health/
-
-# 访问前端
-curl http://your.domain.com/
-```
-
-📖 **详细部署指南**：见 [README.md](../../README.md#部署) 的生产环境部署章节
-
-## 默认账号
-
-- 用户名：`admin`
-- 密码：`admin123`
-
-## API 端点
-
-| 端点 | 地址 |
-|------|------|
-| 后端 API | `http://localhost:8000/data-api/` |
-| Swagger 文档 | `http://localhost:8000/api/docs/` |
-| API Schema | `http://localhost:8000/api/schema/` |
-| 前端开发 | `http://localhost:80`（代理到后端） |
-| WebSocket | `ws://localhost:8000/ws/terminal/` |
-
-## 后端模块
-
-| 模块 | 说明 | 关键模型 |
-|------|------|----------|
-| `system` | 用户、角色、菜单、部门、岗位、字典、配置 | User, Role, Menu, Dept, DictType, Config |
-| `datasource` | 外部数据源连接管理 | DataSource |
-| `dataasset` | 元数据采集、资产命名空间/主表/字段、表血缘关系 | AssetNamespace, DataAsset, DataAssetColumn, MetaTable, MetaColumn, MetaCollectionTask, TableLineage |
-| `dataintegration` | 数据集成任务配置与执行日志 | DataIntegrationTask |
-| `datatask` | 统一任务中心，承载任务定义、依赖和运行实例 | Task, TaskDependency, TaskInstance |
-| `dataservice` | SQL 查询、数据接口服务 | QueryLog, InterfaceInfo, InterfaceField |
-| `monitor` | 服务器监控、操作日志 | OperLog |
-| `terminal` | Web 终端（PTY + WebSocket） | TerminalSession, TerminalCommand |
-| `dbutils` | 数据库执行器抽象层 | — |
-
-## 前端模块
-
-| 模块 | 页面路径 | API 路径 |
+| 层级 | 后端模块 | 前端页面 |
 |------|----------|----------|
-| 数据源 | `views/data/datasource/` | `api/data/datasource.js` |
-| 元数据 | `views/data/asset/` | `api/data/asset.js`, `api/data/meta.js` |
-| 数据集成 | `views/data/integration/` | `api/data/integration.js` |
-| 任务编排 | `views/data/orchestration/` | `api/data/datatask.js` |
-| 数据服务 | `views/data/service/` | `api/data/service.js` |
-| 系统管理 | `views/system/` | `api/system/` |
-| 监控 | `views/monitor/` | `api/monitor/` |
-| 终端 | `views/terminal/` | `api/terminal.js` |
+| 连接与发现 | `apps.datasource` | `views/data/datasource/` |
+| 数据集成 | `apps.dataintegration` | `views/data/integration/` |
+| 数据开发 | `apps.datadev` | `views/data/dev/` |
+| 任务运维 | `apps.datatask` | `views/data/task/`, `views/data/orchestration/` |
+| 资产与服务 | `apps.dataasset`, `apps.dataservice` | `views/data/asset/`, `views/data/service/` |
 
-## 关键文件位置
+## 当前文档入口
 
-| 文件 | 说明 |
-|------|------|
-| `apps/system/models.py` | BaseModel（审计字段、软删除） |
-| `apps/system/views/core.py` | BaseViewSet（CRUD 基类） |
-| `apps/system/serializers.py` | BaseModelSerializer（camelCase 自动映射） |
-| `apps/system/permission.py` | HasRolePermission（角色权限） |
-| `apps/system/common.py` | audit_log 审计日志装饰器 |
-| `apps/common/mixins.py` | BaseViewMixin（响应辅助方法） |
-| `apps/common/pagination.py` | StandardPagination（分页器） |
-| `apps/common/exceptions.py` | 全局异常处理器 |
-| `apps/common/encrypt.py` | 密码加密工具 |
-| `apps/dbutils/factory.py` | get_executor（数据库执行器工厂） |
-| `apps/dbutils/base.py` | DataSourceExecutor（执行器基类） |
-| `config/settings.py` | Django 配置 |
-| `config/urls.py` | 主 URL 路由 |
-| `config/routing.py` | WebSocket 路由 |
-
-## 响应格式
-
-```javascript
-// 成功 - 列表
-{ code: 200, msg: '操作成功', rows: [...], total: 100, pageNum: 1, pageSize: 10 }
-
-// 成功 - 详情
-{ code: 200, msg: '操作成功', data: { id: 1, name: '...' } }
-
-// 成功 - 操作
-{ code: 200, msg: '操作成功' }
-
-// 错误
-{ code: 400|404|500, message: '错误描述' }
-```
-
-## URL 注册路径
-
-| URL 前缀 | 模块 |
-|----------|------|
-| `/data-api/` | system（用户、角色、菜单等） |
-| `/data-api/monitor/` | monitor（操作日志、服务器监控） |
-| `/data-api/datasource/` | datasource（数据源管理） |
-| `/data-api/dataasset/` | dataasset（元数据、血缘） |
-| `/data-api/dataintegration/` | dataintegration（数据集成） |
-| `/data-api/datatask/` | datatask（统一任务中心） |
-| `/data-api/dataservice/` | dataservice（查询、接口） |
-| `/data-api/terminal/` | terminal（终端会话） |
-| `/api/docs/` | Swagger 文档 |
-
-## 外部文档
-
-- 后端文档：`backend/README.md`
-- 前端文档：`frontend/README.md`
-- 开发指南：`docs/architecture/development-guide.md`
-- ADR 记录：`docs/adr/`
-- 变更日志：`docs/changelog.md`
+1. `docs/README.md`
+2. `docs/requirements/active_tasks.md`
+3. `docs/changelog.md`
+4. `docs/adr/ADR-011-平台五阶段职责划分规范.md`

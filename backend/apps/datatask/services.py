@@ -131,14 +131,19 @@ class TaskService:
         status: str,
         result_summary: dict | None = None,
         error_message: str = '',
+        started_at=None,
+        finished_at=None,
+        duration_seconds=None,
     ) -> TaskInstance:
-        finished_at = timezone.now()
-        duration_seconds = None
-        if instance.started_at is not None:
-            duration_seconds = round((finished_at - instance.started_at).total_seconds(), 2)
+        finished_at = finished_at or timezone.now()
+        effective_started_at = started_at or instance.started_at
+        if duration_seconds is None and effective_started_at is not None:
+            duration_seconds = round((finished_at - effective_started_at).total_seconds(), 2)
 
         with transaction.atomic():
             instance.status = status
+            if started_at is not None:
+                instance.started_at = started_at
             instance.finished_at = finished_at
             instance.duration_seconds = duration_seconds
             instance.result_summary = result_summary or {}
@@ -146,6 +151,7 @@ class TaskService:
             instance.save(
                 update_fields=[
                     'status',
+                    'started_at',
                     'finished_at',
                     'duration_seconds',
                     'result_summary',

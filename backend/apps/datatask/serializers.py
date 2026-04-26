@@ -44,7 +44,7 @@ class TaskSerializer(BaseModelSerializer):
 
 class TaskQuerySerializer(serializers.Serializer):
     taskName = serializers.CharField(required=False, allow_blank=True)
-    taskType = serializers.ChoiceField(required=False, choices=['DATA_SYNC', 'SQL_COMPUTE'])
+    taskType = serializers.ChoiceField(required=False, choices=['DATA_SYNC', 'SQL_COMPUTE', 'ASSET_COLLECTION'])
     status = serializers.ChoiceField(required=False, choices=['draft', 'active', 'paused', 'archived'])
     sourceModule = serializers.CharField(required=False, allow_blank=True)
     owner = serializers.CharField(required=False, allow_blank=True)

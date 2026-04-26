@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 
 from apps.system.models import BaseModel
 
@@ -44,3 +45,79 @@ class DataSource(BaseModel):
     def __str__(self):
         return f'{self.name}({self.db_type})'
 
+
+class DataSourceCollectionTask(BaseModel):
+    """Phase 1：源数据采集任务定义。"""
+
+    class CollectionScope(models.TextChoices):
+        TABLE = 'table', '单表采集'
+        DATABASE = 'database', '整库采集'
+
+    STATUS_CHOICES = [
+        ('draft', '草稿'),
+        ('active', '启用'),
+        ('paused', '暂停'),
+        ('archived', '归档'),
+    ]
+    SCHEDULE_TYPE_CHOICES = [
+        ('manual', '手动触发'),
+        ('cron', '定时调度'),
+    ]
+
+    data_source = models.ForeignKey(
+        DataSource,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='collection_tasks',
+        verbose_name='数据源',
+    )
+    task_name = models.CharField(max_length=128, verbose_name='任务名称')
+    task_code = models.CharField(max_length=128, unique=True, verbose_name='任务编码')
+    collection_scope = models.CharField(
+        max_length=16,
+        choices=CollectionScope.choices,
+        default=CollectionScope.TABLE,
+        verbose_name='采集范围',
+    )
+    database_name = models.CharField(max_length=256, blank=True, default='', verbose_name='数据库名')
+    table_name = models.CharField(max_length=256, blank=True, default='', verbose_name='表名')
+    continue_on_error = models.BooleanField(default=True, verbose_name='遇错继续')
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active',
+        verbose_name='状态',
+    )
+    schedule_type = models.CharField(
+        max_length=20,
+        choices=SCHEDULE_TYPE_CHOICES,
+        default='manual',
+        verbose_name='调度类型',
+    )
+    cron_expression = models.CharField(max_length=64, blank=True, default='', verbose_name='Cron表达式')
+    owner = models.CharField(max_length=64, blank=True, default='', verbose_name='负责人')
+    task_config = models.JSONField(default=dict, blank=True, verbose_name='任务配置')
+    remark = models.CharField(max_length=500, blank=True, default='', verbose_name='备注')
+
+    class Meta:
+        db_table = 'datasource_collection_task'
+        verbose_name = '源数据采集任务'
+        verbose_name_plural = '源数据采集任务'
+        ordering = ['-update_time', '-id']
+        indexes = [
+            models.Index(fields=['del_flag', 'status']),
+            models.Index(fields=['data_source']),
+            models.Index(fields=['collection_scope']),
+            models.Index(fields=['owner']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['data_source', 'collection_scope', 'database_name', 'table_name'],
+                condition=Q(del_flag='0'),
+                name='uniq_datasource_live_collection_task',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.task_name} ({self.task_code})'

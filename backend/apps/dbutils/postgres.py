@@ -119,6 +119,7 @@ class PostgresExecutor(DataSourceExecutor):
                 return {
                     'tableName': table,
                     'databaseName': self.info.get('database') or '',
+                    'tableType': 'BASE TABLE',
                     'comment': '',
                     'createTime': '',
                     'updateTime': ''
@@ -127,6 +128,7 @@ class PostgresExecutor(DataSourceExecutor):
             return {
                 'tableName': tname,
                 'databaseName': dbname,
+                'tableType': 'BASE TABLE',
                 'comment': comment or '',
                 'createTime': '',
                 'updateTime': ''
