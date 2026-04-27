@@ -198,6 +198,9 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
     taskId = serializers.IntegerField(source='task_id', read_only=True)
     taskCode = serializers.CharField(source='task.task_code', read_only=True)
     taskName = serializers.CharField(source='task.task_name', read_only=True)
+    taskType = serializers.CharField(source='task.task_type', read_only=True)
+    sourceModule = serializers.CharField(source='task.source_module', read_only=True)
+    sourceRecordId = serializers.IntegerField(source='task.source_record_id', read_only=True, allow_null=True)
     instanceId = serializers.CharField(source='instance_id', read_only=True)
     triggerMode = serializers.CharField(source='trigger_mode', read_only=True)
     scheduledAt = serializers.DateTimeField(
@@ -234,6 +237,9 @@ class TaskInstanceSerializer(serializers.ModelSerializer):
             'taskId',
             'taskCode',
             'taskName',
+            'taskType',
+            'sourceModule',
+            'sourceRecordId',
             'instanceId',
             'status',
             'triggerMode',

@@ -23,6 +23,26 @@ from .serializers import (
 from .services import TaskService
 
 
+def _recover_stale_task_instances(instances):
+    if not instances:
+        return instances
+
+    from apps.datasource.collectors import recover_stale_database_collection_instance
+
+    normalized_instances = []
+    for task_instance in instances:
+        if (
+            task_instance.task.source_module == 'datasource.collection'
+            and task_instance.status in ('pending', 'running')
+        ):
+            normalized_instances.append(
+                recover_stale_database_collection_instance(task_instance)
+            )
+        else:
+            normalized_instances.append(task_instance)
+    return normalized_instances
+
+
 class TaskViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
     queryset = Task.objects.all()
@@ -54,8 +74,10 @@ class TaskViewSet(BaseViewSet):
         queryset = task.instances.select_related('task').all()
         page = self.paginate_queryset(queryset)
         if page is not None:
+            page = _recover_stale_task_instances(list(page))
             serializer = TaskInstanceSerializer(page, many=True)
             return self.get_paginated_response(serializer.data)
+        queryset = _recover_stale_task_instances(list(queryset))
         serializer = TaskInstanceSerializer(queryset, many=True)
         return self.data(serializer.data)
 
@@ -252,3 +274,14 @@ class TaskInstanceViewSet(BaseViewSet):
         if validated_data.get('triggeredBy'):
             qs = qs.filter(triggered_by=validated_data['triggeredBy'])
         return qs.order_by('-create_time')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            page = _recover_stale_task_instances(list(page))
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        queryset = _recover_stale_task_instances(list(queryset))
+        serializer = self.get_serializer(queryset, many=True)
+        return self.raw_response({'total': len(serializer.data), 'rows': serializer.data, 'code': 200, 'msg': '操作成功'})

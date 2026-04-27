@@ -49,7 +49,14 @@
         </el-card>
 
         <el-card v-if="canViewInstances" shadow="hover" class="detail-card">
-          <template #header><span>最近执行记录</span></template>
+          <template #header>
+            <div class="section-head">
+              <div>
+                <span>最近执行记录</span>
+              </div>
+              <el-button text type="primary" @click="loadTaskInstances">刷新记录</el-button>
+            </div>
+          </template>
           <el-table :data="instanceList" border>
             <el-table-column label="实例ID" prop="instanceId" min-width="220" show-overflow-tooltip />
             <el-table-column label="状态" width="110">
@@ -61,6 +68,14 @@
             <el-table-column label="触发人" prop="triggeredBy" width="120" />
             <el-table-column label="开始时间" prop="startedAt" width="180" />
             <el-table-column label="结束时间" prop="finishedAt" width="180" />
+            <el-table-column label="执行情况" min-width="260">
+              <template #default="{ row }">
+                <div class="execution-result-cell">
+                  <strong>{{ formatExecutionOutcome(row) }}</strong>
+                  <span v-if="row.errorMessage">{{ row.errorMessage }}</span>
+                </div>
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
       </el-col>
@@ -154,6 +169,7 @@ import { checkPermi } from '@/utils/permission'
 import {
   executionStatusLabel,
   executionStatusTag,
+  formatExecutionOutcome,
   formatJson,
   formatLastRun,
   scheduleTypeLabel,
@@ -175,6 +191,9 @@ const instanceList = ref([])
 const upstreamDependencies = ref([])
 const downstreamDependencies = ref([])
 const requestSerial = ref(0)
+const instanceRequestSerial = ref(0)
+const pollTimer = ref(null)
+const pageActive = ref(true)
 const manageFormRef = ref()
 const manageForm = reactive({
   status: 'active',
@@ -242,9 +261,46 @@ function notifyError(error, fallback = '加载任务详情失败') {
   ElMessage.error(getErrorMessage(error, fallback))
 }
 
+function updateInstanceList(rows = []) {
+  instanceList.value = rows
+  schedulePolling()
+}
+
+async function loadTaskInstances(options = {}) {
+  const { silent = false } = options
+  const requestId = instanceRequestSerial.value + 1
+  instanceRequestSerial.value = requestId
+  stopPolling()
+  if (!canViewInstances) {
+    instanceList.value = []
+    return
+  }
+  try {
+    const taskId = route.params.id
+    const response = await getTaskInstances(taskId, { pageNum: 1, pageSize: 8 })
+    if (!pageActive.value || requestId !== instanceRequestSerial.value || String(taskId) !== String(route.params.id)) {
+      return
+    }
+    updateInstanceList(response.rows || [])
+  } catch (error) {
+    if (!pageActive.value || requestId !== instanceRequestSerial.value) {
+      return
+    }
+    const shouldRetry = instanceList.value.some(item => ['pending', 'running'].includes(item.status))
+    stopPolling()
+    schedulePolling(5000, shouldRetry)
+    if (!silent) {
+      notifyError(error, '加载执行记录失败')
+    }
+  }
+}
+
 async function loadTaskDetail() {
+  stopPolling()
   const requestId = requestSerial.value + 1
+  const instanceRequestId = instanceRequestSerial.value + 1
   requestSerial.value = requestId
+  instanceRequestSerial.value = instanceRequestId
   loading.value = true
   try {
     const taskId = route.params.id
@@ -254,28 +310,54 @@ async function loadTaskDetail() {
       canViewDependencies ? listTaskDependencies({ downstreamTaskId: taskId }) : Promise.resolve({ rows: [] }),
       canViewDependencies ? listTaskDependencies({ upstreamTaskId: taskId }) : Promise.resolve({ rows: [] }),
     ])
-    if (requestId !== requestSerial.value || String(taskId) !== String(route.params.id)) {
+    if (
+      !pageActive.value ||
+      requestId !== requestSerial.value ||
+      instanceRequestId !== instanceRequestSerial.value ||
+      String(taskId) !== String(route.params.id)
+    ) {
       return
     }
     taskDetail.value = taskRes.data || {}
-    instanceList.value = instanceRes.rows || []
+    updateInstanceList(instanceRes.rows || [])
     upstreamDependencies.value = upstreamRes.rows || []
     downstreamDependencies.value = downstreamRes.rows || []
     syncManageForm(taskDetail.value)
   } catch (error) {
-    if (requestId !== requestSerial.value) {
+    if (!pageActive.value || requestId !== requestSerial.value || instanceRequestId !== instanceRequestSerial.value) {
       return
     }
     taskDetail.value = {}
     instanceList.value = []
     upstreamDependencies.value = []
     downstreamDependencies.value = []
+    stopPolling()
     notifyError(error)
   } finally {
     if (requestId === requestSerial.value) {
       loading.value = false
     }
   }
+}
+
+function stopPolling() {
+  if (pollTimer.value) {
+    clearTimeout(pollTimer.value)
+    pollTimer.value = null
+  }
+}
+
+function schedulePolling(delay = 3000, force = false) {
+  stopPolling()
+  if (!pageActive.value) {
+    return
+  }
+  if (!force && !instanceList.value.some(item => ['pending', 'running'].includes(item.status))) {
+    return
+  }
+  pollTimer.value = setTimeout(() => {
+    loadTaskInstances({ silent: true })
+  }, delay)
 }
 
 function syncManageForm(task = {}) {
@@ -375,6 +457,11 @@ watch(
 onMounted(() => {
   loadTaskDetail()
 })
+
+onBeforeUnmount(() => {
+  pageActive.value = false
+  stopPolling()
+})
 </script>
 
 <style scoped>
@@ -401,7 +488,8 @@ onMounted(() => {
 
 .page-head p,
 .page-path,
-.dependency-item span {
+.dependency-item span,
+.execution-result-cell span {
   color: var(--el-text-color-secondary);
 }
 
@@ -438,6 +526,12 @@ onMounted(() => {
   background: var(--el-bg-color);
   text-align: left;
   cursor: pointer;
+}
+
+.execution-result-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .json-preview {

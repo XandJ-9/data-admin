@@ -4,7 +4,7 @@
       <div class="hero-layout">
         <div>
           <span class="hero-eyebrow">任务运维实例</span>
-          <h1>集中查看数据集成与建模加工任务的执行记录</h1>
+          <h1>集中查看数据集成、建模加工与源数据采集的执行记录</h1>
           <p>这里聚焦实例层：谁触发、什么时候跑、跑得怎么样。需要改配置时回到对应任务详情页。</p>
         </div>
         <div class="hero-actions">
@@ -48,32 +48,86 @@
         </div>
       </template>
 
-      <el-table :data="instanceList" border>
-        <el-table-column label="任务" min-width="240">
-          <template #default="{ row }">
-            <div class="task-cell">
-              <strong>{{ row.taskName }}</strong>
-              <span>{{ row.taskCode }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="实例ID" prop="instanceId" min-width="220" show-overflow-tooltip />
-        <el-table-column label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="executionStatusTag(row.status)">{{ executionStatusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="触发方式" prop="triggerMode" width="110" />
-        <el-table-column label="触发人" prop="triggeredBy" width="120" />
-        <el-table-column label="执行器" prop="executorType" width="120" />
-        <el-table-column label="开始时间" prop="startedAt" width="180" />
-        <el-table-column label="结束时间" prop="finishedAt" width="180" />
-        <el-table-column label="耗时(s)" prop="durationSeconds" width="100" />
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openTaskDetail(row.taskId)">查看任务</el-button>
-          </template>
-        </el-table-column>
+        <el-table :data="instanceList" border row-key="taskInstanceId">
+          <el-table-column label="任务名称" min-width="300">
+            <template #default="{ row }">
+              <div class="task-card-cell">
+                <strong>{{ row.taskName }}</strong>
+                <div class="meta-inline meta-inline-wrap">
+                  <span class="mono-text">{{ row.taskCode }}</span>
+                  <span class="mono-text">实例 {{ row.instanceId }}</span>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="所属模块 / 类型" min-width="190">
+            <template #default="{ row }">
+              <div class="module-type-cell">
+                <div class="meta-inline meta-inline-wrap">
+                  <el-tag size="small" effect="plain" :type="sourceModuleTag(row.sourceModule)">
+                    {{ sourceModuleLabel(row.sourceModule) }}
+                  </el-tag>
+                  <el-tag size="small" effect="plain" :type="taskTypeTag(row.taskType)">
+                    {{ taskTypeLabel(row.taskType) }}
+                  </el-tag>
+                </div>
+                <span>{{ triggerModeLabel(row.triggerMode) }} · {{ formatTriggeredBy(row.triggeredBy, row.triggerMode) }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="执行时间" min-width="220">
+            <template #default="{ row }">
+              <div class="timeline-cell">
+                <div>
+                  <span class="meta-label">开始</span>
+                  <strong>{{ row.startedAt || row.createTime || '--' }}</strong>
+                </div>
+                <div>
+                  <span class="meta-label">结束</span>
+                  <strong>{{ row.finishedAt || '--' }}</strong>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="耗时" width="110" align="center">
+            <template #default="{ row }">
+              <span>{{ formatDuration(row.durationSeconds) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="执行结果" min-width="260">
+            <template #default="{ row }">
+              <div class="execution-result-cell">
+                <div class="meta-inline meta-inline-wrap">
+                  <el-tag :type="executionStatusTag(row.status)">{{ executionStatusLabel(row.status) }}</el-tag>
+                  <el-tag size="small" effect="plain" type="info">
+                    {{ formatExecutorType(row.executorType) }}
+                  </el-tag>
+                </div>
+                <div class="execution-summary">{{ formatExecutionOutcome(row) }}</div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="执行情况" min-width="220">
+            <template #default="{ row }">
+              <div class="execution-detail-cell">
+                <span v-if="row.errorMessage" class="execution-error-preview">{{ row.errorMessage }}</span>
+                <span v-else class="execution-normal-text">无错误信息</span>
+                <el-button
+                  v-if="row.errorMessage"
+                  link
+                  type="danger"
+                  @click="openErrorDialog(row)"
+                >
+                  查看完整错误
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openTaskDetail(row.taskId)">查看任务</el-button>
+            </template>
+          </el-table-column>
       </el-table>
 
       <pagination
@@ -84,6 +138,23 @@
         @pagination="getList"
       />
     </el-card>
+
+    <el-dialog
+      v-model="errorDialogVisible"
+      title="执行错误详情"
+      width="720px"
+      append-to-body
+    >
+      <el-descriptions :column="2" border class="error-dialog-meta">
+        <el-descriptions-item label="任务名称">{{ errorDialog.taskName || '--' }}</el-descriptions-item>
+        <el-descriptions-item label="执行结果">{{ executionStatusLabel(errorDialog.status) }}</el-descriptions-item>
+        <el-descriptions-item label="所属模块">{{ sourceModuleLabel(errorDialog.sourceModule) }}</el-descriptions-item>
+        <el-descriptions-item label="作业类型">{{ taskTypeLabel(errorDialog.taskType) }}</el-descriptions-item>
+        <el-descriptions-item label="开始时间">{{ errorDialog.startedAt || errorDialog.createTime || '--' }}</el-descriptions-item>
+        <el-descriptions-item label="耗时">{{ formatDuration(errorDialog.durationSeconds) }}</el-descriptions-item>
+      </el-descriptions>
+      <pre class="error-dialog-content">{{ errorDialog.errorMessage || '无错误信息' }}</pre>
+    </el-dialog>
   </div>
 </template>
 
@@ -92,13 +163,30 @@ import { ArrowLeft, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { listTaskInstances } from '@/api/data/datatask'
-import { executionStatusLabel, executionStatusTag } from './taskMeta'
+import {
+  executionStatusLabel,
+  executionStatusTag,
+  formatDuration,
+  formatExecutorType,
+  formatExecutionOutcome,
+  formatTriggeredBy,
+  sourceModuleLabel,
+  sourceModuleTag,
+  taskTypeLabel,
+  taskTypeTag,
+  triggerModeLabel,
+} from './taskMeta'
 
 const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
 const instanceList = ref([])
 const total = ref(0)
+const pollTimer = ref(null)
+const pageActive = ref(true)
+const instanceRequestSerial = ref(0)
+const errorDialogVisible = ref(false)
+const errorDialog = ref({})
 const queryParams = ref({
   pageNum: 1,
   pageSize: 10,
@@ -119,24 +207,45 @@ function notifyError(error, fallback = '加载执行记录失败') {
   ElMessage.error(getErrorMessage(error, fallback))
 }
 
-async function getList() {
-  loading.value = true
+async function getList(options = {}) {
+  const { silent = false } = options
+  const requestId = instanceRequestSerial.value + 1
+  instanceRequestSerial.value = requestId
+  if (!silent) {
+    loading.value = true
+  }
   try {
     const params = { ...queryParams.value }
     const res = await listTaskInstances(params)
+    if (!pageActive.value || requestId !== instanceRequestSerial.value) {
+      return
+    }
     instanceList.value = res.rows || []
     total.value = res.total || 0
+    schedulePolling()
   } catch (error) {
-    instanceList.value = []
-    total.value = 0
-    notifyError(error)
+    if (!pageActive.value || requestId !== instanceRequestSerial.value) {
+      return
+    }
+    const shouldRetry = instanceList.value.some(item => ['pending', 'running'].includes(item.status))
+    if (!silent) {
+      instanceList.value = []
+      total.value = 0
+    }
+    schedulePolling(5000, shouldRetry)
+    if (!silent) {
+      notifyError(error)
+    }
   } finally {
-    loading.value = false
+    if (!silent && pageActive.value && requestId === instanceRequestSerial.value) {
+      loading.value = false
+    }
   }
 }
 
 function handleQuery() {
   queryParams.value.pageNum = 1
+  stopPolling()
   getList()
 }
 
@@ -149,7 +258,28 @@ function resetQuery() {
     triggerMode: '',
     triggeredBy: '',
   }
+  stopPolling()
   getList()
+}
+
+function stopPolling() {
+  if (pollTimer.value) {
+    clearTimeout(pollTimer.value)
+    pollTimer.value = null
+  }
+}
+
+function schedulePolling(delay = 3000, force = false) {
+  stopPolling()
+  if (!pageActive.value) {
+    return
+  }
+  if (!force && !instanceList.value.some(item => ['pending', 'running'].includes(item.status))) {
+    return
+  }
+  pollTimer.value = setTimeout(() => {
+    getList({ silent: true })
+  }, delay)
 }
 
 function goBack() {
@@ -160,8 +290,18 @@ function openTaskDetail(taskId) {
   router.push({ name: 'DataTaskDetail', params: { id: taskId } })
 }
 
+function openErrorDialog(row) {
+  errorDialog.value = { ...row }
+  errorDialogVisible.value = true
+}
+
 onMounted(() => {
   getList()
+})
+
+onBeforeUnmount(() => {
+  pageActive.value = false
+  stopPolling()
 })
 </script>
 
@@ -182,7 +322,7 @@ onMounted(() => {
 .hero-actions,
 .table-head,
 .filter-actions,
-.task-cell {
+.meta-inline {
   display: flex;
   gap: 12px;
 }
@@ -198,7 +338,11 @@ onMounted(() => {
 
 .hero-eyebrow,
 .table-head p,
-.task-cell span {
+.task-card-cell span,
+.module-type-cell span,
+.timeline-cell span,
+.execution-result-cell span,
+.execution-detail-cell span {
   color: var(--el-text-color-secondary);
 }
 
@@ -225,8 +369,86 @@ onMounted(() => {
   align-items: center;
 }
 
-.task-cell {
+.task-card-cell,
+.module-type-cell,
+.timeline-cell,
+.execution-result-cell,
+.execution-detail-cell {
   flex-direction: column;
+}
+
+.task-card-cell,
+.module-type-cell,
+.timeline-cell,
+.execution-result-cell,
+.execution-detail-cell {
+  display: flex;
+  gap: 3px;
+}
+
+.meta-inline {
+  align-items: center;
+}
+
+.meta-inline-wrap {
+  flex-wrap: wrap;
+}
+
+.mono-text {
+  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.timeline-cell strong,
+.execution-summary {
+  font-weight: 600;
+}
+
+.execution-result-cell {
+  min-width: 0;
+}
+
+.execution-summary,
+.execution-error-preview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.execution-error-preview {
+  color: var(--el-color-danger);
+  font-size: 12px;
+}
+
+.execution-normal-text {
+  font-size: 12px;
+}
+
+.error-dialog-meta {
+  margin-bottom: 16px;
+}
+
+.error-dialog-content {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--el-fill-color-light);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.meta-label {
+  display: inline-block;
+  min-width: 32px;
+  margin-right: 8px;
 }
 
 @media (max-width: 1200px) {

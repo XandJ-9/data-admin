@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
@@ -12,7 +14,7 @@ from apps.datasource.models import DataSource
 from .models import Task, TaskDependency, TaskInstance
 from .scheduler import TaskSchedulerService
 from .services import TaskService
-from .views import TaskDependencyViewSet, TaskViewSet
+from .views import TaskDependencyViewSet, TaskInstanceViewSet, TaskViewSet
 
 
 class TaskServiceTests(TestCase):
@@ -605,3 +607,82 @@ class TaskSchedulerServiceTests(TestCase):
 
         execute_task.assert_not_called()
         self.assertEqual(summary['dependency']['skippedTaskIds'], [downstream.id])
+
+
+class TaskInstanceViewSetTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='instance_tester', password='password123')
+        self.task = Task.objects.create(
+            task_name='采集 源库 / sales',
+            task_code='asset_collection_datasource_collection_8',
+            task_type='ASSET_COLLECTION',
+            source_module='datasource.collection',
+            source_record_id=8,
+            create_by='tester',
+        )
+        self.instance = TaskInstance.objects.create(
+            task=self.task,
+            instance_id='asset-run-001',
+            status='failed',
+            trigger_mode='manual',
+            runtime_config={
+                'dataSourceId': 11,
+                'dataSourceName': '源库',
+                'collectionScope': 'database',
+                'databaseName': 'sales',
+            },
+            result_summary={'totalTables': 5, 'successfulTables': 3, 'failedTables': 2},
+            error_message='orders 表采集失败',
+            triggered_by='instance_tester',
+            executor_type='asset_collection',
+            scheduled_at=timezone.now(),
+        )
+
+    def test_task_instance_list_should_include_task_source_fields(self):
+        view = TaskInstanceViewSet.as_view({'get': 'list'})
+        request = self.factory.get('/data-api/datatask/task-instance')
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['total'], 1)
+        row = response.data['rows'][0]
+        self.assertEqual(row['taskType'], 'ASSET_COLLECTION')
+        self.assertEqual(row['sourceModule'], 'datasource.collection')
+        self.assertEqual(row['sourceRecordId'], 8)
+        self.assertEqual(row['errorMessage'], 'orders 表采集失败')
+
+    def test_task_instance_list_should_recover_stale_datasource_collection_instance(self):
+        stale_task = Task.objects.create(
+            task_name='采集 源库 / stale',
+            task_code='asset_collection_datasource_collection_9',
+            task_type='ASSET_COLLECTION',
+            source_module='datasource.collection',
+            source_record_id=9,
+            create_by='tester',
+        )
+        stale_instance = TaskInstance.objects.create(
+            task=stale_task,
+            instance_id='asset-run-stale',
+            status='running',
+            trigger_mode='manual',
+            runtime_config={
+                'collectionScope': 'database',
+                'heartbeatAt': (timezone.now() - timedelta(minutes=31)).isoformat(),
+            },
+            scheduled_at=timezone.now() - timedelta(minutes=31),
+        )
+
+        view = TaskInstanceViewSet.as_view({'get': 'list'})
+        request = self.factory.get('/data-api/datatask/task-instance', {'taskId': stale_task.id})
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        stale_instance.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['rows'][0]['status'], 'failed')
+        self.assertEqual(stale_instance.status, 'failed')
+        self.assertEqual(stale_instance.error_message, '采集执行器已失联，请重新触发')
