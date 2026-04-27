@@ -489,12 +489,15 @@ function getList() {
 /** 查询菜单下拉树结构 */
 function getTreeselect() {
   menuOptions.value = []
-  listMenu().then(response => {
-    const menu = { menuId: 0, menuName: "主类目", children: [] }
+   const menu = { menuId: 0, menuName: "主类目", children: [] }
+   menuOptions.value.push(menu)
+   return listMenu().then(response => {
     menu.children = proxy.handleTree(response.data, "menuId")
-    menuOptions.value.push(menu)
+      return true
   }).catch(error => {
     handleApiError(error, '获取菜单树结构失败')
+      error.__menuTreeHandled = true
+      return false
   })
 }
 
@@ -505,8 +508,8 @@ function cancel() {
 }
 
 /** 表单重置 */
-function reset() {
-  form.value = {
+function createDefaultForm() {
+   return {
     menuId: undefined,
     parentId: 0,
     menuName: undefined,
@@ -518,11 +521,46 @@ function reset() {
     visible: "0",
     status: "0",
     redirect: "",
+      routeName: "",
+      path: "",
+      component: "",
+      query: "",
+      perms: "",
     activeMenu: "",
     isAffix: false,
     isBreadcrumb: true,
     alwaysShow: true
   }
+}
+
+function normalizeMenuForm(detail = {}) {
+   const defaults = createDefaultForm()
+   return {
+      ...defaults,
+      ...detail,
+      parentId: detail.parentId ?? defaults.parentId,
+      orderNum: detail.orderNum ?? defaults.orderNum,
+      menuType: detail.menuType || defaults.menuType,
+      isFrame: detail.isFrame ?? defaults.isFrame,
+      isCache: detail.isCache ?? defaults.isCache,
+      visible: detail.visible ?? defaults.visible,
+      status: detail.status ?? defaults.status,
+      redirect: detail.redirect ?? defaults.redirect,
+      routeName: detail.routeName ?? defaults.routeName,
+      path: detail.path ?? defaults.path,
+      component: detail.component ?? defaults.component,
+      query: detail.query ?? defaults.query,
+      perms: detail.perms ?? defaults.perms,
+      activeMenu: detail.activeMenu ?? defaults.activeMenu,
+      isAffix: typeof detail.isAffix === 'boolean' ? detail.isAffix : defaults.isAffix,
+      isBreadcrumb: typeof detail.isBreadcrumb === 'boolean' ? detail.isBreadcrumb : defaults.isBreadcrumb,
+      alwaysShow: typeof detail.alwaysShow === 'boolean' ? detail.alwaysShow : defaults.alwaysShow,
+   }
+}
+
+/** 表单重置 */
+function reset() {
+   form.value = createDefaultForm()
   proxy.resetForm("menuRef")
 }
 
@@ -548,10 +586,9 @@ function resetQuery() {
 }
 
 /** 新增按钮操作 */
-function handleAdd(row) {
+async function handleAdd(row) {
   reset()
-  getTreeselect()
-  // 使用可选链简化
+  await getTreeselect()
   form.value.parentId = row?.menuId || 0
   open.value = true
   title.value = "添加菜单"
@@ -579,14 +616,17 @@ function toggleExpandAll() {
 /** 修改按钮操作 */
 async function handleUpdate(row) {
   reset()
-  await getTreeselect()
-  getMenu(row.menuId).then(response => {
-    form.value = response.data
+   try {
+      await getTreeselect()
+      const response = await getMenu(row.menuId)
+      form.value = normalizeMenuForm(response.data)
     open.value = true
     title.value = "修改菜单"
-  }).catch(error => {
-    handleApiError(error, '获取菜单详情失败')
-  })
+   } catch (error) {
+      if (error && !error.__menuTreeHandled) {
+         handleApiError(error, '获取菜单详情失败')
+      }
+   }
 }
 
 /** 提交按钮 */

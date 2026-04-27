@@ -23,7 +23,7 @@
           @click="handleExecute"
           v-hasPermi="['dataintegration:task:execute']"
         >立即执行</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitForm">{{ isEditMode ? '保存修改' : '创建任务' }}</el-button>
+        <el-button v-if="canSubmit" type="primary" :loading="submitting" @click="submitForm">{{ isEditMode ? '保存修改' : '创建任务' }}</el-button>
       </div>
     </div>
 
@@ -102,6 +102,7 @@
 <script setup name="DataIntegrationTaskDetail">
 import { ArrowLeft, Histogram, VideoPlay } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
+import { checkPermi } from '@/utils/permission'
 import ExecutionRecordsDialog from './components/ExecutionRecordsDialog.vue'
 import IntegrationTaskFormSections from './components/IntegrationTaskFormSections.vue'
 import { useIntegrationTaskForm } from './components/useIntegrationTaskForm'
@@ -151,6 +152,7 @@ const routeText = computed(() => {
 })
 
 const isFromTaskOps = computed(() => ['task-center', 'task-detail'].includes(route.query.from))
+const canSubmit = computed(() => (isEditMode.value ? checkPermi(['dataintegration:task:edit']) : checkPermi(['dataintegration:task:add'])))
 
 const pageBreadcrumb = computed(() => (isFromTaskOps.value ? '任务运维 / 数据集成' : '数据集成 / 任务详情'))
 

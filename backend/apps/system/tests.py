@@ -158,3 +158,13 @@ class InitDataMenuTests(TestCase):
         self.assertTrue(Menu.objects.filter(path='/data-service', del_flag='0').exists())
         self.assertFalse(Menu.objects.filter(path='/datadev', del_flag='0').exists())
         self.assertFalse(Menu.objects.filter(path='/datatask', del_flag='0').exists())
+
+    def test_initdata_should_split_data_integration_home_and_task_menu(self):
+        call_command('initdata', force=True, stdout=StringIO())
+
+        data_integration_root = Menu.objects.get(path='/data-integration', del_flag='0')
+        self.assertEqual(data_integration_root.redirect, '/data-integration/home')
+        self.assertTrue(Menu.objects.filter(parent_id=data_integration_root.menu_id, path='home', route_name='DataIntegrationHome', del_flag='0').exists())
+        self.assertTrue(Menu.objects.filter(parent_id=data_integration_root.menu_id, path='task', route_name='DataIntegrationTask', del_flag='0').exists())
+        self.assertTrue(Menu.objects.filter(path='task/create', route_name='DataIntegrationTaskCreate', active_menu='/data-integration/task', del_flag='0').exists())
+        self.assertTrue(Menu.objects.filter(path='task/:taskId(\\d+)', route_name='DataIntegrationTaskDetail', active_menu='/data-integration/task', del_flag='0').exists())

@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   delTask,
   executeTask,
@@ -11,7 +11,8 @@ import {
 } from '@/api/data/integration'
 import { STATUS_OPTIONS } from './taskViewMeta'
 
-export function useIntegrationPage() {
+export function useIntegrationPage(pageKey = 'task') {
+  const route = useRoute()
   const router = useRouter()
   const loading = ref(false)
   const taskList = ref([])
@@ -34,7 +35,7 @@ export function useIntegrationPage() {
 
   const queryParams = ref({
     pageNum: 1,
-    pageSize: 10,
+    pageSize: pageKey === 'overview' ? 6 : 10,
     taskName: '',
     status: '',
     executorType: '',
@@ -54,6 +55,9 @@ export function useIntegrationPage() {
     label: item.label,
     value: item.value,
   }))
+
+  const sampleTaskCount = computed(() => taskList.value.length)
+  const focusTasks = computed(() => taskList.value.slice(0, 5))
 
   const activeTaskCount = computed(() => taskList.value.filter(item => item.status === 'active').length)
   const cronTaskCount = computed(() => taskList.value.filter(item => item.scheduleType === 'cron').length)
@@ -118,7 +122,7 @@ export function useIntegrationPage() {
   }
 
   function resetQuery() {
-    queryParams.value = { pageNum: 1, pageSize: 10, taskName: '', status: '', executorType: '' }
+    queryParams.value = { pageNum: 1, pageSize: pageKey === 'overview' ? 6 : 10, taskName: '', status: '', executorType: '' }
     getList()
   }
 
@@ -128,8 +132,20 @@ export function useIntegrationPage() {
     detailOpen.value = true
   }
 
+  function resolvePageFrom() {
+    return pageKey === 'overview' ? 'integration-home' : 'integration-task-list'
+  }
+
+  function goToTaskList() {
+    router.push({ name: 'DataIntegrationTask' })
+  }
+
+  function goToOverview() {
+    router.push({ name: 'DataIntegrationHome' })
+  }
+
   function handleAdd() {
-    router.push({ name: 'DataIntegrationTaskCreate', query: { from: 'integration-list' } })
+    router.push({ name: 'DataIntegrationTaskCreate', query: { from: resolvePageFrom() } })
   }
 
   function handleUpdate(row) {
@@ -137,7 +153,11 @@ export function useIntegrationPage() {
     if (!targetTask?.taskId) {
       return
     }
-    router.push({ name: 'DataIntegrationTaskDetail', params: { taskId: targetTask.taskId }, query: { from: 'integration-list' } })
+    router.push({
+      name: 'DataIntegrationTaskDetail',
+      params: { taskId: targetTask.taskId },
+      query: { from: resolvePageFrom() },
+    })
   }
 
   async function handleDelete(row) {
@@ -278,6 +298,14 @@ export function useIntegrationPage() {
   })
 
   onMounted(() => {
+    if (route.query.view === 'overview' && pageKey === 'task') {
+      router.replace({ name: 'DataIntegrationHome' })
+      return
+    }
+    if (route.query.view === 'tasks' && pageKey === 'overview') {
+      router.replace({ name: 'DataIntegrationTask' })
+      return
+    }
     getList()
   })
 
@@ -294,10 +322,14 @@ export function useIntegrationPage() {
     executionQueryParams,
     executionTotal,
     executorOptions,
+    focusTasks,
+    goToOverview,
+    goToTaskList,
     loading,
     previewExecutions,
     previewLoading,
     queryParams,
+    sampleTaskCount,
     selectedExecution,
     selectedTask,
     supportedExecutors,

@@ -358,7 +358,25 @@ export function useIntegrationTaskForm() {
       router.push({ name: 'DataTaskDetail', params: { id: route.query.returnTaskId } })
       return
     }
-    router.push({ name: route.query.from === 'task-center' ? 'DataTaskIndex' : 'DataIntegrationTask' })
+    if (route.query.from === 'task-center') {
+      router.push({ name: 'DataTaskIndex' })
+      return
+    }
+    if (route.query.from === 'integration-home') {
+      router.push({ name: 'DataIntegrationHome' })
+      return
+    }
+    if (route.query.from === 'integration-task-list') {
+      router.push({ name: 'DataIntegrationTask' })
+      return
+    }
+    if (route.query.view === 'overview') {
+      router.push({ name: 'DataIntegrationHome' })
+      return
+    }
+    router.push({
+      name: 'DataIntegrationTask',
+    })
   }
 
   watch(() => form.value.targetSchemaName, () => {
