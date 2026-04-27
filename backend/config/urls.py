@@ -37,6 +37,7 @@ urlpatterns = [
     path('data-api/datadev/', include('apps.datadev.urls')),  # 数据开发模块
     path('data-api/datasource/', include('apps.datasource.urls')),  # 数据源管理模块
     path('data-api/dataintegration/', include('apps.dataintegration.urls')),  # 数据集成模块
+    path('data-api/dataservice/', include('apps.dataservice.urls')),  # 数据服务模块
     path('data-api/datatask/', include('apps.datatask.urls')),     # 任务运维模块
     path('data-api/terminal/', include('apps.terminal.urls')),     # Web Terminal
     # path('data-api/datataskmonitor/', include('apps.datataskmonitor.urls')),

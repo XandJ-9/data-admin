@@ -220,6 +220,7 @@ class ReportInfoSerializer(BaseModelSerializer):
 
     def _sync_interfaces(self, report, interface_ids):
         username = getattr(getattr(self.context.get('request'), 'user', None), 'username', '') or ''
+        ReportInterfaceRelation.objects.filter(report=report, del_flag='1').delete()
         ReportInterfaceRelation.objects.filter(report=report, del_flag='0').update(
             del_flag='1',
             update_by=username,

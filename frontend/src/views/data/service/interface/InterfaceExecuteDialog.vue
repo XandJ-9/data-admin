@@ -45,7 +45,8 @@
 </template>
 
 <script setup>
-import { executeInterfaceById } from '@/api/data/service'
+import { saveAs } from 'file-saver'
+import { executeInterfaceById, exportInterfaceById } from '@/api/data/service'
 
 const { proxy } = getCurrentInstance()
 
@@ -114,10 +115,49 @@ function handleExecute() {
 function handleExport() {
   const id = props.interfaceId
   if (!id) return
-  proxy.download(
-    `/dataservice/interface-info/${id}/export-data`,
-    {},
-    `interface_${id}_data.xlsx`
-  )
+
+  let paramsObj = null
+  if (execForm.value.paramsJson?.trim()) {
+    try {
+      paramsObj = JSON.parse(execForm.value.paramsJson)
+    } catch {
+      proxy.$modal.msgError('参数JSON格式错误')
+      return
+    }
+  }
+
+  execLoading.value = true
+  exportInterfaceById(id, {
+    params: paramsObj || {},
+    pageSize: execForm.value.pageSize,
+    offset: execForm.value.offset,
+  }).then(async res => {
+    const contentType = String(res.headers['content-type'] || '').toLowerCase()
+    const isErrorPayload = contentType.includes('application/json')
+      || contentType.includes('application/problem+json')
+      || contentType.includes('text/plain')
+      || contentType.includes('text/html')
+
+    if (isErrorPayload) {
+      const errorText = await res.data.text()
+      let payload = null
+      try {
+        payload = JSON.parse(errorText)
+      } catch {
+        throw new Error(errorText || '导出失败')
+      }
+      throw new Error(payload?.msg || payload?.message || '导出失败')
+    }
+
+    const blob = new Blob([res.data], { type: res.headers['content-type'] || 'text/csv;charset=utf-8' })
+    const disposition = decodeURIComponent(res.headers['content-disposition'] || '')
+    const matchedName = disposition.match(/filename=["']?([^"';]+)["']?/)?.[1]
+    saveAs(blob, matchedName || `interface_${id}_data.csv`)
+    proxy.$modal.msgSuccess('导出成功')
+  }).catch(err => {
+    proxy.$modal.msgError(err?.msg || err?.message || '导出失败')
+  }).finally(() => {
+    execLoading.value = false
+  })
 }
 </script>

@@ -1,5 +1,6 @@
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
@@ -20,7 +21,7 @@ from .query_wrapper import InterfaceQueryWrapper
 
 from apps.dbutils.factory import get_executor
 from django.template import Template, Context
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.db.models import F, Prefetch
 from openpyxl import load_workbook
@@ -224,16 +225,33 @@ class InterfaceInfoViewSet(BaseViewSet):
 
     def perform_create(self, serializer):
         username = getattr(self.request.user, 'username', '') or ''
+        interface_code = str(serializer.validated_data.get('interface_code') or '').strip()
+        if interface_code and InterfaceInfo.objects.filter(interface_code=interface_code).exists():
+            raise ValidationError('接口编码已存在，请更换后再创建')
         if username and not str(serializer.validated_data.get('user_name') or '').strip():
             serializer.validated_data['user_name'] = username
-        super().perform_create(serializer)
+        try:
+            super().perform_create(serializer)
+        except IntegrityError as exc:
+            if 'interface_code' in str(exc).lower() or 'unique' in str(exc).lower():
+                raise ValidationError('接口编码已存在，请更换后再创建')
+            raise
 
     def perform_update(self, serializer):
         username = getattr(self.request.user, 'username', '') or ''
+        interface_code = str(serializer.validated_data.get('interface_code') or '').strip()
+        current_id = getattr(serializer.instance, 'id', None)
+        if interface_code and InterfaceInfo.objects.filter(interface_code=interface_code).exclude(id=current_id).exists():
+            raise ValidationError('接口编码已存在，请更换后再保存')
         current_owner = getattr(serializer.instance, 'user_name', '') if serializer.instance else ''
         if not str(serializer.validated_data.get('user_name') or '').strip():
             serializer.validated_data['user_name'] = current_owner or username
-        super().perform_update(serializer)
+        try:
+            super().perform_update(serializer)
+        except IntegrityError as exc:
+            if 'interface_code' in str(exc).lower() or 'unique' in str(exc).lower():
+                raise ValidationError('接口编码已存在，请更换后再保存')
+            raise
 
     @action(detail=False, methods=['put'], url_path='changeStatus')
     def change_status(self, request):
@@ -725,16 +743,33 @@ class ReportInfoViewSet(BaseViewSet):
 
     def perform_create(self, serializer):
         username = getattr(self.request.user, 'username', '') or ''
+        report_code = str(serializer.validated_data.get('report_code') or '').strip()
+        if report_code and ReportInfo.objects.filter(report_code=report_code).exists():
+            raise ValidationError('报表编码已存在，请更换后再创建')
         if username and not str(serializer.validated_data.get('user_name') or '').strip():
             serializer.validated_data['user_name'] = username
-        super().perform_create(serializer)
+        try:
+            super().perform_create(serializer)
+        except IntegrityError as exc:
+            if 'report_code' in str(exc).lower() or 'unique' in str(exc).lower():
+                raise ValidationError('报表编码已存在，请更换后再创建')
+            raise
 
     def perform_update(self, serializer):
         username = getattr(self.request.user, 'username', '') or ''
+        report_code = str(serializer.validated_data.get('report_code') or '').strip()
+        current_id = getattr(serializer.instance, 'id', None)
+        if report_code and ReportInfo.objects.filter(report_code=report_code).exclude(id=current_id).exists():
+            raise ValidationError('报表编码已存在，请更换后再保存')
         current_owner = getattr(serializer.instance, 'user_name', '') if serializer.instance else ''
         if not str(serializer.validated_data.get('user_name') or '').strip():
             serializer.validated_data['user_name'] = current_owner or username
-        super().perform_update(serializer)
+        try:
+            super().perform_update(serializer)
+        except IntegrityError as exc:
+            if 'report_code' in str(exc).lower() or 'unique' in str(exc).lower():
+                raise ValidationError('报表编码已存在，请更换后再保存')
+            raise
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -750,6 +785,7 @@ class ReportInfoViewSet(BaseViewSet):
                 else:
                     item.save(update_fields=['del_flag', 'update_time'])
 
+            ReportInterfaceRelation.objects.filter(report_id__in=report_ids, del_flag='1').delete()
             relation_updates = {'del_flag': '1', 'update_time': timezone.now()}
             if username:
                 relation_updates['update_by'] = username
