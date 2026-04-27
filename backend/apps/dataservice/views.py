@@ -25,19 +25,9 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.db.models import F, Prefetch
 from openpyxl import load_workbook
+from apps.datasource.executor_info import build_executor_info
 
 import time
-
-def _build_info(ds: DataSource):
-    return {
-        'type': ds.db_type,
-        'host': ds.host,
-        'port': ds.port,
-        'username': ds.username,
-        'password': ds.password,
-        'database': ds.db_name,
-        'params': ds.params or {},
-    }
 
 def _render_sql(sql_raw: str, params_map: dict, default_map: dict = {}):
     context_map = {**default_map, **(params_map or {})}
@@ -89,7 +79,7 @@ class QueryServiceView(BaseViewMixin, ViewSet):
         except DataSource.DoesNotExist:
             return self.not_found('数据源不存在')
 
-        info = _build_info(ds)
+        info = build_executor_info(ds)
         ex = get_executor(info)
         start = time.perf_counter()
         status_flag = 'success'
@@ -137,7 +127,7 @@ class QueryServiceView(BaseViewMixin, ViewSet):
         except DataSource.DoesNotExist:
             return self.not_found('数据源不存在')
 
-        info = _build_info(ds)
+        info = build_executor_info(ds)
 
         ex = get_executor(info)
         start = time.perf_counter()
@@ -395,7 +385,7 @@ class InterfaceInfoViewSet(BaseViewSet):
         except DataSource.DoesNotExist:
             return {'code': '-1', 'message': '数据源不存在'}
 
-        info = _build_info(ds)
+        info = build_executor_info(ds)
         ex = get_executor(info)
         start = time.perf_counter()
         status_flag = 'success'
@@ -506,7 +496,7 @@ class InterfaceInfoViewSet(BaseViewSet):
             ds = DataSource.objects.get(id=vd['dataSourceId'])
         except DataSource.DoesNotExist:
             return self.not_found('数据源不存在')
-        info = _build_info(ds)
+        info = build_executor_info(ds)
         ex = get_executor(info)
         start = time.perf_counter()
         status_flag = 'success'
