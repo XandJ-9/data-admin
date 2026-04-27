@@ -1,4 +1,6 @@
 from django.contrib.auth import get_user_model
+from io import StringIO
+from django.core.management import call_command
 from django.test import TestCase
 from django.core.cache import cache
 from captcha.models import CaptchaStore
@@ -146,3 +148,13 @@ class LoginViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data.get('code'), 429)
+
+
+class InitDataMenuTests(TestCase):
+    def test_initdata_should_enable_data_asset_and_data_service_roots(self):
+        call_command('initdata', force=True, stdout=StringIO())
+
+        self.assertTrue(Menu.objects.filter(path='/data-asset', del_flag='0').exists())
+        self.assertTrue(Menu.objects.filter(path='/data-service', del_flag='0').exists())
+        self.assertFalse(Menu.objects.filter(path='/datadev', del_flag='0').exists())
+        self.assertFalse(Menu.objects.filter(path='/datatask', del_flag='0').exists())

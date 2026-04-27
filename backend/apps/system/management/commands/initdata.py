@@ -17,8 +17,6 @@ except ModuleNotFoundError:
 
 
 DISABLED_MENU_ROOT_PATHS = {
-    '/data-asset',
-    '/data-service',
     '/data-orchestration',
     '/datadev',
     '/datatask',
