@@ -2,6 +2,20 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.76] - 2026-04-28
+
+- [Refactor] `datatask` 调度执行当前优先基于 `Task.task_config` 发布快照驱动 `dataintegration` 与 `datasource.collection`，不再默认读取业务任务 live 配置作为执行事实来源。
+- [Refactor] `datasource.collection` 的失联实例恢复已从任务详情与执行记录 GET 读取链路移出，统一改由 `TaskSchedulerService` 通过 source handler 后台清理钩子收敛处理。
+- [Fix] `dataintegration` 当快照中显式绑定的数据源已失效时，当前会直接返回重新绑定提示，不再静默回退到 live 数据源导致快照参数与真实连接错配。
+- [Test] 已新增 27 条聚焦回归中的快照执行、后台 stale cleanup 与 GET 只读行为验证，`apps.datatask`、`apps.datasource`、`apps.dataintegration` 相关测试当前通过。
+
+## [v1.4.75] - 2026-04-28
+
+- [Refactor] `datatask` 已移除对 `datasource.collectors` 的直接反向依赖；任务运维实例列表与任务详情中的实例读取，当前统一通过 `source handler / registry` 调用来源模块注册的实例归一化能力。
+- [Refactor] `datasource.collection` 当前已通过 `task_source.py` 向 `datatask` 注册执行记录纠偏 / 失联恢复能力，数据源采集实例的僵尸状态不再由平台内核写死特判分支处理。
+- [Docs] 已新增后端现状架构评审稿，基于当前主要类与运行链输出代码级实际架构图，并同步补充 ADR-012 对“实例归一化也必须通过 source handler 暴露”的边界说明。
+- [Test] 已新增 registry 化实例归一化回归，并完成 `apps.datatask`、`apps.datasource` 后端测试通过，确认新的来源注册链路未破坏现有任务运维与数据源采集行为。
+
 ## [v1.4.74] - 2026-04-27
 
 - [Fix] 系统菜单管理页已修正“修改菜单”时的表单回填逻辑，菜单详情会先与默认值合并并做字段归一化，显示状态、菜单状态及布尔开关类字段不再因缺省值或异步链路问题出现展示不全。

@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import hashlib
 import re
+from types import SimpleNamespace
 
 from django.db import IntegrityError, transaction
 
-from apps.datatask.models import Task
+from apps.datatask.models import Task, TaskInstance
 from apps.datatask.source_registry import SourceHandler, register_source_handler
 from apps.datatask.services import TaskService
 
-from .collectors import execute_database_collection_task, execute_table_collection_task
-from .models import DataSourceCollectionTask
+from .collectors import (
+    execute_database_collection_task,
+    execute_table_collection_task,
+    recover_stale_database_collection_instance,
+)
+from .models import DataSource, DataSourceCollectionTask
 
 SOURCE_MODULE = 'datasource.collection'
 
@@ -194,23 +199,64 @@ def sync_platform_snapshot(task, changed_fields: set[str] | None = None, usernam
 
 
 def execute_task(platform_task, collection_task: DataSourceCollectionTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> dict:
-    if collection_task.data_source_id is None or collection_task.data_source is None:
+    runtime_collection_task = build_runtime_collection_task(platform_task, collection_task)
+    if runtime_collection_task.data_source_id is None or runtime_collection_task.data_source is None:
         return {'ok': False, 'msg': '采集任务绑定的数据源已删除或未配置，请重新绑定后再执行', 'data': None}
-    if collection_task.collection_scope == DataSourceCollectionTask.CollectionScope.DATABASE:
+    if runtime_collection_task.collection_scope == DataSourceCollectionTask.CollectionScope.DATABASE:
         return execute_database_collection_task(
             platform_task,
-            collection_task,
+            runtime_collection_task,
             username=username,
             trigger_mode=trigger_mode,
             runtime_config=runtime_config,
         )
     return execute_table_collection_task(
         platform_task,
-        collection_task,
+        runtime_collection_task,
         username=username,
         trigger_mode=trigger_mode,
         runtime_config=runtime_config,
     )
+
+
+def normalize_task_instance(task_instance):
+    return recover_stale_database_collection_instance(task_instance)
+
+
+def build_runtime_collection_task(platform_task, collection_task: DataSourceCollectionTask):
+    task_config = dict(platform_task.task_config or {})
+    data_source_id = task_config.get('dataSourceId')
+    if data_source_id in (None, ''):
+        data_source_id = collection_task.data_source_id
+    data_source = None
+    if data_source_id not in (None, ''):
+        data_source = DataSource.objects.filter(pk=data_source_id, del_flag='0').first()
+    if data_source is None:
+        data_source = collection_task.data_source
+    return SimpleNamespace(
+        id=collection_task.id,
+        task_name=platform_task.task_name or collection_task.task_name,
+        data_source_id=data_source_id,
+        data_source=data_source,
+        collection_scope=task_config.get('collectionScope') or collection_task.collection_scope,
+        database_name=task_config.get('databaseName') or collection_task.database_name,
+        table_name=task_config.get('tableName') or collection_task.table_name,
+        continue_on_error=task_config.get('continueOnError', collection_task.continue_on_error),
+    )
+
+
+def cleanup_stale_instances() -> list[str]:
+    recovered_instance_ids: list[str] = []
+    with transaction.atomic():
+        queryset = TaskInstance.objects.select_related('task').select_for_update().filter(
+            task__source_module=SOURCE_MODULE,
+            status__in=['pending', 'running'],
+        )
+        for task_instance in queryset:
+            normalized_instance = recover_stale_database_collection_instance(task_instance)
+            if normalized_instance.status == 'failed' and normalized_instance.instance_id not in recovered_instance_ids:
+                recovered_instance_ids.append(normalized_instance.instance_id)
+    return recovered_instance_ids
 
 
 register_source_handler(
@@ -220,5 +266,7 @@ register_source_handler(
         sync_source_task=sync_source_task,
         sync_platform_snapshot=sync_platform_snapshot,
         execute_task=execute_task,
+        normalize_task_instance=normalize_task_instance,
+        cleanup_stale_instances=cleanup_stale_instances,
     ),
 )

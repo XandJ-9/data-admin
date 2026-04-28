@@ -12,7 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class TaskService:
-    """统一任务域服务。"""
+    """统一任务域服务。
+
+    负责平台任务镜像同步、实例创建与收敛、依赖调度辅助，以及按来源协议分发执行。
+    """
 
     SOURCE_SCHEDULE_TYPE_KEY = '_platformSourceScheduleType'
     SOURCE_CRON_EXPRESSION_KEY = '_platformSourceCronExpression'

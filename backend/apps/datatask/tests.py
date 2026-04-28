@@ -11,6 +11,7 @@ from apps.datadev.models import DataDevScript, DataDevScriptVersion
 from apps.dataintegration.models import DataIntegrationTask
 from apps.dataintegration.task_source import sync_source_task
 from apps.datasource.models import DataSource
+from .source_registry import SourceHandler
 from .models import Task, TaskDependency, TaskInstance
 from .scheduler import TaskSchedulerService
 from .services import TaskService
@@ -306,6 +307,33 @@ class TaskViewSetTests(TestCase):
             TaskInstance.objects.filter(task=self.platform_script_task, status='success').exists()
         )
 
+    def test_task_instances_should_not_normalize_instances_on_detail_route(self):
+        custom_task = Task.objects.create(
+            task_name='详情归一化任务',
+            task_code='custom_task_instances_route',
+            task_type='SQL_COMPUTE',
+            source_module='fake.module',
+            source_record_id=2,
+            create_by='tester',
+        )
+        custom_instance = TaskInstance.objects.create(
+            task=custom_task,
+            instance_id='custom-route-001',
+            status='running',
+            trigger_mode='manual',
+            scheduled_at=timezone.now(),
+        )
+
+        view = TaskViewSet.as_view({'get': 'instances'})
+        request = self.factory.get(f'/data-api/datatask/task/{custom_task.id}/instances')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(custom_task.id))
+
+        custom_instance.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data'][0]['status'], 'running')
+        self.assertEqual(custom_instance.error_message, '')
 
 class TaskDependencyViewSetTests(TestCase):
     def setUp(self):
@@ -608,6 +636,35 @@ class TaskSchedulerServiceTests(TestCase):
         execute_task.assert_not_called()
         self.assertEqual(summary['dependency']['skippedTaskIds'], [downstream.id])
 
+    def test_run_cycle_should_cleanup_stale_datasource_instances(self):
+        stale_task = Task.objects.create(
+            task_name='采集 stale 库',
+            task_code='cleanup_stale_datasource_collection',
+            task_type='ASSET_COLLECTION',
+            source_module='datasource.collection',
+            source_record_id=88,
+            create_by='tester',
+        )
+        stale_instance = TaskInstance.objects.create(
+            task=stale_task,
+            instance_id='cleanup-stale-instance',
+            status='running',
+            trigger_mode='manual',
+            runtime_config={
+                'collectionScope': 'database',
+                'heartbeatAt': (timezone.now() - timedelta(minutes=31)).isoformat(),
+            },
+            started_at=timezone.now() - timedelta(minutes=31),
+        )
+
+        summary = TaskSchedulerService.run_cycle(now=timezone.now())
+
+        stale_instance.refresh_from_db()
+        self.assertEqual(stale_instance.status, 'failed')
+        self.assertEqual(stale_instance.error_message, '采集执行器已失联，请重新触发')
+        self.assertIn('cleanup', summary)
+        self.assertEqual(summary['cleanup']['recoveredInstanceIds'], ['cleanup-stale-instance'])
+
 
 class TaskInstanceViewSetTests(TestCase):
     def setUp(self):
@@ -654,7 +711,7 @@ class TaskInstanceViewSetTests(TestCase):
         self.assertEqual(row['sourceRecordId'], 8)
         self.assertEqual(row['errorMessage'], 'orders 表采集失败')
 
-    def test_task_instance_list_should_recover_stale_datasource_collection_instance(self):
+    def test_task_instance_list_should_not_recover_stale_datasource_collection_instance_on_get(self):
         stale_task = Task.objects.create(
             task_name='采集 源库 / stale',
             task_code='asset_collection_datasource_collection_9',
@@ -683,6 +740,64 @@ class TaskInstanceViewSetTests(TestCase):
 
         stale_instance.refresh_from_db()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['rows'][0]['status'], 'failed')
-        self.assertEqual(stale_instance.status, 'failed')
-        self.assertEqual(stale_instance.error_message, '采集执行器已失联，请重新触发')
+        self.assertEqual(response.data['rows'][0]['status'], 'running')
+        self.assertEqual(stale_instance.status, 'running')
+        self.assertEqual(stale_instance.error_message, '')
+
+    def test_task_instance_list_should_not_consult_source_handler_for_stale_recovery(self):
+        stale_task = Task.objects.create(
+            task_name='采集 源库 / stale-registry',
+            task_code='asset_collection_datasource_collection_registry',
+            task_type='ASSET_COLLECTION',
+            source_module='datasource.collection',
+            source_record_id=10,
+            create_by='tester',
+        )
+        stale_instance = TaskInstance.objects.create(
+            task=stale_task,
+            instance_id='asset-run-registry',
+            status='running',
+            trigger_mode='manual',
+            runtime_config={'collectionScope': 'database'},
+            scheduled_at=timezone.now() - timedelta(minutes=31),
+        )
+
+        view = TaskInstanceViewSet.as_view({'get': 'list'})
+        request = self.factory.get('/data-api/datatask/task-instance', {'taskId': stale_task.id})
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        stale_instance.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['rows'][0]['status'], 'running')
+        self.assertEqual(stale_instance.status, 'running')
+        self.assertEqual(stale_instance.error_message, '')
+
+    def test_task_instance_list_should_not_normalize_non_datasource_instances_via_handler(self):
+        custom_task = Task.objects.create(
+            task_name='自定义任务',
+            task_code='custom_module_task_1',
+            task_type='SQL_COMPUTE',
+            source_module='fake.module',
+            source_record_id=1,
+            create_by='tester',
+        )
+        custom_instance = TaskInstance.objects.create(
+            task=custom_task,
+            instance_id='custom-run-001',
+            status='running',
+            trigger_mode='manual',
+            scheduled_at=timezone.now(),
+        )
+
+        view = TaskInstanceViewSet.as_view({'get': 'list'})
+        request = self.factory.get('/data-api/datatask/task-instance', {'taskId': custom_task.id})
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        custom_instance.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['rows'][0]['status'], 'running')
+        self.assertEqual(custom_instance.error_message, '')

@@ -1,6 +1,7 @@
 import logging
 import threading
 from datetime import timedelta
+from types import SimpleNamespace
 
 from django.db import close_old_connections, transaction
 from django.utils.dateparse import parse_datetime
@@ -194,12 +195,35 @@ def recover_stale_database_collection_instance(task_instance):
     return task_instance
 
 
-def _run_database_asset_sync(task_instance_id, collection_task_id):
+def _build_collection_task_from_snapshot(collection_task_snapshot):
+    from .models import DataSource
+
+    data_source_id = collection_task_snapshot.get('data_source_id')
+    data_source = None
+    if data_source_id not in (None, ''):
+        data_source = DataSource.objects.filter(pk=data_source_id, del_flag='0').first()
+    return SimpleNamespace(
+        id=collection_task_snapshot.get('id'),
+        task_name=collection_task_snapshot.get('task_name', ''),
+        data_source_id=data_source_id,
+        data_source=data_source,
+        collection_scope=collection_task_snapshot.get('collection_scope', ''),
+        database_name=collection_task_snapshot.get('database_name', ''),
+        table_name=collection_task_snapshot.get('table_name', ''),
+        continue_on_error=collection_task_snapshot.get('continue_on_error', False),
+    )
+
+
+def _run_database_asset_sync(task_instance_id, collection_task_id, collection_task_snapshot=None):
     close_old_connections()
     task_instance = TaskInstance.objects.select_related('task').get(pk=task_instance_id)
     from .models import DataSourceCollectionTask
 
-    collection_task = DataSourceCollectionTask.objects.select_related('data_source').filter(pk=collection_task_id, del_flag='0').first()
+    collection_task = None
+    if collection_task_snapshot is not None:
+        collection_task = _build_collection_task_from_snapshot(collection_task_snapshot)
+    else:
+        collection_task = DataSourceCollectionTask.objects.select_related('data_source').filter(pk=collection_task_id, del_flag='0').first()
     if collection_task is None:
         TaskService.finalize_instance(
             instance=task_instance,
@@ -476,7 +500,19 @@ def execute_database_collection_task(platform_task, collection_task, *, username
     )
     worker = threading.Thread(
         target=_run_database_asset_sync,
-        args=(task_instance.id, collection_task.id),
+        args=(
+            task_instance.id,
+            collection_task.id,
+            {
+                'id': collection_task.id,
+                'task_name': collection_task.task_name,
+                'data_source_id': collection_task.data_source_id,
+                'collection_scope': collection_task.collection_scope,
+                'database_name': collection_task.database_name,
+                'table_name': collection_task.table_name,
+                'continue_on_error': collection_task.continue_on_error,
+            },
+        ),
         daemon=True,
         name=f'ds-collect-{task_instance.instance_id[:8]}',
     )

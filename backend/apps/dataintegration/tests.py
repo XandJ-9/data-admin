@@ -5,6 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.datatask.models import Task, TaskInstance
+from apps.datatask.services import TaskService
 from apps.datasource.models import DataSource
 
 from .models import DataIntegrationTask
@@ -156,6 +157,123 @@ class DataIntegrationTaskViewSetTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 200)
         self.assertEqual(response.data['data']['status'], 'failed')
+
+    @patch('apps.executors.base.ExecutorFactory.create_executor')
+    def test_task_service_execute_should_use_platform_snapshot_before_live_source(self, mock_create_executor):
+        captured = {}
+
+        class _MockExecutor:
+            def validate(self):
+                return True, ''
+
+            def execute(self):
+                return {'status': 'success', 'rowCount': 1}
+
+        def _create_executor(executor_type, task, config=None):
+            captured['executor_type'] = executor_type
+            captured['task'] = task
+            captured['config'] = config or {}
+            return _MockExecutor()
+
+        mock_create_executor.side_effect = _create_executor
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_snapshot',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_database_name='biz',
+            source_table_name='order_info',
+            target_schema_name='ods',
+            target_table_name='ods_order_info',
+            load_type='full',
+            write_mode='overwrite',
+            executor_type='mock',
+            schedule_type='manual',
+            create_by='tester',
+        )
+        platform_task = Task.objects.create(
+            task_name='订单贴源同步',
+            task_code='data_sync_dataintegration_snapshot',
+            task_type='DATA_SYNC',
+            source_module='dataintegration.task',
+            source_record_id=integration_task.id,
+            task_config={
+                'sourceDataSourceId': self.source_datasource.id,
+                'targetDataSourceId': self.target_datasource.id,
+                'sourceDatabaseName': 'snapshot_biz',
+                'sourceTableName': 'snapshot_orders',
+                'targetSchemaName': 'snapshot_ods',
+                'targetTableName': 'snapshot_orders_table',
+                'loadType': 'incremental',
+                'writeMode': 'append',
+                'executorType': 'snapshot_executor',
+                'scheduleType': 'cron',
+                'cronExpression': '0 1 * * *',
+                'taskConfig': {'batchSize': 500},
+            },
+            create_by='tester',
+        )
+
+        integration_task.source_table_name = 'live_orders'
+        integration_task.source_database_name = 'live_biz'
+        integration_task.target_schema_name = 'live_ods'
+        integration_task.target_table_name = 'live_orders_table'
+        integration_task.load_type = 'full'
+        integration_task.write_mode = 'overwrite'
+        integration_task.executor_type = 'live_executor'
+        integration_task.save()
+
+        result = TaskService.execute_task(platform_task, username='scheduler', trigger_mode='schedule')
+
+        self.assertTrue(result['ok'])
+        self.assertEqual(captured['executor_type'], 'snapshot_executor')
+        self.assertEqual(captured['task'].source_table_name, 'snapshot_orders')
+        self.assertEqual(captured['task'].source_datasource.db_name, 'snapshot_biz')
+        self.assertEqual(captured['task'].target_table_name, 'snapshot_orders_table')
+        self.assertEqual(captured['task'].load_type, 'incremental')
+        self.assertEqual(captured['task'].write_mode, 'append')
+
+    def test_task_service_execute_should_fail_when_snapshot_datasource_binding_is_missing(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_snapshot_missing_binding',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_database_name='biz',
+            source_table_name='order_info',
+            target_schema_name='ods',
+            target_table_name='ods_order_info',
+            load_type='full',
+            write_mode='overwrite',
+            executor_type='mock',
+            schedule_type='manual',
+            create_by='tester',
+        )
+        platform_task = Task.objects.create(
+            task_name='订单贴源同步',
+            task_code='data_sync_dataintegration_snapshot_missing_binding',
+            task_type='DATA_SYNC',
+            source_module='dataintegration.task',
+            source_record_id=integration_task.id,
+            task_config={
+                'sourceDataSourceId': self.source_datasource.id + self.target_datasource.id + 999,
+                'targetDataSourceId': self.target_datasource.id,
+                'sourceDatabaseName': 'snapshot_biz',
+                'sourceTableName': 'snapshot_orders',
+                'targetSchemaName': 'snapshot_ods',
+                'targetTableName': 'snapshot_orders_table',
+                'loadType': 'full',
+                'writeMode': 'overwrite',
+                'executorType': 'snapshot_executor',
+                'taskConfig': {},
+            },
+            create_by='tester',
+        )
+
+        result = TaskService.execute_task(platform_task, username='scheduler', trigger_mode='schedule')
+
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['msg'], '源数据源已删除或未配置，请重新绑定后再执行')
 
     def test_execution_detail_should_return_runtime_payload(self):
         integration_task = DataIntegrationTask.objects.create(

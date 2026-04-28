@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from apps.datasource.models import DataSource
 from apps.datasource.executor_info import build_executor_info
 from apps.executors.base import ExecutorFactory
 
@@ -53,23 +54,52 @@ def build_task_config(integration_task: DataIntegrationTask) -> dict:
 
 
 def build_executor_task(integration_task: DataIntegrationTask):
+    return build_executor_task_from_snapshot(integration_task, snapshot_config={})
+
+
+def _get_runtime_datasource(*, data_source_id, fallback_data_source, database_name: str = ''):
+    resolved_data_source = fallback_data_source
+    if data_source_id not in (None, ''):
+        resolved_data_source = DataSource.objects.filter(pk=data_source_id, del_flag='0').first()
+        if resolved_data_source is None:
+            return None
+    if resolved_data_source is None:
+        return None
+    return _build_runtime_datasource(resolved_data_source, database_name=database_name)
+
+
+def build_executor_task_from_snapshot(integration_task: DataIntegrationTask, snapshot_config: dict | None = None):
+    snapshot_config = snapshot_config or {}
+    source_database_name = snapshot_config.get('sourceDatabaseName') or integration_task.source_database_name
+    source_table_name = snapshot_config.get('sourceTableName') or integration_task.source_table_name
+    target_schema_name = snapshot_config.get('targetSchemaName') or integration_task.target_schema_name
+    target_table_name = snapshot_config.get('targetTableName') or integration_task.target_table_name
+    load_type = snapshot_config.get('loadType') or integration_task.load_type
+    write_mode = snapshot_config.get('writeMode') or integration_task.write_mode
+    task_config = snapshot_config.get('taskConfig') or integration_task.task_config or {}
+    source_datasource_id = snapshot_config.get('sourceDataSourceId') or integration_task.source_datasource_id
+    target_datasource_id = snapshot_config.get('targetDataSourceId') or integration_task.target_datasource_id
     return SimpleNamespace(
         id=integration_task.id,
         task_code=integration_task.task_code,
         task_name=integration_task.task_name,
-        source_datasource_id=integration_task.source_datasource_id,
-        target_datasource_id=integration_task.target_datasource_id,
-        source_datasource=_build_runtime_datasource(
-            integration_task.source_datasource,
-            database_name=integration_task.source_database_name,
+        source_datasource_id=source_datasource_id,
+        target_datasource_id=target_datasource_id,
+        source_datasource=_get_runtime_datasource(
+            data_source_id=source_datasource_id,
+            fallback_data_source=integration_task.source_datasource,
+            database_name=source_database_name,
         ),
-        target_datasource=_build_runtime_datasource(integration_task.target_datasource),
-        source_table_name=integration_task.source_table_name,
-        target_schema_name=integration_task.target_schema_name,
-        target_table_name=integration_task.target_table_name,
-        load_type=integration_task.load_type,
-        write_mode=integration_task.write_mode,
-        task_config=integration_task.task_config or {},
+        target_datasource=_get_runtime_datasource(
+            data_source_id=target_datasource_id,
+            fallback_data_source=integration_task.target_datasource,
+        ),
+        source_table_name=source_table_name,
+        target_schema_name=target_schema_name,
+        target_table_name=target_table_name,
+        load_type=load_type,
+        write_mode=write_mode,
+        task_config=task_config,
     )
 
 
@@ -150,9 +180,13 @@ def validate_task_configuration(task: DataIntegrationTask, runtime_config: dict 
 def execute_task(platform_task, integration_task: DataIntegrationTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> dict:
     from apps.datatask.services import TaskService
 
-    binding_error = _get_datasource_binding_error(integration_task)
-    if binding_error:
-        return {'ok': False, 'msg': binding_error, 'data': None}
+    snapshot_config = dict(platform_task.task_config or {})
+    executor_task = build_executor_task_from_snapshot(integration_task, snapshot_config=snapshot_config)
+    if executor_task.source_datasource is None:
+        return {'ok': False, 'msg': '源数据源已删除或未配置，请重新绑定后再执行', 'data': None}
+    if executor_task.target_datasource is None:
+        return {'ok': False, 'msg': '目标数据源已删除或未配置，请重新绑定后再执行', 'data': None}
+    executor_type = snapshot_config.get('executorType') or integration_task.executor_type
 
     effective_runtime_config = {
         'integrationTaskId': integration_task.id,
@@ -163,14 +197,14 @@ def execute_task(platform_task, integration_task: DataIntegrationTask, username:
         trigger_mode=trigger_mode,
         runtime_config=effective_runtime_config,
         triggered_by=username or trigger_mode,
-        executor_type=integration_task.executor_type,
+        executor_type=executor_type,
     )
-    TaskService.mark_instance_running(task_instance, executor_type=integration_task.executor_type)
+    TaskService.mark_instance_running(task_instance, executor_type=executor_type)
 
     try:
         executor = ExecutorFactory.create_executor(
-            integration_task.executor_type,
-            build_executor_task(integration_task),
+            executor_type,
+            executor_task,
             config=effective_runtime_config,
         )
         is_valid, validate_message = executor.validate()
@@ -181,7 +215,7 @@ def execute_task(platform_task, integration_task: DataIntegrationTask, username:
         TaskService.finalize_instance(
             instance=task_instance,
             status='failed',
-            result_summary={'engine': integration_task.executor_type, 'error': str(exc)},
+            result_summary={'engine': executor_type, 'error': str(exc)},
             error_message=str(exc),
         )
         return {

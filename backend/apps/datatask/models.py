@@ -4,7 +4,11 @@ from apps.system.models import BaseModel
 
 
 class Task(BaseModel):
-    """统一任务定义。"""
+    """平台任务镜像。
+
+    负责承载各业务模块正式任务定义映射后的平台公共字段，
+    供统一调度、运维和实例管理使用。
+    """
 
     TASK_TYPE_CHOICES = [
         ('DATA_SYNC', '数据同步'),
@@ -75,7 +79,10 @@ class Task(BaseModel):
 
 
 class TaskDependency(BaseModel):
-    """任务依赖关系。"""
+    """平台任务依赖关系。
+
+    用于描述上游任务成功后如何触发下游任务，是依赖调度的拓扑基础。
+    """
 
     TRIGGER_CONDITION_CHOICES = [
         ('SUCCESS', '上游成功'),
@@ -128,7 +135,10 @@ class TaskDependency(BaseModel):
 
 
 class TaskInstance(models.Model):
-    """任务运行实例。"""
+    """统一任务执行实例。
+
+    负责记录任务每次手动、定时或依赖触发执行的运行时状态、结果摘要和错误信息。
+    """
 
     STATUS_CHOICES = [
         ('pending', '等待执行'),

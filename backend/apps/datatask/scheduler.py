@@ -7,12 +7,18 @@ import logging
 from django.utils import timezone
 
 from .models import Task, TaskDependency, TaskInstance
+from .source_registry import get_source_handler
 from .services import TaskService
 
 logger = logging.getLogger(__name__)
 
 
 class CronExpressionMatcher:
+    """轻量级 Cron 匹配器。
+
+    用于在调度周期内判断平台任务的 5 段 cron 表达式是否命中当前时间点。
+    """
+
     FIELD_RANGES = (
         (0, 59),
         (0, 23),
@@ -75,17 +81,44 @@ class CronExpressionMatcher:
 
 
 class TaskSchedulerService:
+    """平台任务调度服务。
+
+    负责扫描到期的 cron 任务和满足条件的依赖任务，并通过 TaskService 触发实际执行。
+    """
+
     DEFAULT_TRIGGER_USER = 'scheduler'
 
     @classmethod
     def run_cycle(cls, *, now=None, username: str = DEFAULT_TRIGGER_USER) -> dict:
         current_time = (now or timezone.now()).replace(second=0, microsecond=0)
+        cleanup_result = cls.cleanup_stale_instances()
         cron_result = cls.dispatch_due_cron_tasks(now=current_time, username=username)
         dependency_result = cls.dispatch_due_dependency_tasks(now=current_time, username=username)
         return {
             'runAt': current_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'cleanup': cleanup_result,
             'cron': cron_result,
             'dependency': dependency_result,
+        }
+
+    @classmethod
+    def cleanup_stale_instances(cls) -> dict:
+        recovered_instance_ids: list[str] = []
+        errors = []
+        source_modules = Task.objects.filter(del_flag='0').exclude(source_module='').values_list('source_module', flat=True).distinct()
+        for source_module in source_modules:
+            handler = get_source_handler(source_module)
+            cleanup_stale_instances = getattr(handler, 'cleanup_stale_instances', None) if handler else None
+            if cleanup_stale_instances is None:
+                continue
+            try:
+                recovered_instance_ids.extend(cleanup_stale_instances())
+            except Exception as exc:
+                logger.exception('清理来源模块陈旧实例失败: source_module=%s, error=%s', source_module, exc)
+                errors.append({'sourceModule': source_module, 'message': str(exc)})
+        return {
+            'recoveredInstanceIds': recovered_instance_ids,
+            'errors': errors,
         }
 
     @classmethod

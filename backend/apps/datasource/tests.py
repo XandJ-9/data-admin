@@ -8,6 +8,8 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from apps.common.encrypt import encrypt_password
 from apps.dataasset.models import DataAsset, MetaTable
 from apps.datatask.models import Task, TaskInstance
+from apps.datatask.services import TaskService
+from apps.datatask.source_registry import get_source_handler
 from apps.dataintegration.models import DataIntegrationTask
 
 from .collectors import (
@@ -499,6 +501,86 @@ class DataSourceCollectorTests(TestCase):
         self.assertEqual(normalized_table['tableType'], 'BASE TABLE')
         self.assertEqual(meta_table.table_name, 'orders')
         self.assertEqual(asset.object_name, 'orders')
+
+    def test_datasource_source_handler_should_register_instance_normalizer(self):
+        collection_task = DataSourceCollectionTask.objects.create(
+            task_name='采集 collector-source / demo',
+            task_code='ds_collect_registry_normalizer',
+            data_source=self.data_source,
+            collection_scope=DataSourceCollectionTask.CollectionScope.DATABASE,
+            database_name='demo',
+            create_by=self.user.username,
+            update_by=self.user.username,
+        )
+        platform_task = Task.objects.create(
+            task_name=collection_task.task_name,
+            task_code='asset_collection_datasource_collection_registry_2',
+            task_type='ASSET_COLLECTION',
+            source_module=SOURCE_MODULE,
+            source_record_id=collection_task.id,
+            create_by=self.user.username,
+        )
+        task_instance = TaskInstance.objects.create(
+            task=platform_task,
+            instance_id='registry-normalizer-001',
+            status='running',
+            trigger_mode='manual',
+            runtime_config={
+                'collectionScope': 'database',
+                'heartbeatAt': (timezone.now() - timezone.timedelta(hours=1)).isoformat(),
+            },
+            started_at=timezone.now() - timezone.timedelta(hours=1),
+        )
+
+        handler = get_source_handler(SOURCE_MODULE)
+
+        self.assertIsNotNone(handler)
+        self.assertIsNotNone(handler.normalize_task_instance)
+        normalized_instance = handler.normalize_task_instance(task_instance)
+        normalized_instance.refresh_from_db()
+        self.assertEqual(normalized_instance.status, 'failed')
+        self.assertEqual(normalized_instance.error_message, '采集执行器已失联，请重新触发')
+
+    @patch('apps.datasource.collectors.collect_table_to_asset')
+    def test_task_service_execute_should_use_platform_snapshot_before_live_collection_task(self, mock_collect_table_to_asset):
+        meta_table = Mock(id=1, table_name='snapshot_orders', database='snapshot_biz', data_source_id=self.data_source.id)
+        mock_collect_table_to_asset.return_value = (meta_table, {'tableType': 'BASE TABLE'})
+        collection_task = DataSourceCollectionTask.objects.create(
+            task_name='采集 collector-source / snapshot_biz / orders',
+            task_code='ds_collect_snapshot_table',
+            data_source=self.data_source,
+            collection_scope=DataSourceCollectionTask.CollectionScope.TABLE,
+            database_name='sales',
+            table_name='orders',
+            create_by=self.user.username,
+            update_by=self.user.username,
+        )
+        platform_task = sync_source_task(collection_task, username=self.user.username)
+
+        platform_task.task_config = {
+            'dataSourceId': self.data_source.id,
+            'dataSourceName': self.data_source.name,
+            'collectionScope': 'table',
+            'databaseName': 'snapshot_biz',
+            'tableName': 'snapshot_orders',
+            'continueOnError': True,
+            'scheduleType': 'cron',
+            'cronExpression': '0 1 * * *',
+            'taskConfig': {},
+        }
+        platform_task.save(update_fields=['task_config'])
+
+        collection_task.database_name = 'live_biz'
+        collection_task.table_name = 'live_orders'
+        collection_task.save(update_fields=['database_name', 'table_name', 'update_time'])
+
+        result = TaskService.execute_task(platform_task, username='scheduler', trigger_mode='schedule')
+
+        self.assertTrue(result['ok'])
+        mock_collect_table_to_asset.assert_called_once()
+        args, kwargs = mock_collect_table_to_asset.call_args
+        self.assertEqual(args[1], 'snapshot_biz')
+        self.assertEqual(args[2], 'snapshot_orders')
 
     def test_ensure_collection_task_should_preserve_existing_governance_fields(self):
         collection_task = ensure_collection_task(
