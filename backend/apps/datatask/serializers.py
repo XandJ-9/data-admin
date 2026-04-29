@@ -81,6 +81,12 @@ class TaskUpdateSerializer(serializers.Serializer):
             instance.schedule_type if instance.schedule_type != 'dependency' else 'manual',
         )
         cron_expression = attrs.get('cronExpression', instance.cron_expression)
+        if (
+            instance.source_module == 'dataintegration.task'
+            and schedule_type == 'cron'
+            and not (instance.task_config or {}).get('_publishedToTaskOps')
+        ):
+            raise serializers.ValidationError({'scheduleType': '请先在数据集成模块点击发布，再开启定时调度'})
         if schedule_type == 'cron' and not cron_expression:
             raise serializers.ValidationError({'cronExpression': '定时调度模式必须配置 Cron 表达式'})
         return attrs

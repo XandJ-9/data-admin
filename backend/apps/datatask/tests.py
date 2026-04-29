@@ -256,6 +256,31 @@ class TaskViewSetTests(TestCase):
         self.assertEqual(self.integration_task.owner, 'platform_owner')
         self.assertEqual(self.integration_task.remark, '统一任务中心已更新')
 
+    def test_task_update_should_reject_enabling_cron_for_unpublished_integration_task(self):
+        self.platform_integration_task.task_config['_publishedToTaskOps'] = False
+        self.platform_integration_task.task_config['_runtimeTaskOnly'] = True
+        self.platform_integration_task.schedule_type = 'manual'
+        self.platform_integration_task.status = 'draft'
+        self.platform_integration_task.save(update_fields=['task_config', 'schedule_type', 'status', 'update_time'])
+
+        view = TaskViewSet.as_view({'put': 'update'})
+        request = self.factory.put(
+            f'/data-api/datatask/task/{self.platform_integration_task.id}',
+            {
+                'scheduleType': 'cron',
+                'cronExpression': '0 3 * * *',
+            },
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(self.platform_integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 400)
+        self.platform_integration_task.refresh_from_db()
+        self.assertEqual(self.platform_integration_task.schedule_type, 'manual')
+
     @patch('apps.executors.base.ExecutorFactory.create_executor')
     def test_task_execute_should_dispatch_to_integration_source(self, mock_create_executor):
         class _MockExecutor:

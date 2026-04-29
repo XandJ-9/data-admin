@@ -52,6 +52,13 @@ export function executeTask(taskId) {
   })
 }
 
+export function publishTask(taskId) {
+  return request({
+    url: '/dataintegration/task/' + taskId + '/publish',
+    method: 'post'
+  })
+}
+
 /**
  * 查询任务执行历史
  * @param {number} taskId - 任务ID

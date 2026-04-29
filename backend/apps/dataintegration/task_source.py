@@ -11,6 +11,9 @@ from apps.datatask.source_registry import SourceHandler, register_source_handler
 from .models import DataIntegrationTask
 
 SOURCE_MODULE = 'dataintegration.task'
+PUBLISHED_TO_TASK_OPS_KEY = '_publishedToTaskOps'
+RUNTIME_TASK_ONLY_KEY = '_runtimeTaskOnly'
+RUNTIME_TASK_CONFIG_OVERRIDE_KEY = '_runtimeTaskConfigOverride'
 
 
 def _get_datasource_binding_error(integration_task: DataIntegrationTask) -> str:
@@ -36,7 +39,12 @@ def _build_runtime_datasource(data_source, *, database_name: str = ''):
     )
 
 
-def build_task_config(integration_task: DataIntegrationTask) -> dict:
+def build_task_config(
+    integration_task: DataIntegrationTask,
+    *,
+    published_to_task_ops: bool,
+    runtime_task_only: bool,
+) -> dict:
     return {
         'sourceDataSourceId': integration_task.source_datasource_id,
         'targetDataSourceId': integration_task.target_datasource_id,
@@ -50,6 +58,8 @@ def build_task_config(integration_task: DataIntegrationTask) -> dict:
         'scheduleType': integration_task.schedule_type,
         'cronExpression': integration_task.cron_expression,
         'taskConfig': integration_task.task_config,
+        PUBLISHED_TO_TASK_OPS_KEY: published_to_task_ops,
+        RUNTIME_TASK_ONLY_KEY: runtime_task_only,
     }
 
 
@@ -110,7 +120,26 @@ def get_source_record(source_record_id: int) -> DataIntegrationTask | None:
     ).filter(pk=source_record_id, del_flag='0').first()
 
 
-def sync_source_task(integration_task: DataIntegrationTask, *, username: str = ''):
+def is_task_published(platform_task) -> bool:
+    return bool((platform_task.task_config or {}).get(PUBLISHED_TO_TASK_OPS_KEY))
+
+
+def get_platform_task(source_record_id: int):
+    from apps.datatask.models import Task
+
+    return Task.objects.filter(
+        source_module=SOURCE_MODULE,
+        source_record_id=source_record_id,
+        del_flag='0',
+    ).first()
+
+
+def sync_source_task(
+    integration_task: DataIntegrationTask,
+    *,
+    username: str = '',
+    published_to_task_ops: bool = True,
+):
     from apps.datatask.services import TaskService
 
     task, _ = TaskService.upsert_source_task(
@@ -118,15 +147,32 @@ def sync_source_task(integration_task: DataIntegrationTask, *, username: str = '
         task_type='DATA_SYNC',
         source_module=SOURCE_MODULE,
         source_record_id=integration_task.id,
-        status=integration_task.status,
-        schedule_type='cron' if integration_task.schedule_type == 'cron' else 'manual',
-        cron_expression=integration_task.cron_expression,
+        status=integration_task.status if published_to_task_ops else 'draft',
+        schedule_type=(
+            'cron' if published_to_task_ops and integration_task.schedule_type == 'cron' else 'manual'
+        ),
+        cron_expression=(integration_task.cron_expression if published_to_task_ops and integration_task.schedule_type == 'cron' else ''),
         owner=integration_task.owner or username,
-        task_config=build_task_config(integration_task),
+        task_config=build_task_config(
+            integration_task,
+            published_to_task_ops=published_to_task_ops,
+            runtime_task_only=not published_to_task_ops,
+        ),
         remark=integration_task.remark,
         username=username,
     )
     return task
+
+
+def ensure_runtime_task(integration_task: DataIntegrationTask, *, username: str = ''):
+    platform_task = get_platform_task(integration_task.id)
+    if platform_task is not None and is_task_published(platform_task):
+        return platform_task
+    return sync_source_task(
+        integration_task,
+        username=username,
+        published_to_task_ops=False,
+    )
 
 
 def sync_platform_snapshot(task, changed_fields: set[str] | None = None, username: str = '') -> None:
@@ -180,7 +226,12 @@ def validate_task_configuration(task: DataIntegrationTask, runtime_config: dict 
 def execute_task(platform_task, integration_task: DataIntegrationTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> dict:
     from apps.datatask.services import TaskService
 
-    snapshot_config = dict(platform_task.task_config or {})
+    runtime_config = runtime_config or {}
+    snapshot_config = dict(
+        runtime_config.get(RUNTIME_TASK_CONFIG_OVERRIDE_KEY)
+        or platform_task.task_config
+        or {}
+    )
     executor_task = build_executor_task_from_snapshot(integration_task, snapshot_config=snapshot_config)
     if executor_task.source_datasource is None:
         return {'ok': False, 'msg': '源数据源已删除或未配置，请重新绑定后再执行', 'data': None}
@@ -190,7 +241,7 @@ def execute_task(platform_task, integration_task: DataIntegrationTask, username:
 
     effective_runtime_config = {
         'integrationTaskId': integration_task.id,
-        **(runtime_config or {}),
+        **runtime_config,
     }
     task_instance = TaskService.create_task_instance(
         task=platform_task,

@@ -8,6 +8,7 @@ import {
   getSupportedExecutors,
   getTask,
   getTaskExecutions,
+  publishTask,
   updateTask,
   validateTask,
 } from '@/api/data/integration'
@@ -97,6 +98,7 @@ export function useIntegrationTaskForm() {
 
   const loading = ref(false)
   const submitting = ref(false)
+  const publishing = ref(false)
   const validating = ref(false)
   const executionLoading = ref(false)
   const executionDialogVisible = ref(false)
@@ -259,7 +261,10 @@ export function useIntegrationTaskForm() {
         res = await addTask(createPayload)
       }
       taskSnapshot.value = res.data
-      ElMessage.success('保存成功')
+      const successMessage = taskSnapshot.value?.publishedToTaskOps
+        ? '保存成功，请重新发布到任务中心后使调度变更生效'
+        : '保存成功，需要纳入调度时请手动点击发布'
+      ElMessage.success(successMessage)
       if (!form.value.taskId && res.data?.taskId) {
         await router.replace({ name: 'DataIntegrationTaskDetail', params: { taskId: res.data.taskId }, query: route.query })
         return
@@ -292,6 +297,29 @@ export function useIntegrationTaskForm() {
       openExecutionDialog()
     } catch (error) {
       notifyError(error, '执行任务失败')
+    }
+  }
+
+  async function handlePublish() {
+    if (!taskSnapshot.value?.taskId) {
+      return
+    }
+    try {
+      await ElMessageBox.confirm(`确认将任务「${taskSnapshot.value.taskName}」发布到任务中心吗？`, '提示', { type: 'warning' })
+    } catch {
+      return
+    }
+    try {
+      publishing.value = true
+      const res = await publishTask(taskSnapshot.value.taskId)
+      taskSnapshot.value = res.data
+      form.value = mapTaskToForm(res.data)
+      autoFilledTargetTable.value = false
+      ElMessage.success('发布成功，任务中心将按已发布快照参与调度')
+    } catch (error) {
+      notifyError(error, '发布任务失败')
+    } finally {
+      publishing.value = false
     }
   }
 
@@ -409,6 +437,7 @@ export function useIntegrationTaskForm() {
     formRef,
     goBack,
     handleExecute,
+    handlePublish,
     handleSourceDataSourceChange,
     handleSourceTableInput,
     handleTargetTableInput,
@@ -419,6 +448,7 @@ export function useIntegrationTaskForm() {
     openExecutionDetail,
     openExecutionDialog,
     pageTitle,
+    publishing,
     rules,
     selectedExecution,
     submitting,

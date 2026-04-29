@@ -1,10 +1,12 @@
 from rest_framework import serializers
 
 from apps.datatask.models import TaskInstance
+from apps.datatask.models import Task
 from apps.datasource.models import DataSource
 from apps.system.serializers import BaseModelSerializer
 
 from .models import DataIntegrationTask
+from .task_source import PUBLISHED_TO_TASK_OPS_KEY
 
 
 class DataIntegrationTaskSerializer(BaseModelSerializer):
@@ -25,6 +27,8 @@ class DataIntegrationTaskSerializer(BaseModelSerializer):
     scheduleType = serializers.CharField(source='schedule_type', read_only=True)
     cronExpression = serializers.CharField(source='cron_expression', read_only=True)
     taskConfig = serializers.JSONField(source='task_config', read_only=True)
+    publishedToTaskOps = serializers.SerializerMethodField()
+    platformTaskId = serializers.SerializerMethodField()
 
     class Meta:
         model = DataIntegrationTask
@@ -46,6 +50,8 @@ class DataIntegrationTaskSerializer(BaseModelSerializer):
             'executorType',
             'scheduleType',
             'cronExpression',
+            'publishedToTaskOps',
+            'platformTaskId',
             'owner',
             'taskConfig',
             'remark',
@@ -60,6 +66,31 @@ class DataIntegrationTaskSerializer(BaseModelSerializer):
         if obj.target_datasource is None:
             return ''
         return obj.target_datasource.name
+
+    def _get_platform_task(self, obj):
+        cache = getattr(self, '_platform_task_cache', None)
+        if cache is None:
+            cache = {}
+            self._platform_task_cache = cache
+        if obj.id not in cache:
+            cache[obj.id] = Task.objects.filter(
+                source_module='dataintegration.task',
+                source_record_id=obj.id,
+                del_flag='0',
+            ).only('id', 'task_config').first()
+        return cache[obj.id]
+
+    def get_publishedToTaskOps(self, obj):
+        platform_task = self._get_platform_task(obj)
+        if platform_task is None:
+            return False
+        return bool((platform_task.task_config or {}).get(PUBLISHED_TO_TASK_OPS_KEY))
+
+    def get_platformTaskId(self, obj):
+        platform_task = self._get_platform_task(obj)
+        if platform_task is None:
+            return None
+        return platform_task.id
 
 class DataIntegrationTaskCreateSerializer(serializers.Serializer):
     taskName = serializers.CharField(max_length=128)

@@ -19,7 +19,14 @@ from .serializers import (
     DataIntegrationTaskUpdateSerializer,
     DataIntegrationTaskValidateSerializer,
 )
-from .task_source import sync_source_task, validate_task_configuration
+from .task_source import (
+    RUNTIME_TASK_CONFIG_OVERRIDE_KEY,
+    ensure_runtime_task,
+    get_platform_task,
+    is_task_published,
+    sync_source_task,
+    validate_task_configuration,
+)
 
 
 class DataIntegrationTaskViewSet(BaseViewSet):
@@ -75,7 +82,6 @@ class DataIntegrationTaskViewSet(BaseViewSet):
                 create_by=username,
                 update_by=username,
             )
-            sync_source_task(task, username=username)
         task = self.get_queryset().get(pk=task.pk)
         return self.data(DataIntegrationTaskSerializer(task).data, msg='创建成功')
 
@@ -134,9 +140,19 @@ class DataIntegrationTaskViewSet(BaseViewSet):
                 instance.remark = validated_data['remark']
             instance.update_by = username
             instance.save()
-            sync_source_task(instance, username=username)
         instance = self.get_queryset().get(pk=instance.pk)
         return self.data(DataIntegrationTaskSerializer(instance).data, msg='更新成功')
+
+    @action(detail=True, methods=['post'], url_path='publish')
+    def publish_task(self, request, pk=None):
+        integration_task = self.get_object()
+        username = getattr(request.user, 'username', '')
+        is_valid, error_message = validate_task_configuration(integration_task)
+        if not is_valid:
+            return self.error(msg=error_message)
+        sync_source_task(integration_task, username=username, published_to_task_ops=True)
+        integration_task = self.get_queryset().get(pk=integration_task.pk)
+        return self.data(DataIntegrationTaskSerializer(integration_task).data, msg='发布成功')
 
     @action(detail=False, methods=['post'], url_path='validate')
     def validate_task(self, request):
@@ -175,8 +191,27 @@ class DataIntegrationTaskViewSet(BaseViewSet):
     def execute_task(self, request, pk=None):
         integration_task = self.get_object()
         username = getattr(request.user, 'username', '')
-        platform_task = sync_source_task(integration_task, username=username)
-        result = TaskService.execute_task(platform_task, username=username)
+        platform_task = ensure_runtime_task(integration_task, username=username)
+        result = TaskService.execute_task(
+            platform_task,
+            username=username,
+            runtime_config={
+                RUNTIME_TASK_CONFIG_OVERRIDE_KEY: {
+                    'sourceDataSourceId': integration_task.source_datasource_id,
+                    'targetDataSourceId': integration_task.target_datasource_id,
+                    'sourceDatabaseName': integration_task.source_database_name,
+                    'sourceTableName': integration_task.source_table_name,
+                    'targetSchemaName': integration_task.target_schema_name,
+                    'targetTableName': integration_task.target_table_name,
+                    'loadType': integration_task.load_type,
+                    'writeMode': integration_task.write_mode,
+                    'executorType': integration_task.executor_type,
+                    'scheduleType': integration_task.schedule_type,
+                    'cronExpression': integration_task.cron_expression,
+                    'taskConfig': integration_task.task_config,
+                }
+            },
+        )
         task_instance = TaskInstance.objects.filter(instance_id=(result.get('data') or {}).get('executionId')).first()
         payload = DataIntegrationExecutionSerializer(task_instance).data if task_instance is not None else result.get('data')
         if payload is None and not result['ok']:

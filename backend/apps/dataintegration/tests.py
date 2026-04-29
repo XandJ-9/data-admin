@@ -63,11 +63,86 @@ class DataIntegrationTaskViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         integration_task = DataIntegrationTask.objects.get(task_code='sync_order_info')
-        platform_task = Task.objects.get(source_module='dataintegration.task', source_record_id=integration_task.id, del_flag='0')
         self.assertEqual(response.data['data']['taskId'], integration_task.id)
         self.assertEqual(integration_task.source_database_name, 'biz')
         self.assertEqual(integration_task.source_table_name, 'order_info')
+        self.assertFalse(Task.objects.filter(source_module='dataintegration.task', source_record_id=integration_task.id, del_flag='0').exists())
+
+    def test_publish_task_should_create_platform_task_for_scheduler(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_publish',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_database_name='biz',
+            source_table_name='order_info',
+            target_schema_name='ods',
+            target_table_name='ods_order_info',
+            load_type='full',
+            write_mode='overwrite',
+            executor_type='mock',
+            schedule_type='cron',
+            cron_expression='0 1 * * *',
+            status='active',
+            create_by='tester',
+        )
+        view = DataIntegrationTaskViewSet.as_view({'post': 'publish_task'})
+        request = self.factory.post(f'/data-api/dataintegration/task/{integration_task.id}/publish', {}, format='json')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, pk=str(integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        platform_task = Task.objects.get(source_module='dataintegration.task', source_record_id=integration_task.id, del_flag='0')
         self.assertEqual(platform_task.task_type, 'DATA_SYNC')
+        self.assertEqual(platform_task.schedule_type, 'cron')
+        self.assertEqual(platform_task.cron_expression, '0 1 * * *')
+        self.assertTrue(platform_task.task_config.get('_publishedToTaskOps'))
+
+    def test_update_should_not_refresh_platform_snapshot_until_republish(self):
+        integration_task = DataIntegrationTask.objects.create(
+            task_name='订单贴源同步',
+            task_code='sync_order_info_publish_update',
+            source_datasource=self.source_datasource,
+            target_datasource=self.target_datasource,
+            source_database_name='biz',
+            source_table_name='order_info',
+            target_schema_name='ods',
+            target_table_name='ods_order_info',
+            load_type='full',
+            write_mode='overwrite',
+            executor_type='mock',
+            schedule_type='cron',
+            cron_expression='0 1 * * *',
+            status='active',
+            create_by='tester',
+        )
+        publish_view = DataIntegrationTaskViewSet.as_view({'post': 'publish_task'})
+        publish_request = self.factory.post(f'/data-api/dataintegration/task/{integration_task.id}/publish', {}, format='json')
+        force_authenticate(publish_request, user=self.user)
+        publish_view(publish_request, pk=str(integration_task.id))
+
+        update_view = DataIntegrationTaskViewSet.as_view({'put': 'update'})
+        update_request = self.factory.put(
+            f'/data-api/dataintegration/task/{integration_task.id}',
+            {
+                'taskName': '订单贴源同步-新版',
+                'scheduleType': 'cron',
+                'cronExpression': '0 2 * * *',
+                'sourceTableName': 'order_info_v2',
+                'targetTableName': 'ods_order_info_v2',
+            },
+            format='json',
+        )
+        force_authenticate(update_request, user=self.user)
+
+        response = update_view(update_request, pk=str(integration_task.id))
+
+        self.assertEqual(response.status_code, 200)
+        platform_task = Task.objects.get(source_module='dataintegration.task', source_record_id=integration_task.id, del_flag='0')
+        self.assertEqual(platform_task.task_name, '订单贴源同步')
+        self.assertEqual(platform_task.cron_expression, '0 1 * * *')
+        self.assertEqual(platform_task.task_config['sourceTableName'], 'order_info')
 
     def test_validate_task_should_reject_same_datasource(self):
         view = DataIntegrationTaskViewSet.as_view({'post': 'validate_task'})
@@ -119,9 +194,13 @@ class DataIntegrationTaskViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         task_instance = TaskInstance.objects.get(task__source_module='dataintegration.task', task__source_record_id=integration_task.id)
+        platform_task = Task.objects.get(source_module='dataintegration.task', source_record_id=integration_task.id, del_flag='0')
         self.assertEqual(task_instance.status, 'success')
         self.assertEqual(task_instance.result_summary['total_rows'], 1200)
         self.assertEqual(response.data['data']['taskInstanceId'], task_instance.id)
+        self.assertEqual(platform_task.schedule_type, 'manual')
+        self.assertEqual(platform_task.status, 'draft')
+        self.assertFalse(platform_task.task_config.get('_publishedToTaskOps'))
 
     @patch('apps.executors.base.ExecutorFactory.create_executor')
     def test_execute_task_should_return_failure_payload_with_200(self, mock_create_executor):

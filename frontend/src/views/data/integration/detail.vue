@@ -17,6 +17,15 @@
         >执行记录</el-button>
         <el-button
           v-if="taskSnapshot"
+          type="success"
+          plain
+          :icon="Upload"
+          :loading="publishing"
+          @click="handlePublish"
+          v-hasPermi="['dataintegration:task:edit']"
+        >{{ taskSnapshot?.publishedToTaskOps ? '重新发布' : '发布到任务中心' }}</el-button>
+        <el-button
+          v-if="taskSnapshot"
           type="primary"
           plain
           :icon="VideoPlay"
@@ -55,7 +64,7 @@
             </div>
             <div class="summary-item">
               <span>调度方式</span>
-              <strong>{{ scheduleTypeLabel(form.scheduleType) }}</strong>
+              <strong>{{ scheduleTypeLabel(form.scheduleType) }}{{ !taskSnapshot?.publishedToTaskOps && form.scheduleType === 'cron' ? '（保存后需发布才生效）' : '' }}</strong>
             </div>
             <div class="summary-item">
               <span>当前执行器</span>
@@ -69,6 +78,7 @@
           <div class="status-panel">
             <el-tag :type="statusTagType(taskSnapshot.status)" size="large">{{ statusLabel(taskSnapshot.status) }}</el-tag>
             <p>任务编码：{{ taskSnapshot.taskCode }}</p>
+            <p>发布状态：{{ taskSnapshot.publishedToTaskOps ? '已发布到任务中心' : '未发布到任务中心' }}</p>
             <p>负责人：{{ taskSnapshot.owner || '未指定' }}</p>
             <p>Cron：{{ taskSnapshot.cronExpression || '未配置' }}</p>
           </div>
@@ -77,7 +87,7 @@
         <el-card shadow="hover" class="overview-card">
           <template #header><span>{{ taskSnapshot ? '设计备注' : '创建提示' }}</span></template>
           <p class="aside-text">
-            {{ taskSnapshot?.remark || '先把源数据源、源库名、源表和目标表关系配置准确，再决定调度方式。编排关系暂不放在这里，后续会收敛到发布阶段。' }}
+            {{ taskSnapshot?.remark || '先把源数据源、源库名、源表和目标表关系配置准确，再决定调度方式。保存只更新业务配置，只有点击发布后任务中心才会按当前快照参与调度。' }}
           </p>
         </el-card>
       </div>
@@ -100,7 +110,7 @@
 </template>
 
 <script setup name="DataIntegrationTaskDetail">
-import { ArrowLeft, Histogram, VideoPlay } from '@element-plus/icons-vue'
+import { ArrowLeft, Histogram, Upload, VideoPlay } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { checkPermi } from '@/utils/permission'
 import ExecutionRecordsDialog from './components/ExecutionRecordsDialog.vue'
@@ -124,6 +134,7 @@ const {
   formRef,
   goBack,
   handleExecute,
+  handlePublish,
   handleSourceDataSourceChange,
   handleSourceTableInput,
   handleTargetTableInput,
@@ -134,6 +145,7 @@ const {
   openExecutionDetail,
   openExecutionDialog,
   pageTitle,
+  publishing,
   rules,
   selectedExecution,
   submitting,
