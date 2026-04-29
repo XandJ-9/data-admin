@@ -20,7 +20,7 @@
 ## 历史归档
 
 1. `docs/archive/`
-2. `docs/architecture/`（历史图示，仅作参考）
+2. `docs/architecture/`（历史图示与专项评审，仅作参考）
 3. `docs/postmortem/`（问题复盘，仅作参考）
 
 ## 维护规则

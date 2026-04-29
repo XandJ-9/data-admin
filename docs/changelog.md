@@ -2,6 +2,18 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.78] - 2026-04-29
+
+- [Docs] 已新增 `datatask` 模块专项评审稿，明确当前结论：`Task` 不应继续承担完整业务任务定义，但也不能收缩成只有业务任务 ID 的空壳引用；更合理的目标是只保留已发布任务的纳管关系与调度索引。
+- [Docs] 已同步记录调度设计约束：调度服务应基于 `datatask` 自身索引先粗筛“已发布、启用、当前到点”的任务，再按命中结果读取发布快照或来源模块定义执行，避免调度周期退化为跨模块逐条回源扫描。
+
+## [v1.4.77] - 2026-04-29
+
+- [Refactor] `dataintegration` 当前已改为显式发布后才进入 `datatask` 调度：创建和编辑任务不再自动同步任务中心镜像，必须在数据集成详情页手动点击发布，当前配置快照才会进入 `datatask.Task` 并参与 cron 调度。
+- [Refactor] `dataintegration` 的手动执行当前仍会统一写入 `datatask.TaskInstance`，但未发布任务只会创建运行态手动载体，不会因为一次手动执行就自动开启任务中心调度。
+- [Fix] 任务中心当前已拦截未发布 `dataintegration.task` 直接切换为 cron 调度的操作，避免绕过数据集成模块的显式发布入口。
+- [Test] 已新增发布门禁回归，覆盖“创建不自动发布、发布后才同步、未发布执行不进 cron、任务中心禁止未发布开 cron”等场景，`apps.dataintegration` 与 `apps.datatask` 相关测试当前通过。
+
 ## [v1.4.76] - 2026-04-28
 
 - [Refactor] `datatask` 调度执行当前优先基于 `Task.task_config` 发布快照驱动 `dataintegration` 与 `datasource.collection`，不再默认读取业务任务 live 配置作为执行事实来源。
