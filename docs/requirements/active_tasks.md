@@ -41,6 +41,10 @@
 16. `dataintegration` 当前已拆分为“模块首页 + 任务列表”两个正式菜单入口：模块首页只承载任务规模、焦点任务与导航入口，筛选、执行、详情抽屉与执行记录统一收敛到“任务列表”页面，不再把总览和工作台堆在同一页面；首页视觉样式也已收敛到和 `dataasset`、`dataservice` 一致的浅色模块首页风格。
 17. 系统菜单管理页当前已修正“修改菜单”表单回填逻辑：菜单详情会先与默认表单合并并做字段归一化，菜单树加载失败也会被新增/修改入口正确兜底，避免显示状态、菜单状态等字段展示不全或产生未处理异常。
 18. `dataintegration` 当前改为“保存业务配置”和“发布到任务中心”分离：创建/编辑任务不再自动进入 `datatask` 调度，只有在数据集成详情页手动点击发布后，当前配置快照才会同步到 `datatask.Task` 并参与 cron 调度；未发布时手动执行仍会产生统一 `TaskInstance` 记录，但不会自动开启调度。
+19. `datatask` 当前已将任务治理更新入口收敛到 `TaskService.update_task_governance`：`TaskViewSet.update` 不再直接拼装状态、调度与来源快照同步字段，统一由 service 承接，相关 `apps.datatask` 回归测试当前通过。
+20. `datatask` 当前已建立发布快照统一边界：`TaskService.get_published_snapshot` / `build_task_config_payload` 作为唯一快照读写入口，`datasource`、`dataintegration`、`datadev` 执行链路统一优先读取发布快照，旧 `task_config` 结构保持兼容回退。
+21. `datatask` 当前已收敛 `SourceHandler` 契约：来源执行返回统一采用 `{ok,msg,data}` envelope，并由 `TaskService.execute_task` 统一归一化；当来源模块返回结构异常时，任务中心会稳定降级为失败响应而不是抛出运行时错误。
+22. `docs/architecture/datatask-architecture-review-2026-04-29.md` 与 `ADR-010` 当前已完成时效性对齐：专项评审稿新增“已落实/待落实”收敛进度，`ADR-010` 中 `datasource` 接入状态补充了 2026-04-30 的阶段说明，避免历史决策描述与主干实现口径冲突。
 
 ## 当前文档口径
 

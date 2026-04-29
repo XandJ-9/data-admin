@@ -143,3 +143,17 @@
 3. `ADR-010` / `ADR-011` / `ADR-012`
 
 作为事实口径；本稿用于支撑后续继续分析和拆解重构项。
+
+## 8. 收敛进度（更新于 2026-04-30）
+
+### 8.1 已落实
+
+1. 任务治理入口已收敛到 `TaskService.update_task_governance`，`TaskViewSet.update` 不再直接拼装治理字段。
+2. 发布快照边界已落地：`TaskService.get_published_snapshot` / `build_task_config_payload` 作为统一读写入口；`datasource`、`dataintegration`、`datadev` 执行链路已统一优先消费发布快照。
+3. `SourceHandler` 协议已增强：任务中心执行入口统一归一化来源返回结构，来源返回异常结构时会稳定降级为失败响应。
+
+### 8.2 待落实
+
+1. `Task` 主表字段仍处于兼容期，尚未完全收敛到“发布纳管关系 + 调度索引”最小集合。
+2. 发布快照当前先落在 `Task.task_config` 的统一键下，尚未拆分为独立快照承载模型（如 `TaskRelease`）。
+3. 来源协议已完成返回结构统一，但来源记录、快照构建与实例归一化的强类型约束仍可继续增强。

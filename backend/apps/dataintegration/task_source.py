@@ -6,7 +6,7 @@ from apps.datasource.models import DataSource
 from apps.datasource.executor_info import build_executor_info
 from apps.executors.base import ExecutorFactory
 
-from apps.datatask.source_registry import SourceHandler, register_source_handler
+from apps.datatask.source_registry import ExecuteTaskResult, SourceHandler, register_source_handler
 
 from .models import DataIntegrationTask
 
@@ -121,7 +121,10 @@ def get_source_record(source_record_id: int) -> DataIntegrationTask | None:
 
 
 def is_task_published(platform_task) -> bool:
-    return bool((platform_task.task_config or {}).get(PUBLISHED_TO_TASK_OPS_KEY))
+    from apps.datatask.services import TaskService
+
+    snapshot = TaskService.get_published_snapshot(platform_task)
+    return bool(snapshot.get(PUBLISHED_TO_TASK_OPS_KEY))
 
 
 def get_platform_task(source_record_id: int):
@@ -223,13 +226,13 @@ def validate_task_configuration(task: DataIntegrationTask, runtime_config: dict 
     return executor.validate()
 
 
-def execute_task(platform_task, integration_task: DataIntegrationTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> dict:
+def execute_task(platform_task, integration_task: DataIntegrationTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> ExecuteTaskResult:
     from apps.datatask.services import TaskService
 
     runtime_config = runtime_config or {}
     snapshot_config = dict(
         runtime_config.get(RUNTIME_TASK_CONFIG_OVERRIDE_KEY)
-        or platform_task.task_config
+        or TaskService.get_published_snapshot(platform_task)
         or {}
     )
     executor_task = build_executor_task_from_snapshot(integration_task, snapshot_config=snapshot_config)

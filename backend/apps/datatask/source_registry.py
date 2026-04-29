@@ -1,7 +1,33 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, TypedDict
+
+
+class ExecuteTaskResult(TypedDict):
+    ok: bool
+    msg: str
+    data: Any | None
+
+
+RuntimeConfig = dict[str, Any] | None
+ChangedFields = set[str]
+
+
+def normalize_execute_result(raw_result: Any) -> ExecuteTaskResult:
+    """规范化来源模块执行返回结构，确保任务中心只消费统一 envelope。"""
+
+    if isinstance(raw_result, dict):
+        return {
+            'ok': bool(raw_result.get('ok', False)),
+            'msg': str(raw_result.get('msg') or ''),
+            'data': raw_result.get('data'),
+        }
+    return {
+        'ok': False,
+        'msg': '来源模块返回结构无效',
+        'data': None,
+    }
 
 
 @dataclass(frozen=True)
@@ -14,8 +40,8 @@ class SourceHandler:
 
     load_source_record: Callable[[int], Any | None]
     sync_source_task: Callable[[Any], Any]
-    sync_platform_snapshot: Callable[[Any, set[str], str], None]
-    execute_task: Callable[[Any, Any, str, str, dict | None], dict]
+    sync_platform_snapshot: Callable[[Any, ChangedFields, str], None]
+    execute_task: Callable[[Any, Any, str, str, RuntimeConfig], ExecuteTaskResult | dict[str, Any]]
     normalize_task_instance: Callable[[Any], Any] | None = None
     cleanup_stale_instances: Callable[[], list[str]] | None = None
 

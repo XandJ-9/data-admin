@@ -47,6 +47,69 @@ class TaskServiceTests(TestCase):
         self.assertEqual(refreshed_task.owner, 'bob')
         self.assertEqual(refreshed_task.task_config['sqlText'], 'SELECT 2')
 
+    def test_upsert_source_task_should_persist_published_snapshot(self):
+        task, _ = TaskService.upsert_source_task(
+            task_name='快照任务',
+            task_type='SQL_COMPUTE',
+            source_module='datadev.script',
+            source_record_id=202,
+            schedule_type='cron',
+            cron_expression='0 6 * * *',
+            task_config={'scriptId': 202, 'sqlText': 'SELECT 202'},
+            username='tester',
+        )
+
+        snapshot = TaskService.get_published_snapshot(task)
+        self.assertEqual(snapshot['scriptId'], 202)
+        self.assertEqual(snapshot['sqlText'], 'SELECT 202')
+        self.assertEqual(task.task_config[TaskService.PUBLISHED_SNAPSHOT_KEY]['sqlText'], 'SELECT 202')
+        self.assertEqual(task.task_config[TaskService.SOURCE_SCHEDULE_TYPE_KEY], 'cron')
+        self.assertEqual(task.task_config[TaskService.SOURCE_CRON_EXPRESSION_KEY], '0 6 * * *')
+
+    def test_get_published_snapshot_should_support_legacy_task_config(self):
+        task = Task.objects.create(
+            task_name='兼容快照任务',
+            task_code='legacy_snapshot_task',
+            task_type='DATA_SYNC',
+            task_config={
+                'sourceTableName': 'ods_order',
+                '_publishedToTaskOps': True,
+                TaskService.SOURCE_SCHEDULE_TYPE_KEY: 'manual',
+                TaskService.SOURCE_CRON_EXPRESSION_KEY: '',
+            },
+            create_by='tester',
+        )
+
+        snapshot = TaskService.get_published_snapshot(task)
+        self.assertEqual(snapshot['sourceTableName'], 'ods_order')
+        self.assertTrue(snapshot['_publishedToTaskOps'])
+        self.assertNotIn(TaskService.SOURCE_SCHEDULE_TYPE_KEY, snapshot)
+
+    @patch('apps.datatask.services.get_source_handler')
+    def test_execute_task_should_normalize_invalid_handler_result(self, mock_get_source_handler):
+        task = Task.objects.create(
+            task_name='执行归一化任务',
+            task_code='execute_result_normalize_task',
+            task_type='SQL_COMPUTE',
+            source_module='fake.module',
+            source_record_id=1,
+            create_by='tester',
+        )
+
+        handler = SourceHandler(
+            load_source_record=lambda record_id: {'id': record_id},
+            sync_source_task=lambda source: source,
+            sync_platform_snapshot=lambda task_obj, changed_fields, username: None,
+            execute_task=lambda platform_task, source_record, username, trigger_mode, runtime_config: ['invalid'],
+        )
+        mock_get_source_handler.return_value = handler
+
+        result = TaskService.execute_task(task, username='tester')
+
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['msg'], '来源模块返回结构无效')
+        self.assertIsNone(result['data'])
+
     def test_finalize_instance_updates_latest_status(self):
         task = Task.objects.create(
             task_name='订单同步任务',
@@ -120,6 +183,100 @@ class TaskServiceTests(TestCase):
             refreshed_task.task_config[TaskService.SOURCE_SCHEDULE_TYPE_KEY],
             'cron',
         )
+
+    @patch('apps.datatask.services.TaskService.sync_task_source_snapshot')
+    def test_update_task_governance_should_persist_and_sync_snapshot(self, mock_sync_snapshot):
+        task = Task.objects.create(
+            task_name='治理更新任务',
+            task_code='governance_update_task',
+            task_type='SQL_COMPUTE',
+            schedule_type='manual',
+            cron_expression='',
+            owner='alice',
+            task_config={'scriptId': 1},
+            create_by='tester',
+            source_module='datadev.script',
+            source_record_id=1,
+        )
+
+        changed_fields = TaskService.update_task_governance(
+            task,
+            validated_data={
+                'status': 'paused',
+                'scheduleType': 'cron',
+                'cronExpression': '0 2 * * *',
+                'owner': 'platform_owner',
+                'remark': '统一任务中心已更新',
+            },
+            username='platform_admin',
+        )
+
+        task.refresh_from_db()
+        self.assertTrue({'status', 'schedule_type', 'cron_expression', 'owner', 'remark', 'task_config'}.issubset(changed_fields))
+        self.assertEqual(task.status, 'paused')
+        self.assertEqual(task.schedule_type, 'cron')
+        self.assertEqual(task.cron_expression, '0 2 * * *')
+        self.assertEqual(task.owner, 'platform_owner')
+        self.assertEqual(task.remark, '统一任务中心已更新')
+        self.assertEqual(task.task_config[TaskService.SOURCE_SCHEDULE_TYPE_KEY], 'cron')
+        self.assertEqual(task.task_config[TaskService.SOURCE_CRON_EXPRESSION_KEY], '0 2 * * *')
+        mock_sync_snapshot.assert_called_once()
+
+    @patch('apps.datatask.services.TaskService.sync_task_source_snapshot')
+    def test_update_task_governance_should_skip_sync_when_no_changes(self, mock_sync_snapshot):
+        task = Task.objects.create(
+            task_name='治理无变更任务',
+            task_code='governance_no_change_task',
+            task_type='SQL_COMPUTE',
+            schedule_type='manual',
+            cron_expression='',
+            owner='alice',
+            remark='原备注',
+            task_config={'scriptId': 1},
+            create_by='tester',
+            source_module='datadev.script',
+            source_record_id=2,
+        )
+
+        changed_fields = TaskService.update_task_governance(
+            task,
+            validated_data={
+                'owner': 'alice',
+                'remark': '原备注',
+            },
+            username='platform_admin',
+        )
+
+        self.assertEqual(changed_fields, set())
+        mock_sync_snapshot.assert_not_called()
+
+    @patch('apps.datatask.services.TaskService.sync_task_source_snapshot')
+    def test_update_task_governance_should_update_cron_expression_only(self, mock_sync_snapshot):
+        task = Task.objects.create(
+            task_name='治理Cron更新任务',
+            task_code='governance_cron_only_task',
+            task_type='SQL_COMPUTE',
+            schedule_type='cron',
+            cron_expression='0 1 * * *',
+            task_config={TaskService.SOURCE_CRON_EXPRESSION_KEY: '0 1 * * *'},
+            create_by='tester',
+            source_module='datadev.script',
+            source_record_id=3,
+        )
+
+        changed_fields = TaskService.update_task_governance(
+            task,
+            validated_data={'cronExpression': '0 5 * * *'},
+            username='platform_admin',
+        )
+
+        task.refresh_from_db()
+        self.assertEqual(task.schedule_type, 'cron')
+        self.assertEqual(task.cron_expression, '0 5 * * *')
+        self.assertIn('cron_expression', changed_fields)
+        self.assertIn('task_config', changed_fields)
+        self.assertEqual(task.task_config[TaskService.SOURCE_CRON_EXPRESSION_KEY], '0 5 * * *')
+        mock_sync_snapshot.assert_called_once()
 
 
 class TaskViewSetTests(TestCase):

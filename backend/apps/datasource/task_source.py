@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from django.db import IntegrityError, transaction
 
 from apps.datatask.models import Task, TaskInstance
-from apps.datatask.source_registry import SourceHandler, register_source_handler
+from apps.datatask.source_registry import ExecuteTaskResult, SourceHandler, register_source_handler
 from apps.datatask.services import TaskService
 
 from .collectors import (
@@ -198,7 +198,7 @@ def sync_platform_snapshot(task, changed_fields: set[str] | None = None, usernam
     collection_task.save(update_fields=update_fields + ['update_by', 'update_time'])
 
 
-def execute_task(platform_task, collection_task: DataSourceCollectionTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> dict:
+def execute_task(platform_task, collection_task: DataSourceCollectionTask, username: str = '', trigger_mode: str = 'manual', runtime_config: dict | None = None) -> ExecuteTaskResult:
     runtime_collection_task = build_runtime_collection_task(platform_task, collection_task)
     if runtime_collection_task.data_source_id is None or runtime_collection_task.data_source is None:
         return {'ok': False, 'msg': '采集任务绑定的数据源已删除或未配置，请重新绑定后再执行', 'data': None}
@@ -224,7 +224,7 @@ def normalize_task_instance(task_instance):
 
 
 def build_runtime_collection_task(platform_task, collection_task: DataSourceCollectionTask):
-    task_config = dict(platform_task.task_config or {})
+    task_config = TaskService.get_published_snapshot(platform_task)
     data_source_id = task_config.get('dataSourceId')
     if data_source_id in (None, ''):
         data_source_id = collection_task.data_source_id

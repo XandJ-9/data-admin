@@ -2,6 +2,28 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.82] - 2026-04-30
+
+- [Docs] `datatask` 专项评审稿已补充截至 2026-04-30 的“已落实/待落实”收敛进度，明确当前代码已完成的治理入口收敛、发布快照边界与 handler 协议增强，以及仍待推进的主表字段最小化与独立快照承载。
+- [Docs] `ADR-010` 中关于 `datasource` 暂不接入任务中心的阶段性条目已追加时效性说明，明确该描述属于制定当时前提，当前主干以 `DataSourceCollectionTask + source handler + TaskInstance` 口径运行。
+
+## [v1.4.81] - 2026-04-30
+
+- [Refactor] `datatask` 已强化 source handler 协议：新增 `ExecuteTaskResult` 统一执行返回类型，并在任务中心执行入口统一归一化来源返回结构，收敛跨模块执行契约。
+- [Refactor] `datasource`、`dataintegration`、`datadev` 平台执行函数已补齐统一返回类型标注，降低来源模块接入时的隐式约定成本。
+- [Test] 已新增“来源返回结构异常时任务中心归一化失败响应”的回归用例，并完成 `apps.datatask`、`apps.datasource`、`apps.dataintegration`、`apps.datadev` 共 94 条测试通过。
+
+## [v1.4.80] - 2026-04-29
+
+- [Refactor] `datatask` 已新增发布快照统一入口：`TaskService.get_published_snapshot` 与 `TaskService.build_task_config_payload`，并在 `upsert_source_task`、依赖调度切换与治理更新链路中统一使用，形成“治理字段 + 发布快照”边界。
+- [Refactor] `datasource`、`dataintegration`、`datadev` 的执行读取链路已统一优先消费发布快照，不再直接散读 `Task.task_config` 顶层字段；同时保持旧结构回退兼容。
+- [Test] 已新增快照兼容回归，并完成 `apps.datatask`、`apps.datasource`、`apps.dataintegration`、`apps.datadev` 共 93 条测试通过。
+
+## [v1.4.79] - 2026-04-29
+
+- [Refactor] `datatask` 已把任务治理更新逻辑从 `TaskViewSet.update` 下沉到 `TaskService.update_task_governance`，状态、调度字段与来源快照回写统一通过 service 入口处理，避免 View 层继续承载领域规则编排。
+- [Test] 已新增 `TaskService.update_task_governance` 回归用例，覆盖“有变更触发来源快照同步”“无变更跳过同步”“仅更新 cronExpression”三个治理分支；`uv run manage.py test apps.datatask` 当前 27 条测试通过。
+
 ## [v1.4.78] - 2026-04-29
 
 - [Docs] 已新增 `datatask` 模块专项评审稿，明确当前结论：`Task` 不应继续承担完整业务任务定义，但也不能收缩成只有业务任务 ID 的空壳引用；更合理的目标是只保留已发布任务的纳管关系与调度索引。

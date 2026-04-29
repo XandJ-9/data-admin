@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from apps.datasource.executor_info import build_executor_info
 from apps.datasource.models import DataSource
-from apps.datatask.source_registry import SourceHandler, register_source_handler
+from apps.datatask.source_registry import ExecuteTaskResult, SourceHandler, register_source_handler
 
 from .models import DataDevModel, DataDevScript
 
@@ -225,6 +225,8 @@ def _get_or_create_script_platform_task(script, username: str = '', platform_tas
 
 
 def _resolve_script_version_and_sql(script, task, execution_runtime_config: dict):
+    from apps.datatask.services import TaskService
+
     current_version = script.versions.filter(is_current=True).first()
     override_version_id = execution_runtime_config.get('scriptVersionId')
     override_sql_text = execution_runtime_config.get('sqlText')
@@ -236,16 +238,19 @@ def _resolve_script_version_and_sql(script, task, execution_runtime_config: dict
         return current_version, override_sql_text
 
     if task is not None:
-        version_id = (task.task_config or {}).get('currentVersionId')
+        snapshot_config = TaskService.get_published_snapshot(task)
+        version_id = snapshot_config.get('currentVersionId')
         if version_id:
             current_version = script.versions.filter(id=version_id).first() or current_version
-        sql = (task.task_config or {}).get('sqlText') or (current_version.content if current_version else '')
+        sql = snapshot_config.get('sqlText') or (current_version.content if current_version else '')
         return current_version, sql
 
     return current_version, current_version.content if current_version else ''
 
 
 def _resolve_script_runtime_datasource(script, task, execution_runtime_config: dict):
+    from apps.datatask.services import TaskService
+
     has_runtime_datasource_override = 'datasourceId' in execution_runtime_config
     runtime_datasource_id = execution_runtime_config.get('datasourceId')
     runtime_datasource = None
@@ -254,7 +259,8 @@ def _resolve_script_runtime_datasource(script, task, execution_runtime_config: d
         if runtime_datasource_id not in (None, ''):
             runtime_datasource = DataSource.objects.filter(pk=runtime_datasource_id, del_flag='0').first()
     elif task is not None:
-        task_datasource_id = (task.task_config or {}).get('datasourceId')
+        snapshot_config = TaskService.get_published_snapshot(task)
+        task_datasource_id = snapshot_config.get('datasourceId')
         if task_datasource_id not in (None, ''):
             runtime_datasource = DataSource.objects.filter(pk=task_datasource_id, del_flag='0').first()
 
@@ -658,7 +664,7 @@ def execute_model_task(
         ).first()
         if task is None:
             task = sync_model_source_task(model, username=username)
-    task_config = task.task_config or {}
+    task_config = TaskService.get_published_snapshot(task)
     sql_text = execution_runtime_config.get('sqlText') or task_config.get('sqlText') or build_datamodel_create_sql(model)
     runtime_layer = execution_runtime_config.get('layer') or task_config.get('layer') or model.layer
     runtime_table_name = execution_runtime_config.get('tableName') or task_config.get('tableName') or model.table_name
@@ -779,7 +785,7 @@ def execute_model_task(
     }
 
 
-def _execute_script_from_platform(platform_task, source_record, username: str, trigger_mode: str, runtime_config: dict | None):
+def _execute_script_from_platform(platform_task, source_record, username: str, trigger_mode: str, runtime_config: dict | None) -> ExecuteTaskResult:
     return execute_script(
         source_record,
         username=username,
@@ -789,7 +795,7 @@ def _execute_script_from_platform(platform_task, source_record, username: str, t
     )
 
 
-def _execute_model_from_platform(platform_task, source_record, username: str, trigger_mode: str, runtime_config: dict | None):
+def _execute_model_from_platform(platform_task, source_record, username: str, trigger_mode: str, runtime_config: dict | None) -> ExecuteTaskResult:
     return execute_model_task(
         source_record,
         username=username,

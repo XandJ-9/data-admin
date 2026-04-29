@@ -6,7 +6,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .models import Task, TaskDependency, TaskInstance
-from .source_registry import get_source_handler
+from .source_registry import ExecuteTaskResult, get_source_handler, normalize_execute_result
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,51 @@ class TaskService:
 
     SOURCE_SCHEDULE_TYPE_KEY = '_platformSourceScheduleType'
     SOURCE_CRON_EXPRESSION_KEY = '_platformSourceCronExpression'
+    PUBLISHED_SNAPSHOT_KEY = '_publishedSnapshot'
+    GOVERNANCE_CONFIG_KEYS = {
+        SOURCE_SCHEDULE_TYPE_KEY,
+        SOURCE_CRON_EXPRESSION_KEY,
+        PUBLISHED_SNAPSHOT_KEY,
+    }
+
+    @classmethod
+    def get_published_snapshot(cls, task: Task | None) -> dict:
+        if task is None:
+            return {}
+        task_config = dict(task.task_config or {})
+        snapshot = task_config.get(cls.PUBLISHED_SNAPSHOT_KEY)
+        if isinstance(snapshot, dict):
+            return dict(snapshot)
+        # 兼容旧结构：发布快照尚未分层时，按治理字段过滤得到业务快照。
+        return {
+            key: value
+            for key, value in task_config.items()
+            if key not in cls.GOVERNANCE_CONFIG_KEYS
+        }
+
+    @classmethod
+    def build_task_config_payload(
+        cls,
+        *,
+        source_snapshot: dict | None,
+        schedule_type: str,
+        cron_expression: str,
+        existing_task_config: dict | None = None,
+    ) -> dict:
+        source_snapshot = dict(source_snapshot or {})
+        payload = {
+            **source_snapshot,
+            cls.PUBLISHED_SNAPSHOT_KEY: source_snapshot,
+            cls.SOURCE_SCHEDULE_TYPE_KEY: schedule_type,
+            cls.SOURCE_CRON_EXPRESSION_KEY: cron_expression,
+        }
+        if existing_task_config:
+            # 兼容历史字段，避免未发布过快照时丢失其他平台级元信息。
+            for key, value in dict(existing_task_config).items():
+                if key in payload:
+                    continue
+                payload[key] = value
+        return payload
 
     @staticmethod
     def build_task_code(task_type: str, source_module: str, source_record_id: int) -> str:
@@ -41,11 +86,8 @@ class TaskService:
         remark: str = '',
         username: str = '',
     ) -> tuple[Task, bool]:
-        task_config = {
-            **(task_config or {}),
-            cls.SOURCE_SCHEDULE_TYPE_KEY: schedule_type,
-            cls.SOURCE_CRON_EXPRESSION_KEY: cron_expression,
-        }
+        source_schedule_type = schedule_type
+        source_cron_expression = cron_expression
         defaults = {
             'task_name': task_name,
             'task_code': cls.build_task_code(task_type, source_module, source_record_id),
@@ -54,10 +96,14 @@ class TaskService:
             'schedule_type': schedule_type,
             'cron_expression': cron_expression,
             'owner': owner,
-            'task_config': task_config,
             'remark': remark,
             'update_by': username,
         }
+        defaults['task_config'] = cls.build_task_config_payload(
+            source_snapshot=task_config,
+            schedule_type=source_schedule_type,
+            cron_expression=source_cron_expression,
+        )
         with transaction.atomic():
             task = Task.objects.select_for_update().filter(
                 source_module=source_module,
@@ -84,6 +130,13 @@ class TaskService:
             if has_upstream_dependencies:
                 defaults['schedule_type'] = 'dependency'
                 defaults['cron_expression'] = ''
+
+            defaults['task_config'] = cls.build_task_config_payload(
+                source_snapshot=task_config,
+                schedule_type=source_schedule_type,
+                cron_expression=source_cron_expression,
+                existing_task_config=task.task_config if task else None,
+            )
 
             changed_fields = []
             if task.del_flag != '0':
@@ -216,10 +269,15 @@ class TaskService:
             del_flag='0',
         ).exists()
         if has_upstream_dependencies and task.schedule_type != 'dependency':
-            task_config = dict(task.task_config or {})
-            task_config.setdefault(TaskService.SOURCE_SCHEDULE_TYPE_KEY, task.schedule_type)
-            task_config.setdefault(TaskService.SOURCE_CRON_EXPRESSION_KEY, task.cron_expression)
-            task.task_config = task_config
+            existing_task_config = dict(task.task_config or {})
+            source_schedule_type = existing_task_config.get(TaskService.SOURCE_SCHEDULE_TYPE_KEY, task.schedule_type)
+            source_cron_expression = existing_task_config.get(TaskService.SOURCE_CRON_EXPRESSION_KEY, task.cron_expression)
+            task.task_config = TaskService.build_task_config_payload(
+                source_snapshot=TaskService.get_published_snapshot(task),
+                schedule_type=source_schedule_type,
+                cron_expression=source_cron_expression,
+                existing_task_config=existing_task_config,
+            )
             task.schedule_type = 'dependency'
             task.cron_expression = ''
             task.save(update_fields=['task_config', 'schedule_type', 'cron_expression', 'update_time'])
@@ -250,14 +308,87 @@ class TaskService:
             return
 
     @classmethod
+    def update_task_governance(
+        cls,
+        task: Task,
+        *,
+        validated_data: dict,
+        username: str = '',
+    ) -> set[str]:
+        """更新平台任务治理字段并回写来源快照。"""
+
+        changed_fields: set[str] = set()
+        task_config = dict(task.task_config or {})
+
+        if 'status' in validated_data and task.status != validated_data['status']:
+            task.status = validated_data['status']
+            changed_fields.add('status')
+        if 'owner' in validated_data and task.owner != validated_data['owner']:
+            task.owner = validated_data['owner']
+            changed_fields.add('owner')
+        if 'remark' in validated_data and task.remark != validated_data['remark']:
+            task.remark = validated_data['remark']
+            changed_fields.add('remark')
+
+        # 调度治理字段只允许通过平台入口更新，同时保留来源模块发布快照。
+        if 'scheduleType' in validated_data:
+            next_schedule_type = validated_data['scheduleType']
+            next_cron_expression = (
+                validated_data.get('cronExpression', task.cron_expression)
+                if next_schedule_type == 'cron'
+                else ''
+            )
+            if task.schedule_type != next_schedule_type:
+                task.schedule_type = next_schedule_type
+                changed_fields.add('schedule_type')
+            if task.cron_expression != next_cron_expression:
+                task.cron_expression = next_cron_expression
+                changed_fields.add('cron_expression')
+            task_config = cls.build_task_config_payload(
+                source_snapshot=cls.get_published_snapshot(task),
+                schedule_type=next_schedule_type,
+                cron_expression=next_cron_expression,
+                existing_task_config=task_config,
+            )
+        elif 'cronExpression' in validated_data and task.schedule_type == 'cron':
+            next_cron_expression = validated_data['cronExpression']
+            if task.cron_expression != next_cron_expression:
+                task.cron_expression = next_cron_expression
+                changed_fields.add('cron_expression')
+            task_config = cls.build_task_config_payload(
+                source_snapshot=cls.get_published_snapshot(task),
+                schedule_type=task.schedule_type,
+                cron_expression=next_cron_expression,
+                existing_task_config=task_config,
+            )
+
+        # 只有发生治理字段变更时才持久化并触发来源模块回写。
+        if changed_fields and task.task_config != task_config:
+            task.task_config = task_config
+            changed_fields.add('task_config')
+
+        if not changed_fields:
+            return changed_fields
+
+        task.update_by = username
+        task.save(update_fields=list(changed_fields) + ['update_by', 'update_time'])
+        cls.sync_task_source_snapshot(
+            task,
+            changed_fields=changed_fields,
+            username=username,
+        )
+        return changed_fields
+
+    @classmethod
     def get_task_governance_defaults(cls, task: Task | None) -> tuple[str, str, str]:
         if task is None:
             return 'active', 'manual', ''
-        schedule_type = task.task_config.get(
+        task_config = dict(task.task_config or {})
+        schedule_type = task_config.get(
             cls.SOURCE_SCHEDULE_TYPE_KEY,
             task.schedule_type if task.schedule_type != 'dependency' else 'manual',
         )
-        cron_expression = task.task_config.get(
+        cron_expression = task_config.get(
             cls.SOURCE_CRON_EXPRESSION_KEY,
             task.cron_expression,
         )
@@ -306,18 +437,19 @@ class TaskService:
         username: str = '',
         trigger_mode: str = 'manual',
         runtime_config: dict | None = None,
-    ) -> dict:
+    ) -> ExecuteTaskResult:
         handler = get_source_handler(task.source_module)
         if handler is not None and task.source_record_id:
             source_record = handler.load_source_record(task.source_record_id)
             if source_record is None:
                 return {'ok': False, 'msg': '来源任务不存在或已删除', 'data': None}
-            return handler.execute_task(
+            result = handler.execute_task(
                 task,
                 source_record,
                 username,
                 trigger_mode,
                 runtime_config,
             )
+            return normalize_execute_result(result)
 
         return {'ok': False, 'msg': f'暂不支持执行来源模块 {task.source_module or "未知"}', 'data': None}

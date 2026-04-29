@@ -67,53 +67,11 @@ class TaskViewSet(BaseViewSet):
                 return self.not_found(msg='任务不存在')
             serializer = TaskUpdateSerializer(data=request.data, context={'instance': task})
             serializer.is_valid(raise_exception=True)
-            validated_data = serializer.validated_data
-            changed_fields = set()
-            task_config = dict(task.task_config or {})
-
-            if 'status' in validated_data and task.status != validated_data['status']:
-                task.status = validated_data['status']
-                changed_fields.add('status')
-            if 'owner' in validated_data and task.owner != validated_data['owner']:
-                task.owner = validated_data['owner']
-                changed_fields.add('owner')
-            if 'remark' in validated_data and task.remark != validated_data['remark']:
-                task.remark = validated_data['remark']
-                changed_fields.add('remark')
-            if 'scheduleType' in validated_data:
-                next_schedule_type = validated_data['scheduleType']
-                next_cron_expression = (
-                    validated_data.get('cronExpression', task.cron_expression)
-                    if next_schedule_type == 'cron'
-                    else ''
-                )
-                if task.schedule_type != next_schedule_type:
-                    task.schedule_type = next_schedule_type
-                    changed_fields.add('schedule_type')
-                if task.cron_expression != next_cron_expression:
-                    task.cron_expression = next_cron_expression
-                    changed_fields.add('cron_expression')
-                task_config[TaskService.SOURCE_SCHEDULE_TYPE_KEY] = next_schedule_type
-                task_config[TaskService.SOURCE_CRON_EXPRESSION_KEY] = next_cron_expression
-            elif 'cronExpression' in validated_data and task.schedule_type == 'cron':
-                next_cron_expression = validated_data['cronExpression']
-                if task.cron_expression != next_cron_expression:
-                    task.cron_expression = next_cron_expression
-                    changed_fields.add('cron_expression')
-                task_config[TaskService.SOURCE_CRON_EXPRESSION_KEY] = next_cron_expression
-
-            if changed_fields and task.task_config != task_config:
-                task.task_config = task_config
-                changed_fields.add('task_config')
-
-            if changed_fields:
-                task.update_by = username
-                task.save(update_fields=list(changed_fields) + ['update_by', 'update_time'])
-                TaskService.sync_task_source_snapshot(
-                    task,
-                    changed_fields=changed_fields,
-                    username=username,
-                )
+            TaskService.update_task_governance(
+                task,
+                validated_data=serializer.validated_data,
+                username=username,
+            )
         return self.data(TaskSerializer(task).data, msg='更新成功')
 
     @action(detail=True, methods=['post'], url_path='execute')
