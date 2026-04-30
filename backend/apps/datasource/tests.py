@@ -13,13 +13,18 @@ from apps.datatask.source_registry import get_source_handler
 from apps.dataintegration.models import DataIntegrationTask
 
 from .collectors import (
-    _run_database_asset_sync,
     collect_table_to_asset,
-    execute_database_collection_task,
-    recover_stale_database_collection_instance,
 )
 from .models import DataSource, DataSourceCollectionTask
-from .task_source import SOURCE_MODULE, ensure_collection_task, sync_source_task
+from .task_handler import (
+    SOURCE_MODULE,
+    _run_database_asset_sync,
+    ensure_collection_task,
+    execute_database_collection_task,
+    get_database_collection_run,
+    recover_stale_database_collection_instance,
+    sync_source_task,
+)
 from .views import DataSourceDiscoveryViewSet, DataSourceViewSet, _sanitize_db_error_message
 
 
@@ -214,12 +219,10 @@ class DataSourceDiscoveryTests(TestCase):
         self.assertEqual(response.data['rows'][0]['tableType'], 'BASE TABLE')
 
     @patch('apps.datasource.views.ensure_collection_task')
-    @patch('apps.datasource.views.sync_source_task')
-    @patch('apps.datasource.views.TaskService.execute_task')
-    def test_collect_table_should_sync_metadata_and_standard_asset(self, mock_execute_task, mock_sync_source_task, mock_ensure_collection_task):
+    @patch('apps.datasource.views.execute_collection_task')
+    def test_collect_table_should_sync_metadata_and_standard_asset(self, mock_execute_collection_task, mock_ensure_collection_task):
         mock_ensure_collection_task.return_value = Mock()
-        mock_sync_source_task.return_value = Mock()
-        mock_execute_task.return_value = {
+        mock_execute_collection_task.return_value = {
             'ok': True,
             'msg': '采集成功，已同步到数据资产',
             'data': {
@@ -247,17 +250,15 @@ class DataSourceDiscoveryTests(TestCase):
         self.assertEqual(response.data['msg'], '采集成功，已同步到数据资产')
         self.assertEqual(response.data['data']['tableId'], 9)
         self.assertEqual(response.data['data']['taskInstanceId'], 18)
-        mock_execute_task.assert_called_once()
+        mock_execute_collection_task.assert_called_once()
 
     @patch(
-        'apps.datasource.views.TaskService.execute_task',
+        'apps.datasource.views.execute_collection_task',
         return_value={'ok': False, 'msg': '当前仅支持采集真实数据表，暂不支持对象类型: VIEW', 'data': None},
     )
-    @patch('apps.datasource.views.sync_source_task')
     @patch('apps.datasource.views.ensure_collection_task')
-    def test_collect_table_should_reject_non_table_objects(self, mock_ensure_collection_task, mock_sync_source_task, mock_execute_task):
+    def test_collect_table_should_reject_non_table_objects(self, mock_ensure_collection_task, mock_execute_collection_task):
         mock_ensure_collection_task.return_value = Mock()
-        mock_sync_source_task.return_value = Mock()
         view = DataSourceDiscoveryViewSet.as_view({'post': 'collect_table'})
         request = self.factory.post(
             '/data-api/datasource/collection/collect-table',
@@ -271,17 +272,15 @@ class DataSourceDiscoveryTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 400)
         self.assertEqual(response.data['msg'], '当前仅支持采集真实数据表，暂不支持对象类型: VIEW')
-        mock_execute_task.assert_called_once()
+        mock_execute_collection_task.assert_called_once()
 
     @patch(
-        'apps.datasource.views.TaskService.execute_task',
+        'apps.datasource.views.execute_collection_task',
         return_value={'ok': False, 'msg': '表 orders 的字段采集结果为空，已中止同步', 'data': None},
     )
-    @patch('apps.datasource.views.sync_source_task')
     @patch('apps.datasource.views.ensure_collection_task')
-    def test_collect_table_should_preserve_business_validation_message(self, mock_ensure_collection_task, mock_sync_source_task, mock_execute_task):
+    def test_collect_table_should_preserve_business_validation_message(self, mock_ensure_collection_task, mock_execute_collection_task):
         mock_ensure_collection_task.return_value = Mock()
-        mock_sync_source_task.return_value = Mock()
         view = DataSourceDiscoveryViewSet.as_view({'post': 'collect_table'})
         request = self.factory.post(
             '/data-api/datasource/collection/collect-table',
@@ -295,12 +294,11 @@ class DataSourceDiscoveryTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['code'], 400)
         self.assertEqual(response.data['msg'], '表 orders 的字段采集结果为空，已中止同步')
-        mock_execute_task.assert_called_once()
+        mock_execute_collection_task.assert_called_once()
 
     @patch('apps.datasource.views.ensure_collection_task')
-    @patch('apps.datasource.views.sync_source_task')
-    @patch('apps.datasource.views.TaskService.execute_task')
-    def test_collect_database_should_start_async_run(self, mock_execute_task, mock_sync_source_task, mock_ensure_collection_task):
+    @patch('apps.datasource.views.execute_collection_task')
+    def test_collect_database_should_start_async_run(self, mock_execute_collection_task, mock_ensure_collection_task):
         collection_task = DataSourceCollectionTask.objects.create(
             task_name='采集 sqlite-demo / demo',
             task_code='ds_collect_demo',
@@ -340,8 +338,7 @@ class DataSourceDiscoveryTests(TestCase):
             triggered_by=self.user.username,
         )
         mock_ensure_collection_task.return_value = collection_task
-        mock_sync_source_task.return_value = platform_task
-        mock_execute_task.return_value = {'ok': True, 'msg': '整库异步采集已启动', 'data': task_instance}
+        mock_execute_collection_task.return_value = {'ok': True, 'msg': '整库异步采集已启动', 'data': task_instance}
         view = DataSourceDiscoveryViewSet.as_view({'post': 'collect_database'})
         request = self.factory.post(
             '/data-api/datasource/collection/collect-database',
@@ -357,7 +354,7 @@ class DataSourceDiscoveryTests(TestCase):
         self.assertEqual(response.data['msg'], '整库异步采集已启动')
         self.assertEqual(response.data['data']['runId'], 'run_demo_001')
         self.assertEqual(response.data['data']['taskInstanceId'], task_instance.id)
-        mock_execute_task.assert_called_once()
+        mock_execute_collection_task.assert_called_once()
 
     def test_collect_database_run_should_return_run_status(self):
         collection_task = DataSourceCollectionTask.objects.create(
@@ -408,6 +405,52 @@ class DataSourceDiscoveryTests(TestCase):
         self.assertEqual(response.data['code'], 200)
         self.assertEqual(response.data['data']['runId'], task_instance.instance_id)
         self.assertEqual(response.data['data']['currentTable'], 'orders')
+
+    def test_collect_database_run_should_reject_non_database_scope(self):
+        collection_task = DataSourceCollectionTask.objects.create(
+            task_name='采集 sqlite-demo / demo / orders',
+            task_code='ds_collect_demo_table_status',
+            data_source=self.data_source,
+            collection_scope=DataSourceCollectionTask.CollectionScope.TABLE,
+            database_name='demo',
+            table_name='orders',
+            create_by=self.user.username,
+            update_by=self.user.username,
+        )
+        platform_task = Task.objects.create(
+            task_name=collection_task.task_name,
+            task_code='asset_collection_datasource_collection_2_table',
+            task_type='ASSET_COLLECTION',
+            source_module=SOURCE_MODULE,
+            source_record_id=collection_task.id,
+        )
+        task_instance = TaskInstance.objects.create(
+            task=platform_task,
+            instance_id='run_status_table_001',
+            status='success',
+            trigger_mode='manual',
+            runtime_config={
+                'dataSourceId': self.data_source.id,
+                'dataSourceName': self.data_source.name,
+                'collectionScope': 'table',
+                'databaseName': 'demo',
+                'tableName': 'orders',
+            },
+            executor_type='asset_collection',
+            triggered_by=self.user.username,
+        )
+
+        self.assertIsNone(get_database_collection_run(task_instance.instance_id))
+
+        view = DataSourceDiscoveryViewSet.as_view({'get': 'collect_database_run'})
+        request = self.factory.get(f'/data-api/datasource/collection/collect-database/{task_instance.instance_id}')
+        force_authenticate(request, user=self.user)
+
+        response = view(request, run_id=task_instance.instance_id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 404)
+        self.assertEqual(response.data['msg'], '整库采集实例不存在')
 
     def test_recover_stale_database_collection_instance_should_mark_failed(self):
         collection_task = DataSourceCollectionTask.objects.create(
@@ -541,7 +584,7 @@ class DataSourceCollectorTests(TestCase):
         self.assertEqual(normalized_instance.status, 'failed')
         self.assertEqual(normalized_instance.error_message, '采集执行器已失联，请重新触发')
 
-    @patch('apps.datasource.collectors.collect_table_to_asset')
+    @patch('apps.datasource.task_handler.collect_table_to_asset')
     def test_task_service_execute_should_use_platform_snapshot_before_live_collection_task(self, mock_collect_table_to_asset):
         meta_table = Mock(id=1, table_name='snapshot_orders', database='snapshot_biz', data_source_id=self.data_source.id)
         mock_collect_table_to_asset.return_value = (meta_table, {'tableType': 'BASE TABLE'})
@@ -564,9 +607,6 @@ class DataSourceCollectorTests(TestCase):
             'databaseName': 'snapshot_biz',
             'tableName': 'snapshot_orders',
             'continueOnError': True,
-            'scheduleType': 'cron',
-            'cronExpression': '0 1 * * *',
-            'taskConfig': {},
         }
         platform_task.save(update_fields=['task_config'])
 
@@ -582,7 +622,7 @@ class DataSourceCollectorTests(TestCase):
         self.assertEqual(args[1], 'snapshot_biz')
         self.assertEqual(args[2], 'snapshot_orders')
 
-    def test_ensure_collection_task_should_preserve_existing_governance_fields(self):
+    def test_ensure_collection_task_should_preserve_existing_definition_governance_fields(self):
         collection_task = ensure_collection_task(
             data_source=self.data_source,
             collection_scope=DataSourceCollectionTask.CollectionScope.DATABASE,
@@ -591,8 +631,6 @@ class DataSourceCollectorTests(TestCase):
         )
         collection_task.owner = '治理负责人'
         collection_task.status = 'paused'
-        collection_task.schedule_type = 'cron'
-        collection_task.cron_expression = '0 0 * * *'
         collection_task.save()
 
         refreshed_task = ensure_collection_task(
@@ -604,10 +642,8 @@ class DataSourceCollectorTests(TestCase):
 
         self.assertEqual(refreshed_task.owner, '治理负责人')
         self.assertEqual(refreshed_task.status, 'paused')
-        self.assertEqual(refreshed_task.schedule_type, 'cron')
-        self.assertEqual(refreshed_task.cron_expression, '0 0 * * *')
 
-    @patch('apps.datasource.collectors.threading.Thread')
+    @patch('apps.datasource.task_handler.threading.Thread')
     def test_execute_database_collection_task_should_create_running_task_instance_and_start_worker(self, mock_thread):
         mock_worker = Mock()
         mock_thread.return_value = mock_worker
@@ -645,10 +681,34 @@ class DataSourceCollectorTests(TestCase):
         result = execute_database_collection_task(platform_task, collection_task, username=self.user.username)
 
         self.assertFalse(result['ok'])
-        self.assertEqual(result['msg'], '当前数据库已有进行中的整库采集任务')
+        self.assertEqual(result['msg'], '当前数据库已有进行中的整库采集任务，请等待当前运行结束后重试')
+        self.assertEqual(result['data']['executionId'], 'active_run')
+        self.assertEqual(result['data']['status'], 'running')
+        self.assertEqual(result['data']['databaseName'], '')
 
-    @patch('apps.datasource.collectors.collect_table_to_asset')
-    @patch('apps.datasource.collectors.discover_tables')
+    @patch('apps.datasource.task_handler.threading.Thread')
+    def test_execute_database_collection_task_should_return_detailed_payload_when_worker_start_fails(self, mock_thread):
+        mock_worker = Mock()
+        mock_worker.start.side_effect = RuntimeError('worker bootstrap failed')
+        mock_thread.return_value = mock_worker
+        collection_task = ensure_collection_task(
+            data_source=self.data_source,
+            collection_scope=DataSourceCollectionTask.CollectionScope.DATABASE,
+            database_name='sales',
+            username=self.user.username,
+        )
+        platform_task = sync_source_task(collection_task, username=self.user.username)
+
+        result = execute_database_collection_task(platform_task, collection_task, username=self.user.username)
+
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['msg'], '整库异步采集启动失败: worker bootstrap failed')
+        self.assertEqual(result['data']['status'], 'failed')
+        self.assertEqual(result['data']['databaseName'], 'sales')
+        self.assertEqual(result['data']['errorMessage'], 'worker bootstrap failed')
+
+    @patch('apps.datasource.task_handler.collect_table_to_asset')
+    @patch('apps.datasource.task_handler.discover_tables')
     def test_run_database_asset_sync_should_update_progress(self, mock_discover_tables, mock_collect_table_to_asset):
         mock_discover_tables.return_value = [
             {'tableName': 'orders', 'tableType': 'BASE TABLE'},

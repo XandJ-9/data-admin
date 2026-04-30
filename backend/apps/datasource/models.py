@@ -47,7 +47,7 @@ class DataSource(BaseModel):
 
 
 class DataSourceCollectionTask(BaseModel):
-    """Phase 1：源数据采集任务定义。"""
+    """ 源数据采集任务定义 """
 
     class CollectionScope(models.TextChoices):
         TABLE = 'table', '单表采集'
@@ -58,10 +58,6 @@ class DataSourceCollectionTask(BaseModel):
         ('active', '启用'),
         ('paused', '暂停'),
         ('archived', '归档'),
-    ]
-    SCHEDULE_TYPE_CHOICES = [
-        ('manual', '手动触发'),
-        ('cron', '定时调度'),
     ]
 
     data_source = models.ForeignKey(
@@ -89,15 +85,7 @@ class DataSourceCollectionTask(BaseModel):
         default='active',
         verbose_name='状态',
     )
-    schedule_type = models.CharField(
-        max_length=20,
-        choices=SCHEDULE_TYPE_CHOICES,
-        default='manual',
-        verbose_name='调度类型',
-    )
-    cron_expression = models.CharField(max_length=64, blank=True, default='', verbose_name='Cron表达式')
     owner = models.CharField(max_length=64, blank=True, default='', verbose_name='负责人')
-    task_config = models.JSONField(default=dict, blank=True, verbose_name='任务配置')
     remark = models.CharField(max_length=500, blank=True, default='', verbose_name='备注')
 
     class Meta:

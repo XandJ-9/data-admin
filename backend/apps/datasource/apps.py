@@ -7,4 +7,4 @@ class DatasourceConfig(AppConfig):
     verbose_name = '数据源管理'
 
     def ready(self):
-        from . import task_source  # noqa: F401
+        from . import task_handler  # noqa: F401

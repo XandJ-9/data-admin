@@ -12,8 +12,6 @@ from rest_framework.viewsets import ViewSet
 from apps.common.encrypt import decrypt_password, encrypt_password
 from apps.common.mixins import BaseViewMixin
 from apps.dbutils.factory import get_executor
-from apps.datatask.models import TaskInstance
-from apps.datatask.services import TaskService
 from apps.system.permission import HasRolePermission
 from apps.system.views.core import BaseViewSet
 
@@ -21,7 +19,6 @@ from .collectors import (
     discover_columns,
     discover_databases,
     discover_tables,
-    recover_stale_database_collection_instance,
 )
 from .executor_info import build_executor_info, build_executor_info_from_payload
 from .models import DataSource
@@ -37,7 +34,7 @@ from .serializers import (
     TableCollectionRequestSerializer,
     TableDiscoveryRequestSerializer,
 )
-from .task_source import SOURCE_MODULE, ensure_collection_task, sync_source_task
+from .task_handler import ensure_collection_task, execute_collection_task, get_database_collection_run, terminate_deleted_collection_tasks
 from .utils import public_error_message, sanitize_db_error_message
 
 logger = logging.getLogger(__name__)
@@ -92,27 +89,7 @@ class DataSourceViewSet(BaseViewSet):
                         self.perform_destroy(obj)
                 else:
                     self.perform_destroy(instance)
-                active_instances = TaskInstance.objects.select_related('task').filter(
-                    task__source_module=SOURCE_MODULE,
-                    task__source_record_id__in=collection_task_ids,
-                    status__in=['pending', 'running'],
-                )
-                for task_instance in active_instances:
-                    TaskService.finalize_instance(
-                        instance=task_instance,
-                        status='failed',
-                        result_summary=task_instance.result_summary or {},
-                        error_message='数据源已删除，采集已终止',
-                    )
-                for collection_task in DataSourceCollectionTask.objects.filter(id__in=collection_task_ids, del_flag='0'):
-                    collection_task.del_flag = '1'
-                    collection_task.update_by = username
-                    collection_task.save(update_fields=['del_flag', 'update_by', 'update_time'])
-                    TaskService.soft_delete_source_task(
-                        source_module=SOURCE_MODULE,
-                        source_record_id=collection_task.id,
-                        username=username,
-                    )
+                terminate_deleted_collection_tasks(collection_task_ids=collection_task_ids, username=username)
             return self.ok()
         except ProtectedError:
             return self.error(msg='无法删除：该数据源仍被其他模块引用')
@@ -211,6 +188,36 @@ class DataSourceDiscoveryViewSet(BaseViewMixin, ViewSet):
     def _get_data_source(self, data_source_id):
         return get_object_or_404(DataSource.objects.filter(del_flag='0'), pk=data_source_id)
 
+    def _build_collection_result_response(self, result, *, success_payload_transform=None):
+        if result['ok']:
+            payload = result['data']
+            if success_payload_transform is not None:
+                payload = success_payload_transform(payload)
+            return self.data(payload, msg=result['msg'])
+        if result['data'] is None:
+            return self.error(msg=result['msg'])
+        return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
+
+    def _execute_collection_task(
+        self,
+        *,
+        data_source,
+        collection_scope: str,
+        username: str,
+        database_name: str = '',
+        table_name: str = '',
+        success_payload_transform=None,
+    ):
+        collection_task = ensure_collection_task(
+            data_source=data_source,
+            collection_scope=collection_scope,
+            database_name=database_name,
+            table_name=table_name,
+            username=username,
+        )
+        result = execute_collection_task(collection_task, username=username, trigger_mode='manual')
+        return self._build_collection_result_response(result, success_payload_transform=success_payload_transform)
+
     def databases(self, request):
         serializer = DiscoveryRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -258,20 +265,13 @@ class DataSourceDiscoveryViewSet(BaseViewMixin, ViewSet):
         table_name = validated_data['table_name']
         username = getattr(request.user, 'username', '')
         try:
-            collection_task = ensure_collection_task(
+            return self._execute_collection_task(
                 data_source=data_source,
                 collection_scope='table',
                 database_name=database_name,
                 table_name=table_name,
                 username=username,
             )
-            platform_task = sync_source_task(collection_task, username=username)
-            result = TaskService.execute_task(platform_task, username=username, trigger_mode='manual')
-            if result['ok']:
-                return self.data(result['data'], msg=result['msg'])
-            if result['data'] is None:
-                return self.error(msg=result['msg'])
-            return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
         except ValueError as exc:
             logger.warning(
                 '采集源表到数据资产被业务校验拒绝: datasource_id=%s database=%s table=%s error=%s',
@@ -298,20 +298,13 @@ class DataSourceDiscoveryViewSet(BaseViewMixin, ViewSet):
         database_name = validated_data['database_name']
         username = getattr(request.user, 'username', '')
         try:
-            collection_task = ensure_collection_task(
+            return self._execute_collection_task(
                 data_source=data_source,
                 collection_scope='database',
                 database_name=database_name,
                 username=username,
+                success_payload_transform=lambda task_instance: DataSourceCollectionRunSerializer(task_instance).data,
             )
-            platform_task = sync_source_task(collection_task, username=username)
-            result = TaskService.execute_task(platform_task, username=username, trigger_mode='manual')
-            if result['ok']:
-                payload = DataSourceCollectionRunSerializer(result['data']).data
-                return self.data(payload, msg=result['msg'])
-            if result['data'] is None:
-                return self.error(msg=result['msg'])
-            return Response({'code': 400, 'msg': result['msg'], 'data': result['data']})
         except ValueError as exc:
             logger.warning(
                 '整库异步采集启动被拒绝: datasource_id=%s database=%s error=%s',
@@ -329,11 +322,7 @@ class DataSourceDiscoveryViewSet(BaseViewMixin, ViewSet):
             return self.error(msg=public_error_message(exc))
 
     def collect_database_run(self, request, run_id=None):
-        task_instance = get_object_or_404(
-            TaskInstance.objects.select_related('task').filter(task__source_module=SOURCE_MODULE),
-            instance_id=run_id,
-        )
-        if (task_instance.runtime_config or {}).get('collectionScope') != 'database':
+        task_instance = get_database_collection_run(run_id)
+        if task_instance is None:
             return self.not_found(msg='整库采集实例不存在')
-        task_instance = recover_stale_database_collection_instance(task_instance)
         return self.data(DataSourceCollectionRunSerializer(task_instance).data)

@@ -7,8 +7,9 @@
 1. `docs/adr/ADR-011-平台五阶段职责划分规范.md`
 2. `docs/adr/ADR-012-统一任务定义与执行实例边界规范.md`
 3. `docs/adr/ADR-010-后端平台分层与模块职责重构.md`
-4. `docs/requirements/active_tasks.md`
-5. `docs/changelog.md`
+4. `docs/developments/development-priority-correction-2026-04-30.md`
+5. `docs/requirements/active_tasks.md`
+6. `docs/changelog.md`
 
 ## 按需再看
 
@@ -28,3 +29,4 @@
 1. 活跃文档只写当前真实状态，不保留过程流水账。
 2. 历史信息进入 `docs/archive/`，不继续留在入口页与状态页。
 3. 文档若与代码不一致，优先修正文档入口、状态页和 README。
+4. 当存在明确的阶段主线时，必须把对应优先级文档提升到“当前先看”，避免开发顺序再次漂移。

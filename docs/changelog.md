@@ -2,6 +2,32 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.86] - 2026-04-30
+
+- [Refactor] `apps.datasource.task_source` 已正式更名为 `apps.datasource.task_handler`，`AppConfig.ready()`、视图与测试引用已同步切换，不再保留 datasource 侧兼容别名。
+- [Refactor] `datasource` 当前已完成采集职责收敛：`collectors.py` 仅保留数据发现与元数据采集动作，任务纳管、执行分发、整库采集运行时与僵尸实例恢复统一下沉到 `task_handler.py`。
+- [Test] `uv run manage.py test apps.datasource` 当前 22 条测试通过，覆盖采集定义同步、单表采集、整库采集、快照优先执行与删除回收链路。
+
+## [v1.4.85] - 2026-04-30
+
+- [Refactor] `datasource.DataSourceCollectionTask` 已去除 `schedule_type`、`cron_expression`、`task_config` 字段，明确当前阶段该模型只表达采集任务业务定义，不再混入调度语义与平台快照语义。
+- [Refactor] `apps.datasource.task_source` 已同步收窄：采集任务同步到 `datatask` 时只携带采集定义快照，不再把 datasource 侧调度字段与平台治理字段双向回写。
+- [Refactor] `datasource` 新增字段删除前的数据保留迁移：历史采集任务上的调度配置与扩展配置会先转存到 `datatask.Task`，避免本轮模型收敛直接丢失既有数据。
+- [Test] `apps.datasource` 相关回归已同步调整为围绕“定义真源 + 实例纳管”校验，不再断言 datasource 侧保留调度字段。
+
+## [v1.4.84] - 2026-04-30
+
+- [Docs] 已新增 `docs/developments/development-priority-correction-2026-04-30.md`，正式给出未来 4 到 6 周的开发顺序纠偏方案，逐阶段明确“只做什么 / 不做什么 / 完成标志 / 风险”。
+- [Docs] 当前开发最高优先级已明确写入 `docs/requirements/active_tasks.md`：先完成业务任务定义真源与 `datatask/TaskInstance` 统一任务运维纳管，不再把任务发布、独立快照、冻结版本等能力作为当前主线验收标准。
+- [Docs] `docs/README.md` 已把开发顺序纠偏方案提升到“当前先看”，用于约束近期开发顺序，避免主线再次漂移。
+
+## [v1.4.83] - 2026-04-30
+
+- [Docs] 已新增平台目标架构文档，基于当前项目目录、ADR-010/011/012 与主干现状整理出完整的平台目标架构图、模块职责图、目标职责矩阵与主链路示意。
+- [Docs] `docs/architecture/README.md` 已同步补充该文档索引与用途说明，便于后续方案评审时快速定位。
+- [Docs] `docs/requirements/active_tasks.md` 已同步登记该架构蓝图文档，明确其作为当前平台目标沟通稿的用途。
+- [Docs] 平台目标架构文档已按当前阶段重新收敛口径：先确保业务任务定义真源与统一任务运维纳管，暂不把任务发布、独立快照与版本冻结作为当前主线交付。
+
 ## [v1.4.82] - 2026-04-30
 
 - [Docs] `datatask` 专项评审稿已补充截至 2026-04-30 的“已落实/待落实”收敛进度，明确当前代码已完成的治理入口收敛、发布快照边界与 handler 协议增强，以及仍待推进的主表字段最小化与独立快照承载。
