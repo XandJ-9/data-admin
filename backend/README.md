@@ -42,6 +42,11 @@ uv run python manage.py makemigrations --check
 uv run python manage.py test apps.datasource apps.dataintegration apps.datadev apps.datatask apps.system
 ```
 
+## 依赖迁移
+```bash
+uv export --format requirements-txt --no-hashes -o requirements.txt
+```
+
 ## 关键目录
 
 ```text
