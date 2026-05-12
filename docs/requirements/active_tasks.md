@@ -53,6 +53,9 @@
 21. `datatask` 当前已建立发布快照统一边界：`TaskService.get_published_snapshot` / `build_task_config_payload` 作为唯一快照读写入口，`datasource`、`dataintegration`、`datadev` 执行链路统一优先读取发布快照，旧 `task_config` 结构保持兼容回退。
 22. `datatask` 当前已收敛 `SourceHandler` 契约：来源执行返回统一采用 `{ok,msg,data}` envelope，并由 `TaskService.execute_task` 统一归一化；当来源模块返回结构异常时，任务中心会稳定降级为失败响应而不是抛出运行时错误。
 23. `docs/architecture/datatask-architecture-review-2026-04-29.md` 与 `ADR-010` 当前已完成时效性对齐：专项评审稿新增“已落实/待落实”收敛进度，`ADR-010` 中 `datasource` 接入状态补充了 2026-04-30 的阶段说明，避免历史决策描述与主干实现口径冲突。
+24. `initdata` 当前菜单种子继续保留 `/datadev` 与 `/datatask` 作为正式业务根菜单，同时显式停用历史 `/data-orchestration` 入口，菜单回归测试已按该现状对齐。
+25. 前端当前已清理未接入后端的遗留断链入口：移除 `/register` 静态路由，以及 monitor 的 `job / jobLog / logininfor` 与 `tool/gen` 相关页面和 API 封装，避免保留不可用前台代码。
+26. `dataasset` 当前已开始按“`asset*` 为主、`meta-*` 兼容保留”的方向收口：资产首页、元数据浏览页和血缘页的表选项都改为优先消费 `asset / asset-column`，同时 `asset*` 已补齐 legacy 时间过滤和表/字段写入能力。
 
 ## 当前文档口径
 

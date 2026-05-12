@@ -180,3 +180,105 @@ def collect_table_metadata(info, ds_id, table, user=None):
 
         sync_standard_asset_from_meta_table(meta_table, user=user)
         return meta_table
+
+
+def upsert_legacy_meta_table_from_asset_payload(*, payload, meta_table=None, user=None):
+    data_source_id = payload.get('dataSourceId')
+    object_name = normalize_asset_part(payload.get('objectName') or payload.get('tableName'))
+    database_name = normalize_asset_part(payload.get('databaseName'))
+    if not data_source_id:
+        raise ValueError('缺少参数 dataSourceId')
+    if not object_name:
+        raise ValueError('缺少参数 objectName')
+
+    defaults = {
+        'comment': payload.get('comment') or '',
+        'asset_category': payload.get('assetCategory') or MetaTable._meta.get_field('asset_category').default,
+        'warehouse_layer': payload.get('warehouseLayer') or '',
+        'business_domain': payload.get('businessDomain') or '',
+        'subject_area': payload.get('subjectArea') or '',
+        'owner': payload.get('owner') or '',
+        'steward': payload.get('steward') or '',
+        'lifecycle_status': payload.get('lifecycleStatus') or MetaTable._meta.get_field('lifecycle_status').default,
+        'security_level': payload.get('securityLevel') or MetaTable._meta.get_field('security_level').default,
+        'grain': payload.get('grain') or '',
+        'del_flag': '0',
+    }
+
+    if meta_table is None:
+        meta_table, created = MetaTable.objects.update_or_create(
+            data_source_id=data_source_id,
+            table_name=object_name,
+            database=database_name,
+            defaults=defaults,
+        )
+    else:
+        created = False
+        original_data_source_id = meta_table.data_source_id
+        meta_table.data_source_id = data_source_id
+        meta_table.table_name = object_name
+        meta_table.database = database_name
+        for field, value in defaults.items():
+            setattr(meta_table, field, value)
+        meta_table.save()
+        if original_data_source_id != data_source_id:
+            MetaColumn.objects.filter(table=meta_table).update(data_source_id=data_source_id)
+
+    _apply_audit_fields(meta_table, created, user)
+    asset = sync_standard_asset_from_meta_table(meta_table, user=user)
+    return meta_table, asset
+
+
+def upsert_legacy_meta_column_from_asset_payload(*, asset, payload, meta_column=None, user=None):
+    if not asset.legacy_meta_table_id:
+        raise ValueError('当前资产未绑定兼容元数据表')
+
+    meta_table = MetaTable.objects.filter(pk=asset.legacy_meta_table_id, del_flag='0').first()
+    if meta_table is None:
+        raise ValueError('兼容元数据表不存在')
+
+    column_name = normalize_asset_part(payload.get('columnName'))
+    if not column_name:
+        raise ValueError('缺少参数 columnName')
+
+    defaults = {
+        'order': payload.get('columnIndex') or 0,
+        'type': payload.get('dataType') or '',
+        'notnull': not bool(payload.get('isNullable')),
+        'default': str(payload.get('defaultValue') or ''),
+        'primary': bool(payload.get('isPrimary')),
+        'comment': payload.get('columnComment') or '',
+        'business_term': payload.get('businessTerm') or '',
+        'warehouse_role': payload.get('warehouseRole') or '',
+        'security_level': payload.get('securityLevel') or MetaColumn._meta.get_field('security_level').default,
+        'standard_code': payload.get('standardCode') or '',
+        'metric_unit': payload.get('metricUnit') or '',
+        'del_flag': '0',
+    }
+
+    original_table = meta_column.table if meta_column is not None else None
+    if meta_column is None:
+        meta_column, created = MetaColumn.objects.update_or_create(
+            data_source_id=meta_table.data_source_id,
+            table=meta_table,
+            name=column_name,
+            defaults=defaults,
+        )
+    else:
+        created = False
+        meta_column.data_source_id = meta_table.data_source_id
+        meta_column.table = meta_table
+        meta_column.name = column_name
+        for field, value in defaults.items():
+            setattr(meta_column, field, value)
+        meta_column.save()
+
+    _apply_audit_fields(meta_column, created, user)
+    if original_table and original_table.id != meta_table.id:
+        sync_standard_asset_from_meta_table(original_table, user=user)
+    synced_asset = sync_standard_asset_from_meta_table(meta_table, user=user)
+    synced_column = DataAssetColumn.objects.filter(
+        legacy_meta_column_id=meta_column.id,
+        del_flag='0',
+    ).first()
+    return meta_column, synced_asset, synced_column

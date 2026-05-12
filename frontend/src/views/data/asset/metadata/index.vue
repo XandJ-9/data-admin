@@ -169,7 +169,7 @@
 
 <script setup name="DataAssetMetadata">
 import { listDatasource } from '@/api/data/datasource'
-import { listMetaTables, listMetaColumns } from '@/api/data/asset'
+import { listAssetColumns, listAssets } from '@/api/data/asset'
 
 const { proxy } = getCurrentInstance()
 
@@ -237,6 +237,23 @@ const columnDialogVisible = ref(false)
 const columnDialogLoading = ref(false)
 const currentColumns = ref([])
 
+function normalizeAssetTable(item) {
+  return {
+    ...item,
+    assetId: item.id,
+    tableId: item.legacyMetaTableId || item.id,
+    tableName: item.objectName,
+  }
+}
+
+function normalizeAssetColumn(item, index = 0) {
+  return {
+    ...item,
+    uniqueKey: `${item.assetId}-${item.columnName}-${index}`,
+    tableId: item.legacyMetaTableId || item.assetId,
+  }
+}
+
 function formatByOptions(options, value, fallback = '-') {
   return options.find(item => item.value === value)?.label || value || fallback
 }
@@ -278,8 +295,8 @@ function handleViewModeChange() {
 function queryTables() {
   tableLoading.value = true
   const params = { ...tableQueryParams.value, ...tableFilter.value }
-  listMetaTables(params).then(response => {
-    tableList.value = response.rows || []
+  listAssets(params).then(response => {
+    tableList.value = (response.rows || []).map(normalizeAssetTable)
     tableTotal.value = response.total || 0
     tableLoading.value = false
   }).catch(() => {
@@ -290,11 +307,8 @@ function queryTables() {
 function queryColumns() {
   columnLoading.value = true
   const params = { ...columnQueryParams.value, ...columnFilter.value }
-  listMetaColumns(params).then(response => {
-    columnList.value = (response.rows || []).map((item, index) => ({
-      ...item,
-      uniqueKey: `${item.tableId}-${item.columnName}-${index}`,
-    }))
+  listAssetColumns(params).then(response => {
+    columnList.value = (response.rows || []).map(normalizeAssetColumn)
     columnTotal.value = response.total || 0
     columnLoading.value = false
   }).catch(() => {
@@ -334,12 +348,10 @@ function resetColumnFilters() {
 function openColumns(row) {
   columnDialogVisible.value = true
   columnDialogLoading.value = true
-  listMetaColumns({
-    dataSourceId: row.dataSourceId,
-    tableName: row.tableName,
-    databaseName: row.databaseName,
+  listAssetColumns({
+    assetId: row.assetId || row.id,
   }).then(response => {
-    currentColumns.value = response.rows || []
+    currentColumns.value = (response.rows || []).map(normalizeAssetColumn)
     columnDialogLoading.value = false
   }).catch(() => {
     columnDialogLoading.value = false

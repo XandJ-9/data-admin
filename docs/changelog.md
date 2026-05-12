@@ -2,6 +2,23 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.89] - 2026-05-12
+
+- [Refactor] `dataasset` 前端资产首页、元数据浏览页和血缘页的表选项已切换为优先消费 `asset / asset-column`，不再以 `meta-table / meta-column` 作为默认读链路。
+- [Feature] `dataasset` 的 `asset` / `asset-column` 接口已补齐与兼容元数据接口对应的关键能力：支持 legacy 时间过滤、`tableName` 兼容查询，以及表/字段的创建、更新、删除时同步落到兼容 `MetaTable / MetaColumn`。
+- [Test] 已新增 `apps.dataasset` 回归，覆盖 `asset*` 的 legacy 时间过滤、表写入同步和字段写入同步场景。
+
+## [v1.4.88] - 2026-05-12
+
+- [Refactor] 已清理前端未接入后端的遗留断链入口：移除 `/register` 静态路由、登录页注册占位逻辑，以及 monitor 的 `job / jobLog / logininfor` 与 `tool/gen` 相关页面和 API 封装。
+- [Fix] 权限白名单已同步收口为仅保留 `/login`，避免继续把不存在的注册页视为合法免登录入口。
+
+
+## [v1.4.87] - 2026-05-12
+
+- [Fix] `apps.system` 的 `initdata` 菜单回归测试已对齐当前主干真实菜单口径：继续保留 `/datadev` 与 `/datatask` 业务根菜单，不再误判其应被移除。
+- [Test] 同一回归用例已改为显式校验历史 `/data-orchestration` 根菜单保持停用，避免菜单种子与测试断言再次漂移。
+
 ## [v1.4.86] - 2026-04-30
 
 - [Refactor] `apps.datasource.task_source` 已正式更名为 `apps.datasource.task_handler`，`AppConfig.ready()`、视图与测试引用已同步切换，不再保留 datasource 侧兼容别名。

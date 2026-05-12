@@ -767,6 +767,158 @@ class DataAssetModelRefactorTests(TestCase):
         self.assertFalse(DataAssetColumn.objects.filter(asset=source_asset, legacy_meta_column_id=meta_column.id).exists())
         self.assertTrue(DataAssetColumn.objects.filter(asset=target_asset, legacy_meta_column_id=meta_column.id).exists())
 
+    def test_data_asset_view_should_support_legacy_time_filter_and_table_name_alias(self):
+        meta_table = MetaTable.objects.create(
+            data_source=self.data_source,
+            table_name='orders',
+            database='sales',
+            comment='订单表',
+        )
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
+        old_time = timezone.now() - timedelta(days=2)
+        new_time = timezone.now()
+        MetaTable.objects.filter(pk=meta_table.pk).update(update_time=old_time)
+        DataAsset.objects.filter(pk=asset.pk).update(update_time=new_time)
+
+        view = DataAssetViewSet.as_view({'get': 'list'})
+        filtered_request = self.factory.get(
+            '/data-api/dataasset/asset',
+            {
+                'tableName': 'orders',
+                'updateTimeStart': (old_time + timedelta(days=1)).isoformat(),
+            },
+        )
+        force_authenticate(filtered_request, user=self.user)
+        filtered_response = view(filtered_request)
+
+        list_request = self.factory.get('/data-api/dataasset/asset', {'tableName': 'orders'})
+        force_authenticate(list_request, user=self.user)
+        list_response = view(list_request)
+
+        self.assertEqual(filtered_response.status_code, 200)
+        self.assertEqual(filtered_response.data['total'], 0)
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.data['rows'][0]['objectName'], 'orders')
+
+    def test_data_asset_write_should_sync_legacy_meta_table(self):
+        create_view = DataAssetViewSet.as_view({'post': 'create'})
+        create_request = self.factory.post(
+            '/data-api/dataasset/asset',
+            {
+                'dataSourceId': self.data_source.id,
+                'objectName': 'orders',
+                'databaseName': 'sales',
+                'comment': '订单表',
+            },
+            format='json',
+        )
+        force_authenticate(create_request, user=self.user)
+        create_response = create_view(create_request)
+
+        meta_table = MetaTable.objects.get(table_name='orders', database='sales')
+        asset = DataAsset.objects.get(legacy_meta_table_id=meta_table.id)
+
+        update_view = DataAssetViewSet.as_view({'put': 'update'})
+        update_request = self.factory.put(
+            f'/data-api/dataasset/asset/{asset.id}',
+            {
+                'id': asset.id,
+                'dataSourceId': self.data_source.id,
+                'objectName': 'orders',
+                'databaseName': 'sales',
+                'comment': '订单表-更新',
+                'assetCategory': 'warehouse',
+            },
+            format='json',
+        )
+        force_authenticate(update_request, user=self.user)
+        update_response = update_view(update_request, pk=str(asset.id))
+
+        asset.refresh_from_db()
+        meta_table.refresh_from_db()
+
+        delete_view = DataAssetViewSet.as_view({'delete': 'destroy'})
+        delete_request = self.factory.delete(f'/data-api/dataasset/asset/{asset.id}')
+        force_authenticate(delete_request, user=self.user)
+        delete_response = delete_view(delete_request, pk=str(asset.id))
+
+        self.assertEqual(create_response.status_code, 200)
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(asset.comment, '订单表-更新')
+        self.assertEqual(meta_table.comment, '订单表-更新')
+        self.assertEqual(asset.asset_category, 'warehouse')
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(MetaTable.objects.filter(pk=meta_table.id).exists())
+        self.assertFalse(DataAsset.objects.filter(pk=asset.id).exists())
+
+    def test_data_asset_column_write_should_sync_legacy_meta_column(self):
+        meta_table = MetaTable.objects.create(
+            data_source=self.data_source,
+            table_name='orders',
+            database='sales',
+            comment='订单表',
+        )
+        asset = sync_standard_asset_from_meta_table_via_facade(meta_table, user=self.user)
+
+        create_view = DataAssetColumnViewSet.as_view({'post': 'create'})
+        create_request = self.factory.post(
+            '/data-api/dataasset/asset-column',
+            {
+                'assetId': asset.id,
+                'columnIndex': 1,
+                'columnName': 'buyer_name',
+                'dataType': 'varchar',
+                'isNullable': True,
+                'defaultValue': '',
+                'isPrimary': False,
+                'columnComment': '买家姓名',
+            },
+            format='json',
+        )
+        force_authenticate(create_request, user=self.user)
+        create_response = create_view(create_request)
+
+        meta_column = MetaColumn.objects.get(table=meta_table, name='buyer_name')
+        asset_column = DataAssetColumn.objects.get(legacy_meta_column_id=meta_column.id)
+
+        update_view = DataAssetColumnViewSet.as_view({'put': 'update'})
+        update_request = self.factory.put(
+            f'/data-api/dataasset/asset-column/{asset_column.id}',
+            {
+                'id': asset_column.id,
+                'assetId': asset.id,
+                'columnIndex': 2,
+                'columnName': 'buyer_name',
+                'dataType': 'string',
+                'isNullable': False,
+                'defaultValue': '',
+                'isPrimary': False,
+                'columnComment': '买家姓名-更新',
+            },
+            format='json',
+        )
+        force_authenticate(update_request, user=self.user)
+        update_response = update_view(update_request, pk=str(asset_column.id))
+
+        meta_column.refresh_from_db()
+        asset_column.refresh_from_db()
+
+        delete_view = DataAssetColumnViewSet.as_view({'delete': 'destroy'})
+        delete_request = self.factory.delete(f'/data-api/dataasset/asset-column/{asset_column.id}')
+        force_authenticate(delete_request, user=self.user)
+        delete_response = delete_view(delete_request, pk=str(asset_column.id))
+
+        self.assertEqual(create_response.status_code, 200)
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(meta_column.type, 'string')
+        self.assertTrue(meta_column.notnull)
+        self.assertEqual(meta_column.comment, '买家姓名-更新')
+        self.assertEqual(asset_column.data_type, 'string')
+        self.assertFalse(asset_column.is_nullable)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(MetaColumn.objects.filter(pk=meta_column.id).exists())
+        self.assertFalse(DataAssetColumn.objects.filter(pk=asset_column.id).exists())
+
     def test_data_asset_view_should_return_columns_in_detail(self):
         meta_table = MetaTable.objects.create(
             data_source=self.data_source,

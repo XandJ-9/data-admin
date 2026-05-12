@@ -1,50 +1,5 @@
 import request from '@/utils/request'
 
-// ==================== 元数据表管理 ====================
-
-// 查询元数据表列表
-export function listMetaTables(query) {
-  return request({
-    url: '/dataasset/meta-table',
-    method: 'get',
-    params: query
-  })
-}
-
-// 查询元数据表详细
-export function getMetaTable(id) {
-  return request({
-    url: '/dataasset/meta-table/' + id,
-    method: 'get'
-  })
-}
-
-// 新增元数据表
-export function addMetaTable(data) {
-  return request({
-    url: '/dataasset/meta-table',
-    method: 'post',
-    data: data
-  })
-}
-
-// 修改元数据表
-export function updateMetaTable(data) {
-  return request({
-    url: '/dataasset/meta-table/' + data.id,
-    method: 'put',
-    data: data
-  })
-}
-
-// 删除元数据表（支持批量以逗号分隔 ID）
-export function delMetaTable(idOrIds) {
-  return request({
-    url: '/dataasset/meta-table/' + idOrIds,
-    method: 'delete'
-  })
-}
-
 // ==================== 规范数据资产查询 ====================
 
 // 查询命名空间列表
@@ -79,51 +34,6 @@ export function listAssetColumns(query) {
     url: '/dataasset/asset-column',
     method: 'get',
     params: query
-  })
-}
-
-// ==================== 元数据字段管理 ====================
-
-// 查询元数据字段列表
-export function listMetaColumns(query) {
-  return request({
-    url: '/dataasset/meta-column',
-    method: 'get',
-    params: query
-  })
-}
-
-// 查询元数据字段详细
-export function getMetaColumn(id) {
-  return request({
-    url: '/dataasset/meta-column/' + id,
-    method: 'get'
-  })
-}
-
-// 新增元数据字段
-export function addMetaColumn(data) {
-  return request({
-    url: '/dataasset/meta-column',
-    method: 'post',
-    data: data
-  })
-}
-
-// 修改元数据字段
-export function updateMetaColumn(data) {
-  return request({
-    url: '/dataasset/meta-column/' + data.id,
-    method: 'put',
-    data: data
-  })
-}
-
-// 删除元数据字段（支持批量以逗号分隔 ID）
-export function delMetaColumn(idOrIds) {
-  return request({
-    url: '/dataasset/meta-column/' + idOrIds,
-    method: 'delete'
   })
 }
 

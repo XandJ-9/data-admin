@@ -13,6 +13,7 @@ from .models import (
     DataAssetColumn,
     MetaTable,
     MetaColumn,
+    split_catalog_schema,
     TableLineage,
 )
 from .serializers import (
@@ -31,6 +32,12 @@ from .serializers import (
     TableLineageQuerySerializer, TableLineageGraphSerializer
 )
 from .facades import sync_standard_asset_from_meta_table_via_facade
+from .services import (
+    sync_standard_asset_from_meta_table,
+    upsert_asset_namespace,
+    upsert_legacy_meta_column_from_asset_payload,
+    upsert_legacy_meta_table_from_asset_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +106,7 @@ class DataAssetViewSet(BaseViewSet):
     """规范数据资产查询接口"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
-    http_method_names = ['get', 'head', 'options']
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
     queryset = DataAsset.objects.filter(del_flag='0').select_related('namespace', 'namespace__data_source').prefetch_related(
         Prefetch(
             'asset_columns',
@@ -110,7 +117,11 @@ class DataAssetViewSet(BaseViewSet):
     retrieve_serializer_class = DataAssetDetailSerializer
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        legacy_meta_table_qs = MetaTable.objects.filter(pk=OuterRef('legacy_meta_table_id'))
+        qs = super().get_queryset().annotate(
+            legacy_create_time=Subquery(legacy_meta_table_qs.values('create_time')[:1]),
+            legacy_update_time=Subquery(legacy_meta_table_qs.values('update_time')[:1]),
+        )
         data_source_id = self.request.query_params.get('dataSourceId')
         if data_source_id:
             try:
@@ -129,7 +140,7 @@ class DataAssetViewSet(BaseViewSet):
         asset_type = self.request.query_params.get('assetType')
         if asset_type:
             qs = qs.filter(asset_type=asset_type)
-        object_name = self.request.query_params.get('objectName')
+        object_name = self.request.query_params.get('objectName') or self.request.query_params.get('tableName')
         if object_name:
             qs = qs.filter(object_name__icontains=object_name)
         database_name = self.request.query_params.get('databaseName')
@@ -170,14 +181,128 @@ class DataAssetViewSet(BaseViewSet):
                 | Q(comment__icontains=keyword)
                 | Q(qualified_name__icontains=keyword)
             )
+        create_time_start = _parse_datetime_param(self.request.query_params.get('createTimeStart'))
+        create_time_end = _parse_datetime_param(self.request.query_params.get('createTimeEnd'))
+        update_time_start = _parse_datetime_param(self.request.query_params.get('updateTimeStart'))
+        update_time_end = _parse_datetime_param(self.request.query_params.get('updateTimeEnd'))
+        if create_time_start:
+            qs = qs.filter(
+                Q(legacy_meta_table_id__isnull=False, legacy_create_time__gte=create_time_start)
+                | Q(legacy_meta_table_id__isnull=True, create_time__gte=create_time_start)
+            )
+        if create_time_end:
+            qs = qs.filter(
+                Q(legacy_meta_table_id__isnull=False, legacy_create_time__lte=create_time_end)
+                | Q(legacy_meta_table_id__isnull=True, create_time__lte=create_time_end)
+            )
+        if update_time_start:
+            qs = qs.filter(
+                Q(legacy_meta_table_id__isnull=False, legacy_update_time__gte=update_time_start)
+                | Q(legacy_meta_table_id__isnull=True, update_time__gte=update_time_start)
+            )
+        if update_time_end:
+            qs = qs.filter(
+                Q(legacy_meta_table_id__isnull=False, legacy_update_time__lte=update_time_end)
+                | Q(legacy_meta_table_id__isnull=True, update_time__lte=update_time_end)
+            )
         return qs
+
+    def _resolve_namespace(self, payload, instance=None):
+        namespace_id = payload.get('namespaceId') or (instance.namespace_id if instance else None)
+        if namespace_id:
+            namespace = AssetNamespace.objects.filter(pk=namespace_id, del_flag='0').first()
+            if namespace is None:
+                return None, self.not_found('资产命名空间不存在')
+            return namespace, None
+
+        data_source_id = payload.get('dataSourceId') or (instance.namespace.data_source_id if instance else None)
+        if not data_source_id:
+            return None, self.error('缺少参数 dataSourceId')
+        database_name = payload.get('databaseName')
+        if database_name is None and instance is not None:
+            database_name = '.'.join(
+                [part for part in [instance.namespace.catalog_name, instance.namespace.schema_name] if part]
+            )
+        data_source = AssetNamespace.objects.model._meta.get_field('data_source').remote_field.model.objects.filter(
+            pk=data_source_id,
+            del_flag='0',
+        ).first()
+        if data_source is None:
+            return None, self.not_found('数据源不存在')
+        catalog_name, schema_name = split_catalog_schema(data_source.db_type, database_name or '')
+        namespace = upsert_asset_namespace(
+            data_source_id=data_source.id,
+            catalog_name=catalog_name,
+            schema_name=schema_name,
+            environment='default',
+            user=self.request.user,
+        )
+        return namespace, None
+
+    @audit_log
+    def create(self, request, *args, **kwargs):
+        payload = request.data.copy()
+        asset_type = payload.get('assetType') or DataAsset.AssetType.TABLE
+        with transaction.atomic():
+            if asset_type == DataAsset.AssetType.TABLE:
+                _, asset = upsert_legacy_meta_table_from_asset_payload(payload=payload, user=request.user)
+                return self.data(DataAssetDetailSerializer(asset).data, msg='创建成功')
+
+            namespace, error_response = self._resolve_namespace(payload)
+            if error_response is not None:
+                return error_response
+            payload['namespaceId'] = namespace.id
+            payload.setdefault('assetType', asset_type)
+            serializer = DataAssetSerializer(data=payload)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return self.data(DataAssetDetailSerializer(serializer.instance).data, msg='创建成功')
+
+    @audit_log
+    def update(self, request, *args, **kwargs):
+        payload = request.data.copy()
+        instance = self.get_object()
+        if isinstance(instance, list):
+            return self.error('资产更新仅支持单条记录')
+        with transaction.atomic():
+            if instance.legacy_meta_table_id:
+                meta_table = MetaTable.objects.filter(pk=instance.legacy_meta_table_id, del_flag='0').first()
+                if meta_table is None:
+                    return self.not_found('兼容元数据表不存在')
+                _, asset = upsert_legacy_meta_table_from_asset_payload(
+                    payload=payload,
+                    meta_table=meta_table,
+                    user=request.user,
+                )
+                return self.data(DataAssetDetailSerializer(asset).data, msg='更新成功')
+
+            namespace, error_response = self._resolve_namespace(payload, instance=instance)
+            if error_response is not None:
+                return error_response
+            payload['namespaceId'] = namespace.id
+            serializer = DataAssetSerializer(instance, data=payload, partial=kwargs.pop('partial', False))
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return self.data(DataAssetDetailSerializer(serializer.instance).data, msg='更新成功')
+
+    @audit_log
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if isinstance(instance, list):
+            return self.error('资产删除仅支持单条记录')
+        with transaction.atomic():
+            if instance.legacy_meta_table_id:
+                MetaColumn.objects.filter(table_id=instance.legacy_meta_table_id).delete()
+                MetaTable.objects.filter(pk=instance.legacy_meta_table_id).delete()
+            instance.delete()
+        return self.ok()
 
 
 class DataAssetColumnViewSet(BaseViewSet):
     """规范数据资产字段查询接口"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
-    http_method_names = ['get', 'head', 'options']
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
     queryset = DataAssetColumn.objects.filter(del_flag='0').select_related(
         'asset', 'asset__namespace', 'asset__namespace__data_source'
     ).order_by('asset__object_name', 'ordinal_position', 'column_name')
@@ -231,6 +356,83 @@ class DataAssetColumnViewSet(BaseViewSet):
         if standard_code:
             qs = qs.filter(standard_code__icontains=standard_code)
         return qs
+
+    @audit_log
+    def create(self, request, *args, **kwargs):
+        payload = request.data.copy()
+        asset_id = payload.get('assetId')
+        if not asset_id:
+            return self.error('缺少参数 assetId')
+        asset = DataAsset.objects.filter(pk=asset_id, del_flag='0').first()
+        if asset is None:
+            return self.not_found('资产不存在')
+
+        with transaction.atomic():
+            if asset.legacy_meta_table_id:
+                _, _, column = upsert_legacy_meta_column_from_asset_payload(
+                    asset=asset,
+                    payload=payload,
+                    user=request.user,
+                )
+                if column is None:
+                    return self.error('字段同步失败')
+                return self.data(DataAssetColumnSerializer(column).data, msg='创建成功')
+
+            serializer = DataAssetColumnSerializer(data=payload)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return self.data(DataAssetColumnSerializer(serializer.instance).data, msg='创建成功')
+
+    @audit_log
+    def update(self, request, *args, **kwargs):
+        payload = request.data.copy()
+        instance = self.get_object()
+        if isinstance(instance, list):
+            return self.error('字段更新仅支持单条记录')
+
+        target_asset = instance.asset
+        payload_asset_id = payload.get('assetId')
+        if payload_asset_id:
+            target_asset = DataAsset.objects.filter(pk=payload_asset_id, del_flag='0').first()
+            if target_asset is None:
+                return self.not_found('目标资产不存在')
+
+        with transaction.atomic():
+            if instance.legacy_meta_column_id and target_asset.legacy_meta_table_id:
+                meta_column = MetaColumn.objects.filter(pk=instance.legacy_meta_column_id, del_flag='0').first()
+                if meta_column is None:
+                    return self.not_found('兼容元数据字段不存在')
+                _, _, column = upsert_legacy_meta_column_from_asset_payload(
+                    asset=target_asset,
+                    payload=payload,
+                    meta_column=meta_column,
+                    user=request.user,
+                )
+                if column is None:
+                    return self.error('字段同步失败')
+                return self.data(DataAssetColumnSerializer(column).data, msg='更新成功')
+
+            payload.setdefault('assetId', target_asset.id)
+            serializer = DataAssetColumnSerializer(instance, data=payload, partial=kwargs.pop('partial', False))
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return self.data(DataAssetColumnSerializer(serializer.instance).data, msg='更新成功')
+
+    @audit_log
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if isinstance(instance, list):
+            return self.error('字段删除仅支持单条记录')
+        with transaction.atomic():
+            if instance.legacy_meta_column_id:
+                meta_column = MetaColumn.objects.filter(pk=instance.legacy_meta_column_id, del_flag='0').first()
+                if meta_column is not None:
+                    table = meta_column.table
+                    meta_column.delete()
+                    sync_standard_asset_from_meta_table(table, user=request.user)
+                return self.ok()
+            instance.delete()
+        return self.ok()
 
 
 # ==================== MetaTable ViewSet ====================

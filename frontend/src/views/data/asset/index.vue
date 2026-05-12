@@ -139,7 +139,7 @@ import { Connection, Grid, List, Management, Share } from '@element-plus/icons-v
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { listDatasource } from '@/api/data/datasource'
-import { listMetaColumns, listMetaTables, listTableLineage } from '@/api/data/asset'
+import { listAssetColumns, listAssets, listTableLineage } from '@/api/data/asset'
 
 const router = useRouter()
 const loading = ref(false)
@@ -152,6 +152,15 @@ const stats = reactive({
 })
 
 const recentTables = ref([])
+
+function normalizeAssetTable(item) {
+  return {
+    ...item,
+    assetId: item.id,
+    tableId: item.legacyMetaTableId || item.id,
+    tableName: item.objectName,
+  }
+}
 
 const overviewCards = computed(() => [
   {
@@ -265,17 +274,17 @@ async function loadOverview() {
   try {
     const [dataSourceRes, tableRes, columnRes, lineageRes, recentRes] = await Promise.all([
       listDatasource({ pageNum: 1, pageSize: 1 }),
-      listMetaTables({ pageNum: 1, pageSize: 1 }),
-      listMetaColumns({ pageNum: 1, pageSize: 1 }),
+      listAssets({ pageNum: 1, pageSize: 1, assetType: 'table' }),
+      listAssetColumns({ pageNum: 1, pageSize: 1 }),
       listTableLineage({ pageNum: 1, pageSize: 1 }),
-      listMetaTables({ pageNum: 1, pageSize: 6, orderByColumn: 'create_time', isAsc: 'desc' }),
+      listAssets({ pageNum: 1, pageSize: 6, assetType: 'table' }),
     ])
 
     stats.datasourceCount = resolveTotal(dataSourceRes)
     stats.tableCount = resolveTotal(tableRes)
     stats.columnCount = resolveTotal(columnRes)
     stats.lineageCount = resolveTotal(lineageRes)
-    recentTables.value = recentRes?.rows || []
+    recentTables.value = (recentRes?.rows || []).map(normalizeAssetTable)
   } catch (error) {
     ElMessage.error(error?.msg || '加载数据资产概览失败，请稍后重试')
   } finally {

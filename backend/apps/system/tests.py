@@ -151,13 +151,14 @@ class LoginViewTests(TestCase):
 
 
 class InitDataMenuTests(TestCase):
-    def test_initdata_should_enable_data_asset_and_data_service_roots(self):
+    def test_initdata_should_keep_current_business_roots_and_disable_legacy_orchestration_root(self):
         call_command('initdata', force=True, stdout=StringIO())
 
         self.assertTrue(Menu.objects.filter(path='/data-asset', del_flag='0').exists())
         self.assertTrue(Menu.objects.filter(path='/data-service', del_flag='0').exists())
-        self.assertFalse(Menu.objects.filter(path='/datadev', del_flag='0').exists())
-        self.assertFalse(Menu.objects.filter(path='/datatask', del_flag='0').exists())
+        self.assertTrue(Menu.objects.filter(path='/datadev', del_flag='0').exists())
+        self.assertTrue(Menu.objects.filter(path='/datatask', del_flag='0').exists())
+        self.assertFalse(Menu.objects.filter(path='/data-orchestration', del_flag='0').exists())
 
     def test_initdata_should_split_data_integration_home_and_task_menu(self):
         call_command('initdata', force=True, stdout=StringIO())

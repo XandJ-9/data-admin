@@ -120,7 +120,7 @@ import {
   updateTableLineage,
   delTableLineage
 } from '@/api/data/asset'
-import { listMetaTables } from '@/api/data/asset'
+import { listAssets } from '@/api/data/asset'
 import LineageFormDialog from './LineageFormDialog.vue'
 import LineageGraphDialog from './LineageGraphDialog.vue'
 
@@ -238,8 +238,15 @@ function handleDelete(row) {
 
 function loadTableOptions() {
   if (tableOptions.value.length > 0) return
-  listMetaTables({ pageNum: 1, pageSize: 10000 }).then(response => {
-    tableOptions.value = response.rows
+  listAssets({ pageNum: 1, pageSize: 10000, assetType: 'table' }).then(response => {
+    tableOptions.value = (response.rows || [])
+      .filter(item => item.legacyMetaTableId)
+      .map(item => ({
+        id: item.legacyMetaTableId,
+        assetId: item.id,
+        tableName: item.objectName,
+        databaseName: item.databaseName,
+      }))
   })
 }
 
