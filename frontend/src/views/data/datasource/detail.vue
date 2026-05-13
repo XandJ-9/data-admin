@@ -578,10 +578,9 @@ function backToDatabases() {
 // 返回数据源列表
 function goBack() {
   if (route.query.from === 'task-detail' && route.query.returnTaskId) {
-    router.push({ name: 'DataTaskDetail', params: { id: route.query.returnTaskId } })
-    return
+    return router.push({ name: 'DataTaskDetail', params: { id: route.query.returnTaskId } })
   }
-  router.push({ name: 'DataSourceManage' })
+  return router.push('/datasource/list')
 }
 
 // 获取数据库类型标签颜色

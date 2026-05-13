@@ -3,100 +3,41 @@
     <el-card shadow="hover" class="hero-panel">
       <div class="hero-copy">
         <span class="hero-eyebrow">数据源管理</span>
-        <h1>把连接配置、连通性验证和源数据发现放在统一入口</h1>
+        <h1>先看连接状态，再进入维护与发现</h1>
         <p>
-          数据源管理处于平台第 1 步“破冰与连接”。这里负责维护数据库连接、判断是否可连通，
-          并把用户引导到源数据浏览、元数据采集和后续数据集成链路。
+          数据源管理处于平台第 1 步“连接与发现”。首页只保留连接概览、当前关注和常用入口，
+          帮助你快速判断下一步应该去哪里处理。
         </p>
         <div class="hero-actions">
           <el-button type="primary" @click="goToList()">进入数据源列表</el-button>
           <el-button plain type="primary" @click="goToList('create')">新增数据源</el-button>
           <el-button text type="primary" @click="goToView()">快捷查看源数据</el-button>
         </div>
-        <div class="hero-tags">
-          <el-tag size="small" type="primary" effect="light" round>连接配置管理</el-tag>
-          <el-tag size="small" effect="plain" round>连通性验证</el-tag>
-          <el-tag size="small" effect="plain" round>源数据发现</el-tag>
+        <div class="hero-insight-grid">
+          <article v-for="item in heroInsights" :key="item.label" class="hero-insight-item">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <small>{{ item.hint }}</small>
+          </article>
         </div>
       </div>
       <div class="hero-highlight">
         <div class="highlight-card">
-          <span class="highlight-label">首页定位</span>
-          <ul>
-            <li>先判断当前连接规模、可用性和待处理连接</li>
-            <li>再进入列表维护连接信息，或通过快捷入口直接查看源数据</li>
-            <li>数据集成、建模加工和服务发布继续在后续模块完成</li>
-          </ul>
+          <span class="highlight-label">当前重点</span>
+          <h2>{{ homeFocus.title }}</h2>
+          <p>{{ homeFocus.description }}</p>
+          <div class="highlight-stat-grid">
+            <div v-for="item in homeFocus.stats" :key="item.label" class="highlight-stat-item">
+              <strong>{{ item.value }}</strong>
+              <span>{{ item.label }}</span>
+            </div>
+          </div>
+          <div class="highlight-actions">
+            <el-button type="primary" plain @click="homeFocus.action()">{{ homeFocus.actionText }}</el-button>
+          </div>
         </div>
       </div>
     </el-card>
-
-    <el-row :gutter="16" class="metric-row">
-      <el-col v-for="item in overviewCards" :key="item.title" :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="metric-card" @click="item.action?.()">
-          <div class="metric-icon" :class="item.tone">
-            <el-icon><component :is="item.icon" /></el-icon>
-          </div>
-          <div class="metric-body">
-            <span class="metric-label">{{ item.title }}</span>
-            <strong class="metric-value">{{ item.value }}</strong>
-            <span class="metric-hint">{{ item.hint }}</span>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="16" class="content-row">
-      <el-col :xs="24" :lg="15">
-        <el-card class="content-card capability-card" shadow="hover">
-          <template #header>
-            <div class="section-head">
-              <div>
-                <h2>核心能力</h2>
-                <p>明确这个模块回答什么问题，再进入对应页面继续操作。</p>
-              </div>
-            </div>
-          </template>
-          <div class="capability-grid">
-            <article v-for="item in capabilities" :key="item.title" class="capability-item" @click="item.action()">
-              <div class="capability-icon">
-                <el-icon><component :is="item.icon" /></el-icon>
-              </div>
-              <div class="capability-content">
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.description }}</p>
-                <ul>
-                  <li v-for="point in item.points" :key="point">{{ point }}</li>
-                </ul>
-                <el-button text type="primary" @click.stop="item.action()">{{ item.actionText }}</el-button>
-              </div>
-            </article>
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :xs="24" :lg="9">
-        <el-card class="content-card workflow-card" shadow="hover">
-          <template #header>
-            <div class="section-head">
-              <div>
-                <h2>推荐使用路径</h2>
-                <p>从配置连接到进入后续模块，建议按这个顺序推进。</p>
-              </div>
-            </div>
-          </template>
-          <div class="workflow-list">
-            <div v-for="step in workflowSteps" :key="step.order" class="workflow-item">
-              <span class="workflow-order">{{ step.order }}</span>
-              <div class="workflow-body">
-                <h3>{{ step.title }}</h3>
-                <p>{{ step.description }}</p>
-              </div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
 
     <el-row :gutter="16" class="content-row">
       <el-col :xs="24">
@@ -104,28 +45,32 @@
           <template #header>
             <div class="section-head">
               <div>
-                <h2>最近维护的数据源</h2>
-                <p>帮助快速判断最近接入了哪些连接，以及是否已经完成连通性验证。</p>
+                <h2>{{ focusSectionTitle }}</h2>
+                <p>{{ focusSectionDescription }}</p>
               </div>
               <el-button text type="primary" @click="goToList()">查看全部</el-button>
             </div>
           </template>
-          <div v-if="recentSources.length" class="activity-list">
-            <article v-for="item in recentSources" :key="item.dataSourceId" class="activity-item">
-              <div class="activity-main">
-                <div class="activity-topline">
+          <div v-if="focusSources.length" class="focus-list">
+            <article v-for="item in focusSources" :key="item.dataSourceId" class="focus-item">
+              <div class="focus-main">
+                <div class="focus-topline">
                   <strong>{{ item.dataSourceName }}</strong>
                   <div class="tag-stack">
                     <el-tag size="small" effect="plain">{{ item.dbType }}</el-tag>
-                    <el-tag size="small" :type="item.status === '0' ? 'success' : 'danger'" effect="plain">{{ item.status === '0' ? '正常' : '停用' }}</el-tag>
-                    <el-tag size="small" :type="connectivityTag(item.connectivityStatus)" effect="plain">{{ connectivityLabel(item.connectivityStatus) }}</el-tag>
+                    <el-tag size="small" :type="item.status === '0' ? 'success' : 'danger'" effect="plain">
+                      {{ item.status === '0' ? '正常' : '停用' }}
+                    </el-tag>
+                    <el-tag size="small" :type="connectivityTag(item.connectivityStatus)" effect="plain">
+                      {{ connectivityLabel(item.connectivityStatus) }}
+                    </el-tag>
                   </div>
                 </div>
                 <p>{{ item.dbName || '未填写数据库名' }}<span v-if="item.host"> · {{ item.host }}:{{ item.port }}</span></p>
-                <small>{{ item.connectivityTestedAt || '尚未测试或配置已变更' }}</small>
+                <small>{{ focusReason(item) }}</small>
               </div>
-              <div class="activity-side">
-                <el-button link type="primary" @click="openDetail(item)">详情</el-button>
+              <div class="focus-side">
+                <el-button link type="primary" @click="openDetail(item)">查看详情</el-button>
               </div>
             </article>
           </div>
@@ -137,7 +82,6 @@
 </template>
 
 <script setup name="DataSourceHome">
-import { CircleCheck, Connection, DataAnalysis, Grid, Promotion } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { listDatasource } from '@/api/data/datasource'
 
@@ -149,102 +93,77 @@ const recentSources = computed(() => [...(sourceRows.value || [])].sort((left, r
   const leftTime = new Date(left.updateTime || left.createTime || 0).getTime()
   const rightTime = new Date(right.updateTime || right.createTime || 0).getTime()
   return rightTime - leftTime
-}).slice(0, 6))
+}).slice(0, 5))
 const activeSourceCount = computed(() => sourceRows.value.filter(item => item.status === '0').length)
 const connectedSourceCount = computed(() => sourceRows.value.filter(item => item.connectivityStatus === 'success').length)
 const pendingSourceCount = computed(() => sourceRows.value.filter(item => item.connectivityStatus !== 'success').length)
+const distinctDbTypeCount = computed(() => new Set(sourceRows.value.map(item => item.dbType).filter(Boolean)).size)
+const connectivityRate = computed(() => {
+  if (!sourceRows.value.length) return '--'
+  return `${Math.round((connectedSourceCount.value / sourceRows.value.length) * 100)}%`
+})
+const prioritySources = computed(() => [...sourceRows.value]
+  .filter(item => item.status !== '0' || item.connectivityStatus !== 'success')
+  .sort((left, right) => {
+    const leftRank = left.connectivityStatus === 'failed' ? 0 : left.connectivityStatus === 'unknown' ? 1 : 2
+    const rightRank = right.connectivityStatus === 'failed' ? 0 : right.connectivityStatus === 'unknown' ? 1 : 2
+    if (leftRank !== rightRank) return leftRank - rightRank
+    const leftTime = new Date(left.updateTime || left.createTime || 0).getTime()
+    const rightTime = new Date(right.updateTime || right.createTime || 0).getTime()
+    return rightTime - leftTime
+  })
+  .slice(0, 5))
 
-const overviewCards = computed(() => [
+const heroInsights = computed(() => [
   {
-    title: '已接入数据源',
+    label: '已接入连接',
     value: sourceRows.value.length,
-    hint: '当前已维护的数据库连接数量',
-    icon: Connection,
-    tone: 'tone-blue',
-    action: () => goToList(),
+    hint: '先看规模',
   },
   {
-    title: '正常状态连接',
-    value: activeSourceCount.value,
-    hint: '状态为正常，可继续参与后续链路的连接数',
-    icon: CircleCheck,
-    tone: 'tone-green',
-    action: () => goToList(),
+    label: '连通性通过率',
+    value: connectivityRate.value,
+    hint: '先看是否可用',
   },
   {
-    title: '已通过连通性验证',
-    value: connectedSourceCount.value,
-    hint: '最近一次测试结果为成功的数据源数',
-    icon: Promotion,
-    tone: 'tone-orange',
-    action: () => goToList(),
-  },
-  {
-    title: '待处理连接',
-    value: pendingSourceCount.value,
-    hint: pendingSourceCount.value ? '优先进入列表处理未测试或异常连接' : '当前连接已完成基本验证',
-    icon: Grid,
-    tone: 'tone-violet',
-    action: () => goToList(),
+    label: '覆盖库型',
+    value: distinctDbTypeCount.value,
+    hint: '了解接入分布',
   },
 ])
 
-const capabilities = [
-  {
-    title: '连接管理',
-    description: '维护数据库类型、主机、账号和连接参数，是整个平台后续所有能力的起点。',
-    points: ['统一维护连接信息', '支持新增、修改和停用', '支持从首页直达新建动作'],
-    actionText: '进入数据源列表',
-    action: () => goToList(),
-    icon: Connection,
-  },
-  {
-    title: '源数据发现',
-    description: '通过首页快捷入口或独立菜单进入源数据查看页，快速浏览数据库、表和字段。',
-    points: ['查看库表结构', '查看字段详情', '适合验证接入范围'],
-    actionText: '进入源数据查看',
-    action: () => goToView(),
-    icon: DataAnalysis,
-  },
-  {
-    title: '数据源详情',
-    description: '进入数据源详情页查看连接信息、数据库列表、表结构与字段明细，聚焦连接与发现能力本身。',
-    points: ['查看连接配置', '浏览数据库与数据表', '按表查看字段明细'],
-    actionText: '进入数据源详情',
-    action: () => {
-      const firstSource = sourceRows.value[0]
-      if (firstSource?.dataSourceId) {
-        openDetail(firstSource)
-        return
-      }
-      goToList()
-    },
-    icon: Grid,
-  },
-]
+const focusSources = computed(() => (prioritySources.value.length ? prioritySources.value : recentSources.value))
+const focusSectionTitle = computed(() => (prioritySources.value.length ? '当前优先处理' : '最近维护的数据源'))
+const focusSectionDescription = computed(() => (
+  prioritySources.value.length
+    ? '把异常连接和未测试连接前置展示，先清掉阻塞项再进入下游动作。'
+    : '当前没有明显阻塞项，首页只保留最近维护的连接帮助快速回看。'
+))
 
-const workflowSteps = [
-  {
-    order: '01',
-    title: '新增连接',
-    description: '先维护数据库类型、主机、账号和连接参数，确保平台能访问到目标库。',
-  },
-  {
-    order: '02',
-    title: '测试连通性',
-    description: '在列表页确认连接是否成功，把异常连接和未测试连接先处理干净。',
-  },
-  {
-    order: '03',
-    title: '浏览源数据',
-    description: '先通过源数据查看页快速筛查范围，需要深入处理时再进入数据源详情页。',
-  },
-  {
-    order: '04',
-    title: '沉淀 Phase 1 快照',
-    description: '完成采集后先保留源端原始快照，后续阶段恢复时再继续进入集成、开发和资产化链路。',
-  },
-]
+const homeFocus = computed(() => {
+  if (pendingSourceCount.value > 0) {
+    return {
+      title: '优先处理待验证和异常连接',
+      description: '首页只保留最需要动作的状态，避免把注意力分散到过多说明区。',
+      stats: [
+        { label: '待处理连接', value: pendingSourceCount.value },
+        { label: '已验证通过', value: connectedSourceCount.value },
+      ],
+      actionText: '进入列表处理',
+      action: () => goToList(),
+    }
+  }
+  return {
+    title: '连接状态整体稳定',
+    description: '当前连接已完成基本验证，可以直接进入源数据查看或继续补充新的数据库连接。',
+    stats: [
+      { label: '正常连接', value: activeSourceCount.value },
+      { label: '最近维护', value: recentSources.value.length },
+    ],
+    actionText: '去查看源数据',
+    action: () => goToView(),
+  }
+})
 
 function connectivityLabel(status) {
   return { success: '已连通', failed: '异常', unknown: '未测试' }[status] || '未测试'
@@ -252,6 +171,18 @@ function connectivityLabel(status) {
 
 function connectivityTag(status) {
   return { success: 'success', failed: 'danger', unknown: 'info' }[status] || 'info'
+}
+
+function focusReason(item) {
+  if (item.connectivityStatus === 'failed') {
+    return item.connectivityTestedAt
+      ? `最近一次测试失败：${item.connectivityTestedAt}`
+      : '连接测试失败，请优先检查主机、端口或账号信息'
+  }
+  if (item.connectivityStatus !== 'success') {
+    return '尚未完成连通性测试，建议先验证后再继续后续流程'
+  }
+  return item.connectivityTestedAt || '最近有维护动作'
 }
 
 function goToList(action = '') {
@@ -272,11 +203,6 @@ function resolveRows(response) {
   return Array.isArray(response?.rows) ? response.rows : []
 }
 
-function resolveTotal(response) {
-  if (typeof response?.total === 'number') return response.total
-  return resolveRows(response).length
-}
-
 async function loadOverview() {
   loading.value = true
   try {
@@ -295,15 +221,12 @@ onMounted(loadOverview)
 
 <style scoped>
 .hero-panel,
-.metric-card,
 .content-card,
-.highlight-card,
-.capability-item {
+.highlight-card {
   border-radius: 16px;
 }
 
 .hero-panel,
-.metric-card,
 .content-card {
   border: 1px solid #e5eaf3;
 }
@@ -351,7 +274,6 @@ onMounted(loadOverview)
 }
 
 .hero-actions,
-.hero-tags,
 .tag-stack {
   display: flex;
   gap: 8px;
@@ -362,8 +284,46 @@ onMounted(loadOverview)
   margin-top: 18px;
 }
 
-.hero-tags {
-  margin-top: 14px;
+.hero-insight-grid,
+.highlight-stat-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.hero-insight-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.hero-insight-item,
+.highlight-stat-item {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #f7faff;
+  border: 1px solid #edf1f7;
+}
+
+.hero-insight-item span,
+.highlight-stat-item span {
+  display: block;
+  font-size: 12px;
+  color: #7b8794;
+}
+
+.hero-insight-item strong,
+.highlight-stat-item strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+  line-height: 1.2;
+  color: #1f2d3d;
+}
+
+.hero-insight-item small {
+  display: block;
+  margin-top: 6px;
+  line-height: 1.6;
+  color: #5b6b7b;
 }
 
 .hero-highlight {
@@ -384,67 +344,31 @@ onMounted(loadOverview)
   color: #303133;
 }
 
-.highlight-card ul,
-.capability-content ul {
+.highlight-card h2 {
   margin: 0;
-  padding-left: 18px;
-  color: #5b6b7b;
-  line-height: 1.8;
-}
-
-.metric-row,
-.content-row {
-  margin-bottom: 16px;
-}
-
-.metric-card {
-  cursor: pointer;
-}
-
-:deep(.metric-card .el-card__body) {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.metric-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
   font-size: 22px;
-}
-
-.metric-body {
-  display: flex;
-  flex-direction: column;
-}
-
-.metric-label {
-  font-size: 13px;
-  color: #7b8794;
-}
-
-.metric-value {
-  margin-top: 4px;
-  font-size: 28px;
-  line-height: 1.2;
+  line-height: 1.4;
   color: #1f2d3d;
 }
 
-.metric-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #909399;
+.highlight-card p {
+  margin: 10px 0 0;
+  line-height: 1.8;
+  color: #5b6b7b;
 }
 
-.tone-blue { background: linear-gradient(135deg, #409eff, #66b1ff); }
-.tone-green { background: linear-gradient(135deg, #67c23a, #8ad35d); }
-.tone-orange { background: linear-gradient(135deg, #e6a23c, #f3be62); }
-.tone-violet { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+.highlight-stat-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.highlight-actions {
+  margin-top: 16px;
+}
+
+.content-row {
+  margin-bottom: 16px;
+}
 
 .section-head {
   display: flex;
@@ -453,106 +377,51 @@ onMounted(loadOverview)
   gap: 12px;
 }
 
-.section-head h2,
-.capability-content h3,
-.workflow-body h3 {
+.section-head h2 {
   margin: 0;
   color: #1f2d3d;
 }
 
 .section-head p,
-.capability-content p,
-.workflow-body p,
-.activity-main p,
-.activity-main small {
+.focus-main p,
+.focus-main small {
   margin: 6px 0 0;
   color: #5b6b7b;
   line-height: 1.7;
 }
 
-.capability-grid {
-  display: grid;
-  gap: 14px;
-}
-
-.capability-item {
-  display: flex;
-  gap: 14px;
-  padding: 16px;
-  border: 1px solid #edf1f7;
-  background: #fbfcff;
-  cursor: pointer;
-}
-
-.capability-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #edf5ff;
-  color: #409eff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.workflow-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.workflow-item {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.workflow-order {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: #edf5ff;
-  color: #409eff;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.activity-list {
+.focus-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.activity-item {
+.focus-item {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid #eef2f7;
+  padding: 16px;
+  border: 1px solid #edf1f7;
+  border-radius: 14px;
+  background: #fbfcff;
 }
 
-.activity-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.focus-main {
+  min-width: 0;
 }
 
-.activity-topline {
+.focus-topline {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.activity-main strong {
+.focus-main strong {
   color: #1f2d3d;
 }
 
-.activity-side {
+.focus-side {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -563,8 +432,18 @@ onMounted(loadOverview)
     flex-direction: column;
   }
 
+  .hero-insight-grid {
+    grid-template-columns: 1fr;
+  }
+
   .hero-highlight {
     width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .focus-item {
+    flex-direction: column;
   }
 }
 </style>
