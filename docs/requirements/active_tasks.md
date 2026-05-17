@@ -67,3 +67,5 @@
 4. `docs/architecture/datatask-architecture-review-2026-04-29.md` 已记录本轮 `datatask` 专项评审结论，当前明确后续收敛方向为“`Task` 仅承载发布纳管关系与调度索引，完整业务定义继续留在来源模块；如需冻结发布版本，再由独立快照层承接”。
 5. `docs/architecture/platform-target-architecture-2026-04-30.md` 已新增平台目标架构图与模块职责图；当前阶段口径已进一步收敛为“先完成业务任务定义真源 + `datatask/TaskInstance` 统一纳管”，暂不把任务发布、独立快照和版本冻结作为当前主线交付。
 6. `docs/developments/development-priority-correction-2026-04-30.md` 已新增开发顺序纠偏方案，并已提升为当前文档入口中的优先阅读项，用于约束未来 4 到 6 周的开发顺序、非目标范围和模块优先级。
+7. 项目根 README、前后端 README 与前端开发规范当前已完成实现口径校准：`datasource` 明确保留采集到资产能力，前端免登录白名单明确仅保留 `/login`。
+8. `docs/adr/README.md` 当前已按新编写规则重新分为“当前基线 / 背景决策 / 历史阶段口径 / 已删除旧 ADR”；ADR-006、ADR-008、ADR-009、ADR-010 已标注部分被 ADR-012 与当前主干实现覆盖，完全对应已下线 `apps.dataetl` 的 ADR-002 已删除。

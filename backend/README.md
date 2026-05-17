@@ -6,7 +6,7 @@
 
 | 模块 | 当前职责 |
 |------|----------|
-| `datasource` | 数据源管理、连通性测试、数据库/表/字段发现 |
+| `datasource` | 数据源管理、连通性测试、数据库/表/字段发现、源数据采集到资产 |
 | `dataintegration` | 数据同步任务配置与执行 |
 | `datadev` | 脚本开发、模型设计、研发态执行日志 |
 | `datatask` | 统一任务、依赖、实例、调度与来源分发 |
@@ -16,7 +16,7 @@
 
 当前重要口径：
 
-1. `datasource` 不再维护 snapshot/采集任务模型。
+1. `datasource` 不再维护 snapshot 模型；采集任务定义保留在 `DataSourceCollectionTask`，采集执行实例统一纳入 `datatask.TaskInstance`。
 2. `dataintegration` 已改为直接使用 `sourceDatabaseName` / `sourceTableName`。
 3. 登录链路当前包含验证码校验与失败次数限流。
 
@@ -80,6 +80,7 @@ backend/
 | `/data-api/datadev/` | `datadev` |
 | `/data-api/datatask/` | `datatask` |
 | `/data-api/dataasset/` | `dataasset` |
+| `/data-api/dataservice/` | `dataservice` |
 | `/data-api/terminal/` | `terminal` |
 
 ## 统一约定
@@ -87,7 +88,7 @@ backend/
 1. 含 `del_flag` 的模型默认软删除与过滤。
 2. API 统一返回 `{ code, msg, data | rows | total }`。
 3. 数据源密码加密存储，执行器上下文统一复用 `apps.datasource.executor_info`。
-4. 业务模块通过 `task_source.py + source_registry` 接入 `datatask`，平台内核不再反向持有业务分支。
+4. 业务模块通过 source handler 与 `source_registry` 接入 `datatask`，平台内核不再反向持有业务分支；其中 `datasource` 当前使用 `task_handler.py`。
 
 ## 进一步阅读
 

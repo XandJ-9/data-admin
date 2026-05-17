@@ -8,7 +8,7 @@
 
 | 阶段 | 模块 | 当前职责 |
 |------|------|----------|
-| Connection & Discovery | `datasource` | 数据源管理、连通性测试、数据库/表/字段发现 |
+| Connection & Discovery | `datasource` | 数据源管理、连通性测试、数据库/表/字段发现、源数据采集到资产 |
 | Data Integration | `dataintegration` | 贴源同步任务配置与执行 |
 | Data Development | `datadev` | 脚本开发、模型设计、研发态执行记录 |
 | Orchestration & DataOps | `datatask` | 统一任务、依赖、实例、调度与来源分发 |
@@ -16,7 +16,7 @@
 
 当前重要口径：
 
-1. `datasource` 已不再维护 snapshot/采集任务模型，当前只保留连接管理与源端发现能力。
+1. `datasource` 已不再维护 snapshot 模型；当前通过 `DataSourceCollectionTask + task_handler` 保留单表采集与整库异步采集能力，采集执行记录统一进入 `datatask.TaskInstance`。
 2. `dataintegration` 已改为直接填写 `sourceDatabaseName` / `sourceTableName`，不再依赖 snapshot 选择。
 3. 删除数据源不会再被历史集成任务阻塞；若任务失去数据源绑定，需重新绑定后再执行。
 4. 登录链路当前包含验证码校验与失败次数限流。

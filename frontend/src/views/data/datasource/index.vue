@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <el-alert class="mb8" type="info" :closable="false" show-icon title="步骤 1：连接与发现" description="数据源管理只负责维护连接、测试连通性与进入源数据发现；真正的元数据采集和后续集成/服务配置继续在其他工作面完成。" />
+    <el-alert class="mb8" type="info" :closable="false" show-icon title="步骤 1：连接与发现" description="数据源管理负责维护连接、测试连通性、进入源数据发现，并可在详情页发起单表或整库采集到资产。" />
     <!-- 搜索表单 -->
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
       <el-form-item label="数据源名称" prop="dataSourceName">
