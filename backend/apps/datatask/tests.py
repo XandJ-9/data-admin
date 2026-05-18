@@ -110,6 +110,34 @@ class TaskServiceTests(TestCase):
         self.assertEqual(result['msg'], '来源模块返回结构无效')
         self.assertIsNone(result['data'])
 
+    @patch('apps.datatask.services.get_source_handler')
+    def test_execute_task_should_return_failure_when_handler_raises(self, mock_get_source_handler):
+        task = Task.objects.create(
+            task_name='执行异常任务',
+            task_code='execute_handler_exception_task',
+            task_type='SQL_COMPUTE',
+            source_module='fake.module',
+            source_record_id=1,
+            create_by='tester',
+        )
+
+        def raise_execute_error(platform_task, source_record, username, trigger_mode, runtime_config):
+            raise RuntimeError('模拟执行失败')
+
+        handler = SourceHandler(
+            load_source_record=lambda record_id: {'id': record_id},
+            sync_source_task=lambda source: source,
+            sync_platform_snapshot=lambda task_obj, changed_fields, username: None,
+            execute_task=raise_execute_error,
+        )
+        mock_get_source_handler.return_value = handler
+
+        result = TaskService.execute_task(task, username='tester')
+
+        self.assertFalse(result['ok'])
+        self.assertEqual(result['msg'], '来源任务执行失败，请联系管理员查看日志')
+        self.assertIsNone(result['data'])
+
     def test_finalize_instance_updates_latest_status(self):
         task = Task.objects.create(
             task_name='订单同步任务',

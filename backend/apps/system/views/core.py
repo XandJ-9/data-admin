@@ -22,6 +22,7 @@ from apps.common.mixins import BaseViewMixin
 
 class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
     required_roles = None
+    create_reuse_existing = False
     # 兼容前端 PUT /xxx（集合更新）通用支持
     update_body_serializer_class = None  # 子类设置：用于校验请求体
     update_body_id_field = 'id'          # 子类设置：请求体中的主键字段名，如 menuId/deptId/roleId/configId
@@ -168,6 +169,8 @@ class BaseViewSet(BaseViewMixin,viewsets.ModelViewSet):
             instance = None
 
         if instance is not None:
+            if not getattr(self, 'create_reuse_existing', False):
+                raise ValidationError('资源已存在，请使用修改接口更新')
             serializer.instance = instance
             if hasattr(Model, 'del_flag'):
                 kwargs['del_flag'] = '0'

@@ -58,6 +58,11 @@
 26. `initdata` 当前菜单种子继续保留 `/datadev` 与 `/datatask` 作为正式业务根菜单，同时显式停用历史 `/data-orchestration` 入口，菜单回归测试已按该现状对齐。
 27. 前端当前已清理未接入后端的遗留断链入口：移除 `/register` 静态路由，以及 monitor 的 `job / jobLog / logininfor` 与 `tool/gen` 相关页面和 API 封装，避免保留不可用前台代码。
 28. `dataasset` 当前已开始按“`asset*` 为主、`meta-*` 兼容保留”的方向收口：资产首页、元数据浏览页和血缘页的表选项都改为优先消费 `asset / asset-column`，同时 `asset*` 已补齐 legacy 时间过滤和表/字段写入能力。
+29. 前端当前已进一步清理未挂载后端的历史 API 封装：移除 `task-monitor`、`datataskmonitor` 与 `datastudio` 相关请求文件，避免重新引入不可用调用面。
+30. 前端构建脚本当前同时支持 `pnpm build` 与 `pnpm build:prod`，两者均执行生产构建，减少常规构建命令与项目脚本不一致导致的误用。
+31. `datatask` 当前在 source handler 执行抛异常时会稳定返回 `{ok:false,msg,data:null}` 失败 envelope 并记录服务端日志，不再让来源模块异常直接冒泡成任务中心 500。
+32. 通用 `BaseViewSet.perform_create` 当前默认禁止按主键或唯一字段静默复用旧记录；如确需兼容旧式 create-upsert，必须由子类显式开启 `create_reuse_existing`。
+33. `datadev` 模块首页当前已收敛到与 `dataasset`、`dataservice`、`dataintegration` 一致的浅色模块首页风格：只保留开发规模、核心入口、推荐流程和近期加工作业，不再使用独立渐变营销式首页。
 
 ## 当前文档口径
 

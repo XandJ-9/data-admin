@@ -4,10 +4,83 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.core.cache import cache
 from captcha.models import CaptchaStore
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .models import Menu, Role, RoleMenu, UserRole
-from .views.core import GetInfoView, LoginView
+from .views.core import BaseViewSet, GetInfoView, LoginView
+
+
+class WritableRoleSerializer(serializers.ModelSerializer):
+    roleId = serializers.IntegerField(source='role_id', required=False)
+    roleName = serializers.CharField(source='role_name')
+    roleKey = serializers.CharField(source='role_key')
+    roleSort = serializers.IntegerField(source='role_sort')
+
+    class Meta:
+        model = Role
+        fields = ['roleId', 'roleName', 'roleKey', 'roleSort']
+
+
+class BaseViewSetCreateTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(username='base_view_tester', password='password123')
+
+    def test_perform_create_should_not_update_existing_record_by_default(self):
+        role = Role.objects.create(
+            role_name='原角色',
+            role_key='base_view_create_role',
+            role_sort=1,
+            create_by='tester',
+        )
+        serializer = WritableRoleSerializer(data={
+            'roleId': role.role_id,
+            'roleName': '被误传新增修改的角色',
+            'roleKey': 'base_view_create_role_changed',
+            'roleSort': 9,
+        })
+        serializer.is_valid(raise_exception=True)
+
+        view = BaseViewSet()
+        view.request = self.factory.post('/system/role', {})
+        view.request.user = self.user
+
+        with self.assertRaises(ValidationError):
+            view.perform_create(serializer)
+
+        role.refresh_from_db()
+        self.assertEqual(role.role_name, '原角色')
+        self.assertEqual(role.role_key, 'base_view_create_role')
+        self.assertEqual(role.role_sort, 1)
+
+    def test_perform_create_should_reuse_existing_record_when_enabled(self):
+        role = Role.objects.create(
+            role_name='原角色',
+            role_key='base_view_reuse_role',
+            role_sort=1,
+            create_by='tester',
+        )
+        serializer = WritableRoleSerializer(data={
+            'roleId': role.role_id,
+            'roleName': '显式复用后角色',
+            'roleKey': 'base_view_reuse_role_changed',
+            'roleSort': 8,
+        })
+        serializer.is_valid(raise_exception=True)
+
+        view = BaseViewSet()
+        view.create_reuse_existing = True
+        view.request = self.factory.post('/system/role', {})
+        view.request.user = self.user
+
+        view.perform_create(serializer)
+
+        role.refresh_from_db()
+        self.assertEqual(role.role_name, '显式复用后角色')
+        self.assertEqual(role.role_key, 'base_view_reuse_role_changed')
+        self.assertEqual(role.role_sort, 8)
 
 
 class GetInfoViewTests(TestCase):

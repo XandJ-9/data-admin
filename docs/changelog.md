@@ -2,6 +2,19 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.93] - 2026-05-18
+
+- [UX] `datadev` 首页已改为与 `dataasset`、`dataservice`、`dataintegration` 一致的浅色模块首页风格，统一采用 hero、指标卡、核心能力、推荐流程与近期作业列表结构。
+- [UX] `datadev` 首页现在直接展示加工作业、数据模型、已发布作业和最近成功率概览，并保留进入加工作业、模型设计和任务运维的清晰入口。
+
+## [v1.4.92] - 2026-05-18
+
+- [Fix] `datatask` 任务执行入口已补齐 source handler 异常兜底：来源模块执行抛错时返回统一失败 envelope，并保留服务端异常日志，避免直接冒泡为 500。
+- [Refactor] 通用 `BaseViewSet.perform_create` 默认不再按主键或唯一字段静默复用旧记录，避免新增请求误改历史数据；确需兼容旧行为时需由子类显式开启。
+- [Refactor] 前端已清理未挂载后端的历史 API 封装：`task-monitor`、`datataskmonitor` 与 `datastudio` 相关请求文件已移除。
+- [Chore] 前端已补充 `pnpm build` 脚本别名，与 `pnpm build:prod` 一致执行生产构建。
+- [Test] 已新增 `TaskService.execute_task` handler 异常兜底与 `BaseViewSet.perform_create` 禁止隐式更新旧记录的回归用例。
+
 ## [v1.4.91] - 2026-05-16
 
 - [Docs] 清理项目根 README、后端 README、前端 README 与前端开发规范中的过时口径，修正 `datasource` 采集能力、`dataservice` 路由、source handler 命名和免登录白名单说明。

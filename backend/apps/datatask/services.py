@@ -443,13 +443,22 @@ class TaskService:
             source_record = handler.load_source_record(task.source_record_id)
             if source_record is None:
                 return {'ok': False, 'msg': '来源任务不存在或已删除', 'data': None}
-            result = handler.execute_task(
-                task,
-                source_record,
-                username,
-                trigger_mode,
-                runtime_config,
-            )
+            try:
+                result = handler.execute_task(
+                    task,
+                    source_record,
+                    username,
+                    trigger_mode,
+                    runtime_config,
+                )
+            except Exception as exc:
+                logger.exception(
+                    '来源任务执行失败: task=%s source_module=%s source_record_id=%s',
+                    task.task_code,
+                    task.source_module,
+                    task.source_record_id,
+                )
+                return {'ok': False, 'msg': '来源任务执行失败，请联系管理员查看日志', 'data': None}
             return normalize_execute_result(result)
 
         return {'ok': False, 'msg': f'暂不支持执行来源模块 {task.source_module or "未知"}', 'data': None}
