@@ -3,7 +3,8 @@ import logging
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import CharField, Max, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -184,15 +185,15 @@ class ScriptViewSet(BaseViewSet):
         'list': 'datadev:ide:view',
         'model_list': 'datadev:ide:view',
         'retrieve': 'datadev:ide:view',
-        'create': 'datadev:ide:view',
-        'update': 'datadev:ide:view',
-        'destroy': 'datadev:ide:view',
+        'create': 'datadev:ide:add',
+        'update': 'datadev:ide:edit',
+        'destroy': 'datadev:ide:remove',
         'list_versions': 'datadev:ide:view',
-        'create_version': 'datadev:ide:view',
-        'publish_version': 'datadev:ide:view',
-        'rollback_version': 'datadev:ide:view',
-        'publish_task': 'datadev:ide:view',
-        'execute_script': 'datadev:ide:view',
+        'create_version': 'datadev:ide:edit',
+        'publish_version': 'datadev:ide:publish',
+        'rollback_version': 'datadev:ide:publish',
+        'publish_task': 'datadev:ide:publish',
+        'execute_script': 'datadev:ide:execute',
         'list_executions': 'datadev:ide:view',
     }
     queryset = DataDevScript.objects.select_related('datasource', 'target_model').all()
@@ -200,7 +201,18 @@ class ScriptViewSet(BaseViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        task_subquery = Task.objects.filter(
+            source_module='datadev.script',
+            source_record_id=OuterRef('pk'),
+            del_flag='0',
+        ).order_by('-id')
+        qs = super().get_queryset().annotate(
+            platform_task_id=Subquery(task_subquery.values('id')[:1]),
+            platform_task_status=Coalesce(
+                Subquery(task_subquery.values('status')[:1]),
+                Value('', output_field=CharField()),
+            ),
+        )
         serializer = ScriptQuerySerializer(data=self.request.query_params)
         serializer.is_valid(raise_exception=False)
         vd = getattr(serializer, 'validated_data', {})

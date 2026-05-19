@@ -2,6 +2,12 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.101] - 2026-05-19
+
+- [Security] `datadev` 加工作业权限已按动作拆分：后端 `ScriptViewSet.permission_map` 从单一 `datadev:ide:view` 收敛为 `datadev:ide:add/edit/remove/execute/publish`，并同步前端按钮权限约束。
+- [Perf] `datadev` 脚本列表已移除逐条查询任务状态的序列化器 N+1：改为在 `ScriptViewSet` 统一注解平台任务 ID 与状态后再序列化输出。
+- [Refactor] `datadev` “数据目录（兼容）”页面已收敛为目录管理兼容入口，不再展示无真实绑定关系的目录脚本列表；菜单种子默认隐藏该兼容页面并补齐目录查询权限码。
+
 ## [v1.4.100] - 2026-05-19
 
 - [Refactor] 已清理未挂载菜单且无有效路由入口的历史 `views/data/orchestration/` 页面，并移除任务首页中跳向不存在 `DataTaskDependency` 路由的“进入依赖编排”按钮。

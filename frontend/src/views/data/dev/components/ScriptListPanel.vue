@@ -2,8 +2,8 @@
   <div class="script-list-panel">
     <div class="panel-header">
       <div class="panel-actions">
-        <el-button plain @click="$emit('create', 'python')">新建 Python 作业</el-button>
-        <el-button type="primary" @click="$emit('create', 'sql')">新建 SQL 作业</el-button>
+        <el-button plain v-hasPermi="['datadev:ide:add']" @click="$emit('create', 'python')">新建 Python 作业</el-button>
+        <el-button type="primary" v-hasPermi="['datadev:ide:add']" @click="$emit('create', 'sql')">新建 SQL 作业</el-button>
         <el-button circle :icon="Refresh" @click="$emit('refresh')" />
       </div>
     </div>
@@ -89,7 +89,7 @@
       <el-table-column label="操作" width="160" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click.stop="$emit('select', row)">详情</el-button>
-          <el-button link type="danger" @click.stop="$emit('delete', row)">删除</el-button>
+          <el-button link type="danger" v-hasPermi="['datadev:ide:remove']" @click.stop="$emit('delete', row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

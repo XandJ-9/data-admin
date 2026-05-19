@@ -11,10 +11,34 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from apps.datasource.models import DataSource
 from apps.datatask.models import Task, TaskInstance
 from apps.datatask.services import TaskService
+from apps.system.models import Role, UserRole
 from .models import DataDevDirectory, DataDevModel, DataDevModelField, DataDevScript
 from .models import DataDevScriptVersion
 from .task_source import sync_model_source_task, sync_script_source_task
 from .views import DataDevDirectoryViewSet, DataModelViewSet, ScriptViewSet
+
+
+def grant_admin_role(user):
+    admin_role, _ = Role.objects.get_or_create(
+        role_key='admin',
+        defaults={
+            'role_name': '超级管理员',
+            'role_sort': 1,
+            'status': '0',
+            'create_by': 'test',
+            'update_by': 'test',
+        },
+    )
+    if admin_role.status != '0' or admin_role.del_flag != '0':
+        admin_role.status = '0'
+        admin_role.del_flag = '0'
+        admin_role.update_by = 'test'
+        admin_role.save(update_fields=['status', 'del_flag', 'update_by', 'update_time'])
+    UserRole.objects.get_or_create(
+        user=user,
+        role=admin_role,
+        defaults={'create_by': 'test', 'update_by': 'test'},
+    )
 
 
 class ScriptVersionLogicTests(TestCase):
@@ -218,6 +242,7 @@ class ScriptExecutionTaskIntegrationTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='script_runner', password='password123')
+        grant_admin_role(self.user)
         self.datasource = DataSource.objects.create(
             name='测试MySQL',
             db_type='mysql',
@@ -625,6 +650,7 @@ class ScriptTaskLifecycleSyncTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='script_admin', password='password123')
+        grant_admin_role(self.user)
         self.model = DataDevModel.objects.create(
             model_name='生命周期目标模型',
             model_code='dwd_lifecycle_model',
@@ -762,6 +788,7 @@ class DataModelViewSetTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='model_admin', password='password123')
+        grant_admin_role(self.user)
         self.base_payload = {
             'modelName': '订单宽表',
             'modelCode': 'dwd_order_wide',

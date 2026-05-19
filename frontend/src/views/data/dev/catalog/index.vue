@@ -51,8 +51,17 @@
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList" />
     </el-row>
 
+    <el-alert
+      class="mb8"
+      type="warning"
+      :closable="false"
+      show-icon
+      title="兼容说明"
+      description="目录能力仅做兼容保留，不再维护目录与加工作业的绑定关系。请通过“模型设计”和“加工作业”入口继续开发。"
+    />
+
     <div v-loading="loading" class="directory-collapse-wrap">
-      <el-collapse v-model="activeCollapseName" accordion class="directory-collapse" @change="handleCollapseChange">
+      <el-collapse v-model="activeCollapseName" accordion class="directory-collapse">
         <el-collapse-item
           v-for="directory in directoryCards"
           :key="directory.directoryId"
@@ -69,7 +78,7 @@
                 </div>
                 <div class="directory-card-summary">
                 <span>当前目录：{{ directory.directoryName }}</span>
-                <el-tag size="small" effect="plain">共 {{ getDirectoryScripts(directory.directoryId).length }} 个脚本</el-tag>
+                <el-tag size="small" effect="plain">兼容目录（不再绑定脚本）</el-tag>
                 </div>
                 <div class="directory-card-meta">
                   <span>排序 {{ directory.orderNum }}</span>
@@ -100,35 +109,8 @@
           </template>
 
           <div class="directory-card-body">
-            <div v-loading="isDirectoryLoading(directory.directoryId)" class="directory-script-panel">
-              <el-scrollbar height="240px">
-                <el-table :data="getDirectoryScripts(directory.directoryId)" size="small" border>
-                  <el-table-column prop="scriptName" label="脚本名称" min-width="220" show-overflow-tooltip>
-                    <template #default="scope">
-                      <el-link type="primary" :underline="false" @click="openScriptInIde(scope.row)">
-                        {{ scope.row.scriptName }}
-                      </el-link>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="scriptCode" label="脚本编码" min-width="160" show-overflow-tooltip />
-                  <el-table-column prop="directoryName" label="所属目录" min-width="140" show-overflow-tooltip />
-                  <el-table-column prop="scriptType" label="类型" width="90" />
-                  <el-table-column prop="status" label="状态" width="100">
-                    <template #default="scope">
-                      <el-tag size="small" :type="scope.row.status === 'published' ? 'success' : 'info'" effect="plain">
-                        {{ scope.row.status === 'published' ? '已发布' : '草稿' }}
-                      </el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="updateTime" label="更新时间" width="180" />
-                </el-table>
-                <div
-                  v-if="!isDirectoryLoading(directory.directoryId) && getDirectoryScripts(directory.directoryId).length === 0"
-                  class="script-empty"
-                >
-                  当前目录下暂无脚本
-                </div>
-              </el-scrollbar>
+            <div class="directory-script-panel">
+              <el-empty description="目录-脚本绑定已下线，请在加工作业列表查看和管理脚本" :image-size="72" />
             </div>
           </div>
         </el-collapse-item>
@@ -202,14 +184,12 @@ import {
   updateDirectory,
   delDirectory,
   getDirectoryTree,
-  listScripts,
 } from '@/api/data/datadev'
 
 defineOptions({ name: 'DataDevCatalog' })
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
-const router = useRouter()
 
 const loading = ref(false)
 const showSearch = ref(true)
@@ -221,8 +201,6 @@ const submitting = ref(false)
 const directoryList = ref([])
 const directoryTree = ref([])
 const directoryOptions = ref([])
-const directoryScriptMap = ref({})
-const directoryLoadingMap = ref({})
 
 const queryParams = reactive({
   directoryName: '',
@@ -307,18 +285,9 @@ async function getList() {
     directoryList.value = res.data || []
     directoryTree.value = buildTree(directoryList.value, 0)
     directoryOptions.value = buildTreeOptions(directoryList.value)
-    Object.keys(directoryScriptMap.value).forEach((directoryId) => {
-      const exists = directoryList.value.some((item) => Number(item.directoryId) === Number(directoryId))
-      if (!exists) {
-        delete directoryScriptMap.value[directoryId]
-        delete directoryLoadingMap.value[directoryId]
-      }
-    })
     if (activeCollapseName.value) {
       const exists = directoryCards.value.some((item) => String(item.directoryId) === activeCollapseName.value)
-      if (exists) {
-        handleCollapseChange(activeCollapseName.value)
-      } else {
+      if (!exists) {
         activeCollapseName.value = ''
       }
     }
@@ -332,82 +301,8 @@ async function getList() {
   }
 }
 
-function collectDescendantDirectoryIds(parentId) {
-  const result = []
-  const loop = (currentParentId) => {
-    directoryList.value.forEach((item) => {
-      if (Number(item.parentId) === Number(currentParentId)) {
-        result.push(item.directoryId)
-        loop(item.directoryId)
-      }
-    })
-  }
-  loop(parentId)
-  return result
-}
-
-async function fetchScriptsByDirectoryId(directoryId) {
-  const pageSize = 100
-  let pageNum = 1
-  let mergedRows = []
-
-  while (true) {
-    const res = await listScripts({ directoryId, pageNum, pageSize })
-    const rows = res.rows || res.data || []
-    mergedRows = mergedRows.concat(rows)
-    if (rows.length < pageSize) {
-      break
-    }
-    pageNum += 1
-  }
-
-  return mergedRows
-}
-
-async function loadDirectoryScripts(directoryId) {
-  if (!directoryId || directoryScriptMap.value[directoryId]) return
-  directoryLoadingMap.value[directoryId] = true
-  try {
-    const directoryIds = [directoryId, ...collectDescendantDirectoryIds(directoryId)]
-    const scriptRows = await Promise.all(directoryIds.map((directoryId) => fetchScriptsByDirectoryId(directoryId)))
-    const scriptMap = new Map()
-    scriptRows.flat().forEach((script) => {
-      scriptMap.set(script.scriptId, script)
-    })
-    directoryScriptMap.value[directoryId] = Array.from(scriptMap.values())
-  } catch {
-    directoryScriptMap.value[directoryId] = []
-    ElMessage.error('加载目录脚本失败')
-  } finally {
-    directoryLoadingMap.value[directoryId] = false
-  }
-}
-
-function getDirectoryScripts(directoryId) {
-  return directoryScriptMap.value[directoryId] || []
-}
-
-function isDirectoryLoading(directoryId) {
-  return Boolean(directoryLoadingMap.value[directoryId])
-}
-
-function handleCollapseChange(activeNames) {
-  const names = Array.isArray(activeNames) ? activeNames : [activeNames].filter(Boolean)
-  names.forEach((name) => {
-    const directoryId = Number(name)
-    if (directoryId) {
-      loadDirectoryScripts(directoryId)
-    }
-  })
-}
-
 function collapseAllDirectories() {
   activeCollapseName.value = ''
-}
-
-function openScriptInIde(script) {
-  if (!script?.scriptId) return
-  router.push(`/datadev/ide/detail/${script.scriptId}`)
 }
 
 async function loadTreeOptions(excludeId) {

@@ -19,10 +19,10 @@
         </div>
         <div class="header-actions">
           <el-button @click="goBack">返回列表</el-button>
-          <el-button @click="handleSaveMeta" :loading="savingMeta">保存定义</el-button>
-          <el-button type="primary" plain @click="handleSaveDraft" :loading="savingDraft">保存草稿</el-button>
-          <el-button type="success" @click="handlePublishVersion" :loading="publishingVersion">发布版本</el-button>
-          <el-button type="warning" @click="handlePublishTask" :loading="publishingTask">发布到任务运维</el-button>
+          <el-button v-hasPermi="['datadev:ide:edit']" @click="handleSaveMeta" :loading="savingMeta">保存定义</el-button>
+          <el-button v-hasPermi="['datadev:ide:edit']" type="primary" plain @click="handleSaveDraft" :loading="savingDraft">保存草稿</el-button>
+          <el-button v-hasPermi="['datadev:ide:publish']" type="success" @click="handlePublishVersion" :loading="publishingVersion">发布版本</el-button>
+          <el-button v-hasPermi="['datadev:ide:publish']" type="warning" @click="handlePublishTask" :loading="publishingTask">发布到任务运维</el-button>
         </div>
       </section>
 
@@ -116,7 +116,7 @@
                 </div>
                 <div class="editor-actions">
                   <el-tag v-if="hasUnsavedContent" type="warning" effect="plain">内容未保存</el-tag>
-                  <el-button type="primary" :loading="running" @click="handleRun">执行作业</el-button>
+                  <el-button v-hasPermi="['datadev:ide:execute']" type="primary" :loading="running" @click="handleRun">执行作业</el-button>
                 </div>
               </div>
             </template>

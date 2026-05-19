@@ -2,7 +2,7 @@ import hashlib
 
 from rest_framework import serializers
 
-from apps.datatask.models import Task, TaskInstance
+from apps.datatask.models import TaskInstance
 from apps.system.serializers import BaseModelSerializer
 from .models import (
     DataDevDirectory,
@@ -27,8 +27,8 @@ class ScriptListSerializer(BaseModelSerializer):
     targetModelId = serializers.IntegerField(source='target_model_id', read_only=True, allow_null=True)
     targetModelName = serializers.CharField(source='target_model.model_name', read_only=True, default='')
     targetLayer = serializers.CharField(source='target_model.layer', read_only=True, default='')
-    taskId = serializers.SerializerMethodField()
-    taskStatus = serializers.SerializerMethodField()
+    taskId = serializers.IntegerField(source='platform_task_id', read_only=True, allow_null=True)
+    taskStatus = serializers.CharField(source='platform_task_status', read_only=True, default='')
 
     class Meta:
         model = DataDevScript
@@ -38,22 +38,6 @@ class ScriptListSerializer(BaseModelSerializer):
             'targetModelId', 'targetModelName', 'targetLayer', 'taskId', 'taskStatus',
             'tags', 'owner', 'remark',
         ]
-
-    @staticmethod
-    def _get_bound_task(obj):
-        return Task.objects.filter(
-            source_module='datadev.script',
-            source_record_id=obj.id,
-            del_flag='0',
-        ).first()
-
-    def get_taskId(self, obj):
-        task = self._get_bound_task(obj)
-        return task.id if task else None
-
-    def get_taskStatus(self, obj):
-        task = self._get_bound_task(obj)
-        return task.status if task else ''
 
 
 class ScriptCreateSerializer(serializers.Serializer):
