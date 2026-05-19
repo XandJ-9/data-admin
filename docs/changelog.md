@@ -2,6 +2,43 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.100] - 2026-05-19
+
+- [Refactor] 已清理未挂载菜单且无有效路由入口的历史 `views/data/orchestration/` 页面，并移除任务首页中跳向不存在 `DataTaskDependency` 路由的“进入依赖编排”按钮。
+- [Docs] 快速参考中的任务运维前端入口已收敛为 `views/data/task/`。
+
+## [v1.4.99] - 2026-05-19
+
+- [Refactor] 前端 `views/data` 已按“模块根 `index.vue` 为首页、具体功能页进入子目录”的规则重组：覆盖 `datasource`、`datadev`、`dataintegration`、`dataservice` 与 `datatask` 的列表、详情、日志和执行记录等路由页面。
+- [Chore] 菜单种子中的数据模块 `component` 路径已同步更新到新 Vue 文件位置，并完成 `data/*` 菜单组件路径存在性校验。
+
+## [v1.4.98] - 2026-05-19
+
+- [UX] `datasource` 首页已清理重复入口：移除右侧“当前重点”重复跳转卡和列表区头部“查看全部”按钮，将待处理连接数量合并到顶部概览指标中。
+
+## [v1.4.97] - 2026-05-19
+
+- [Refactor] 已收敛模块物理表名前缀：`datasource.DataSource` 从历史 `dataasset_datasource` 调整为 `datasource_data_source`，`monitor` 操作日志与登录日志从 `sys_*` 调整为 `monitor_*`。
+- [Migration] 新增 `datasource` 与 `monitor` 表/索引重命名迁移，避免表名调整时丢失已有数据。
+
+## [v1.4.96] - 2026-05-19
+
+- [Config] 后端默认数据库已从 SQLite 切换为读取 `backend/config/env.py` 中的 PostgreSQL 配置，仍保留 `DJANGO_DATABASE_*` 环境变量覆盖能力。
+
+## [v1.4.95] - 2026-05-19
+
+- [Security] 后端 `HasRolePermission` 已补齐菜单 `perms` 校验能力，主链路模块通过 `permission_map` 将 action 绑定到具体权限码，避免仅依赖前端菜单隐藏或粗粒度角色判断。
+- [Security] `dataservice` 查询与接口执行已加入只读 SQL 校验和 pageSize 上限，阻断多语句、DDL/DML/权限类语句，并区分普通查询与导出最大行数。
+- [Feature] `dataservice.InterfaceInfo` 新增可选资产锚点 `assetId`，接口发布会校验资产所属数据源与接口数据源一致，为后续资产授权、血缘和服务治理提供落点。
+- [Config] Django 敏感运行配置已支持环境变量覆盖 `SECRET_KEY`、`DEBUG`、`ALLOWED_HOSTS`、数据库连接与 Channel Layer 后端，开发默认值保持可直接启动。
+- [Refactor] `dataintegration` 任务中心调度治理不再反写业务草稿的 `schedule_type` / `cron_expression`，调度事实源收敛到 `datatask.Task`。
+- [Test] 已新增权限、数据服务查询治理、资产锚点与数据集成调度边界相关回归用例。
+
+## [v1.4.94] - 2026-05-19
+
+- [Docs] 新增 `docs/developments/module-responsibility-execution-guide.md`，作为后续开发新的模块职责与统一执行层指导手册，明确 `datasource`、`dataintegration`、`datadev` 负责业务定义、调试入口和发布任务到任务中心，`datatask` 负责任务镜像与唯一执行实例中心，`executors/dbutils` 负责实际执行与数据库访问。
+- [Docs] 同步更新文档入口、当前状态、开发顺序纠偏方案、后端开发规范、创建模块指南和快速参考，将“任务执行与数据库查询必须统一通过 `apps.executors` / `apps.dbutils`”提升为后续开发硬约束。
+
 ## [v1.4.93] - 2026-05-18
 
 - [UX] `datadev` 首页已改为与 `dataasset`、`dataservice`、`dataintegration` 一致的浅色模块首页风格，统一采用 hero、指标卡、核心能力、推荐流程与近期作业列表结构。

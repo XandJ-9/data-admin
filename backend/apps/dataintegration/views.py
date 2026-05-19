@@ -31,6 +31,18 @@ from .task_source import (
 
 class DataIntegrationTaskViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataintegration:task:query',
+        'model_list': 'dataintegration:task:query',
+        'retrieve': 'dataintegration:task:view',
+        'executions': 'dataintegration:task:view',
+        'create': 'dataintegration:task:add',
+        'update': 'dataintegration:task:edit',
+        'destroy': 'dataintegration:task:remove',
+        'validate_task': 'dataintegration:task:add',
+        'publish_task': 'dataintegration:task:execute',
+        'execute_task': 'dataintegration:task:execute',
+    }
     queryset = DataIntegrationTask.objects.select_related(
         'source_datasource',
         'target_datasource',
@@ -234,6 +246,12 @@ class DataIntegrationTaskViewSet(BaseViewSet):
 
 class IntegrationExecutionLogViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataintegration:task:view',
+        'model_list': 'dataintegration:task:view',
+        'retrieve': 'dataintegration:task:view',
+        'execution_detail': 'dataintegration:task:view',
+    }
     queryset = TaskInstance.objects.select_related('task').filter(task__source_module='dataintegration.task')
     serializer_class = DataIntegrationExecutionSerializer
     pagination_class = StandardPagination

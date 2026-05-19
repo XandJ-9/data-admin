@@ -3,20 +3,36 @@ from pathlib import Path
 
 from django.db.models import F
 
+from .env import DATABASE_CONFIG
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def env_list(name, default=None):
+    value = os.environ.get(name)
+    if value is None:
+        return default or []
+    return [item.strip() for item in value.split(',') if item.strip()]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-egt!&y34$i(mnlz!k-d*4ba)ng$6+vn9(@bm^c)lxe530te35q'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-egt!&y34$i(mnlz!k-d*4ba)ng$6+vn9(@bm^c)lxe530te35q')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool('DJANGO_DEBUG', True)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ['*'] if DEBUG else [])
 
 
 # Application definition
@@ -81,7 +97,7 @@ ASGI_APPLICATION = 'config.asgi.application'
 # Channels Configuration
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+        'BACKEND': os.environ.get('DJANGO_CHANNEL_LAYER_BACKEND', 'channels.layers.InMemoryChannelLayer')
     }
 }
 
@@ -105,15 +121,25 @@ SIMPLE_JWT = {
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-from .env import DATABASE_CONFIG
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DATABASE_ENGINE = os.environ.get('DJANGO_DATABASE_ENGINE', DATABASE_CONFIG['ENGINE'])
+if DATABASE_ENGINE == 'django.db.backends.sqlite3':
+    DATABASES = {
+        'default': {
+            'ENGINE': DATABASE_ENGINE,
+            'NAME': os.environ.get('DJANGO_DATABASE_NAME', BASE_DIR / 'db.sqlite3'),
+        }
     }
-    # 'default': DATABASE_CONFIG
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': DATABASE_ENGINE,
+            'NAME': os.environ.get('DJANGO_DATABASE_NAME', DATABASE_CONFIG['NAME']),
+            'USER': os.environ.get('DJANGO_DATABASE_USER', DATABASE_CONFIG['USER']),
+            'PASSWORD': os.environ.get('DJANGO_DATABASE_PASSWORD', DATABASE_CONFIG['PASSWORD']),
+            'HOST': os.environ.get('DJANGO_DATABASE_HOST', DATABASE_CONFIG['HOST']),
+            'PORT': os.environ.get('DJANGO_DATABASE_PORT', DATABASE_CONFIG['PORT']),
+        }
+    }
 
 
 # Password validation

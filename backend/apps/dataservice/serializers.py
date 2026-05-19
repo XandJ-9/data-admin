@@ -32,6 +32,7 @@ class DataServiceQuerySerializer(serializers.Serializer):
 
 class InterfacePublishSerializer(serializers.Serializer):
     dataSourceId = serializers.IntegerField()
+    assetId = serializers.IntegerField(required=False, allow_null=True)
     sql = serializers.CharField()
     params = serializers.DictField(
         child=serializers.CharField(allow_blank=True),
@@ -75,6 +76,8 @@ class DataServiceQueryLogSerializer(BaseModelSerializer):
 
 class InterfaceInfoSerializer(BaseModelSerializer):
     interfaceId = serializers.IntegerField(source='id', read_only=True)
+    assetId = serializers.IntegerField(source='asset_id', required=False, allow_null=True)
+    assetName = serializers.CharField(source='asset.display_name', read_only=True, default='')
     reportId = serializers.IntegerField(source='report_id', required=False, allow_null=True)
     interfaceName = serializers.CharField(source='interface_name')
     interfaceCode = serializers.CharField(source='interface_code')
@@ -100,7 +103,7 @@ class InterfaceInfoSerializer(BaseModelSerializer):
         model = InterfaceInfo
         fields = [
             'interfaceId', 'reportId', 'interfaceName', 'interfaceCode', 'interfaceDesc',
-            'interfaceDbType', 'interfaceDbName', 'interfaceSql', 'isTotal', 'totalSql',
+            'assetId', 'assetName', 'interfaceDbType', 'interfaceDbName', 'interfaceSql', 'isTotal', 'totalSql',
             'isPaging', 'isDateOption', 'isSecondTable', 'isLoginVisit', 'alarmType',
             'userName', 'interfaceDatasource','enable','reportName','reportCode',
             'moduleName','platformName'

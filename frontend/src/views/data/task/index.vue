@@ -13,7 +13,6 @@
             <el-button type="primary" :icon="Plus" @click="handleCreateIntegrationTask" v-hasPermi="['dataintegration:task:add']">新建集成任务</el-button>
             <el-button :icon="EditPen" @click="goToDataDevelopment" v-hasPermi="['datadev:ide:view']">进入建模与加工</el-button>
             <el-button :icon="Histogram" @click="goToInstances" v-hasPermi="['datatask:instance:list']">查看执行记录</el-button>
-            <el-button :icon="Share" @click="goToOrchestration" v-hasPermi="['datatask:dependency:query']">进入依赖编排</el-button>
             <el-button :icon="Refresh" @click="loadOverview">刷新总览</el-button>
           </div>
         </div>
@@ -245,7 +244,7 @@
 </template>
 
 <script setup name="DataTaskIndex">
-import { CircleCheck, Clock, EditPen, Histogram, Plus, Refresh, Share, Warning } from '@element-plus/icons-vue'
+import { CircleCheck, Clock, EditPen, Histogram, Plus, Refresh, Warning } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import { useRouter } from 'vue-router'
@@ -749,10 +748,6 @@ function goToDataDevelopment() {
 
 function goToInstances() {
   router.push({ name: 'DataTaskInstances' })
-}
-
-function goToOrchestration() {
-  router.push({ name: 'DataTaskDependency' })
 }
 
 function openTaskDetail(task) {

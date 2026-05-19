@@ -11,6 +11,7 @@ from apps.datadev.models import DataDevScript, DataDevScriptVersion
 from apps.dataintegration.models import DataIntegrationTask
 from apps.dataintegration.task_source import sync_source_task
 from apps.datasource.models import DataSource
+from apps.system.models import Role, UserRole
 from .source_registry import SourceHandler
 from .models import Task, TaskDependency, TaskInstance
 from .scheduler import TaskSchedulerService
@@ -311,6 +312,8 @@ class TaskViewSetTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='task_tester', password='password123')
+        admin_role = Role.objects.create(role_name='任务测试管理员', role_key='admin', role_sort=0, status='0')
+        UserRole.objects.create(user=self.user, role=admin_role)
         self.source_datasource = DataSource.objects.create(
             name='源库',
             db_type='mysql',
@@ -412,7 +415,7 @@ class TaskViewSetTests(TestCase):
         self.assertEqual(response.data['total'], 1)
         self.assertEqual(response.data['rows'][0]['taskCode'], 'sql_compute_datadev_script_2')
 
-    def test_task_update_should_sync_integration_source_fields(self):
+    def test_task_update_should_sync_integration_source_governance_without_overwriting_draft_schedule(self):
         view = TaskViewSet.as_view({'put': 'update'})
         request = self.factory.put(
             f'/data-api/datatask/task/{self.platform_integration_task.id}',
@@ -436,8 +439,8 @@ class TaskViewSetTests(TestCase):
         self.assertEqual(self.platform_integration_task.schedule_type, 'cron')
         self.assertEqual(self.platform_integration_task.cron_expression, '0 2 * * *')
         self.assertEqual(self.integration_task.status, 'paused')
-        self.assertEqual(self.integration_task.schedule_type, 'cron')
-        self.assertEqual(self.integration_task.cron_expression, '0 2 * * *')
+        self.assertEqual(self.integration_task.schedule_type, 'manual')
+        self.assertEqual(self.integration_task.cron_expression, '')
         self.assertEqual(self.integration_task.owner, 'platform_owner')
         self.assertEqual(self.integration_task.remark, '统一任务中心已更新')
 

@@ -52,6 +52,14 @@ class InterfaceInfo(BaseModel):
     interface_db_type = models.CharField(max_length=255, verbose_name='数据库类型')
     interface_db_name = models.CharField(max_length=255, verbose_name='数据库名称')
     interface_sql = models.TextField(verbose_name='接口sql', null=True, blank=True)
+    asset = models.ForeignKey(
+        'dataasset.DataAsset',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='service_interfaces',
+        verbose_name='资产锚点',
+    )
 
     is_total = models.CharField(default='0', max_length=1, choices=IS_TOTAL_CHOICES, verbose_name='是否合计')
     total_sql = models.TextField(verbose_name='合计sql', null=True, blank=True)

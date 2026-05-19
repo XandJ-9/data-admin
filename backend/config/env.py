@@ -1,6 +1,6 @@
 DATABASE_CONFIG = {
     'ENGINE': 'django.db.backends.postgresql',
-    'NAME': 'dataadmin',
+    'NAME': 'data-admin',
     'USER': 'postgres',
     'PASSWORD': 'postgres',
     'HOST': 'localhost',

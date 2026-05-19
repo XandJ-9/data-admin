@@ -200,14 +200,6 @@ def sync_platform_snapshot(task, changed_fields: set[str] | None = None, usernam
     if 'remark' in changed_fields and integration_task.remark != task.remark:
         integration_task.remark = task.remark
         update_fields.append('remark')
-    if task.schedule_type != 'dependency':
-        if 'schedule_type' in changed_fields and integration_task.schedule_type != task.schedule_type:
-            integration_task.schedule_type = task.schedule_type
-            update_fields.append('schedule_type')
-        expected_cron_expression = task.cron_expression if task.schedule_type == 'cron' else ''
-        if 'cron_expression' in changed_fields and integration_task.cron_expression != expected_cron_expression:
-            integration_task.cron_expression = expected_cron_expression
-            update_fields.append('cron_expression')
     if not update_fields:
         return
     integration_task.update_by = username

@@ -179,8 +179,8 @@ import {
   rollbackVersion,
   updateScript,
 } from '@/api/data/datadev'
-import CodeEditor from './components/CodeEditor.vue'
-import ActivityPanel from './components/ActivityPanel.vue'
+import CodeEditor from '../../components/CodeEditor.vue'
+import ActivityPanel from '../../components/ActivityPanel.vue'
 
 defineOptions({ name: 'DataDevScriptDetail' })
 

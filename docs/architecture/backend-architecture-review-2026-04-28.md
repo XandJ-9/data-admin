@@ -279,11 +279,12 @@ flowchart LR
 
 - 后续可在 `datadev` 内部拆为 `task_sync`、`script_execution`、`model_execution` 三类内部模块，但不建议在本轮继续扩 scope。
 
-### 6.2 中优先级：`DataSource` 物理表名仍保留历史归属痕迹
+### 6.2 中优先级：`DataSource` 物理表名仍保留历史归属痕迹（已收敛）
 
 表现：
 
-- `DataSource` 的 `db_table` 仍是 `dataasset_datasource`。
+- `DataSource` 的 `db_table` 曾保留为 `dataasset_datasource`。
+- 当前已通过后续迁移收敛为 `datasource_data_source`。
 
 风险：
 

@@ -53,6 +53,17 @@ def _update_connectivity_snapshot(instance, status, message=''):
 
 class DataSourceViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:datasource:list',
+        'model_list': 'system:datasource:list',
+        'retrieve': 'system:datasource:query',
+        'create': 'system:datasource:add',
+        'update': 'system:datasource:edit',
+        'update_by_body': 'system:datasource:edit',
+        'destroy': 'system:datasource:remove',
+        'test_by_id': 'system:datasource:query',
+        'test_by_body': 'system:datasource:query',
+    }
     queryset = DataSource.objects.all().order_by('name')
     serializer_class = DataSourceSerializer
     create_serializer_class = DataSourceCreateSerializer
@@ -184,6 +195,14 @@ class DataSourceViewSet(BaseViewSet):
 
 class DataSourceDiscoveryViewSet(BaseViewMixin, ViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'databases': 'system:datasource:query',
+        'tables': 'system:datasource:query',
+        'columns': 'system:datasource:query',
+        'collect_table': 'system:datasource:view',
+        'collect_database': 'system:datasource:view',
+        'collect_database_run': 'system:datasource:view',
+    }
 
     def _get_data_source(self, data_source_id):
         return get_object_or_404(DataSource.objects.filter(del_flag='0'), pk=data_source_id)

@@ -6,18 +6,22 @@ from unittest.mock import patch
 from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 
 from apps.common.encrypt import encrypt_password
+from apps.dataasset.models import AssetNamespace, DataAsset
 from apps.datasource.models import DataSource
+from apps.system.models import Role, UserRole
 
 from .models import InterfaceField, InterfaceInfo, ReportInfo, ReportInterfaceRelation
 from .serializers import InterfaceInfoCreateSerializer
-from .views import InterfaceInfoViewSet, ReportInfoViewSet
+from .views import InterfaceInfoViewSet, QueryServiceView, ReportInfoViewSet, _validate_readonly_sql
 
 
 class _MockExecutor:
     def __init__(self, responses):
         self.responses = list(responses)
+        self.calls = []
 
     def execute_query(self, sql, params=None, page_size=None, offset=None):
+        self.calls.append({'sql': sql, 'page_size': page_size, 'offset': offset})
         if not self.responses:
             raise AssertionError('No mocked executor response left')
         return self.responses.pop(0)
@@ -66,6 +70,8 @@ class InterfacePublishTests(TestCase):
         self.client = APIClient()
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='tester', password='password123')
+        admin_role = Role.objects.create(role_name='管理员', role_key='admin', role_sort=0, status='0')
+        UserRole.objects.create(user=self.user, role=admin_role)
         self.data_source = DataSource.objects.create(
             name='demo-source',
             db_type='mysql',
@@ -77,6 +83,37 @@ class InterfacePublishTests(TestCase):
             params='{}',
             status='0',
         )
+
+    def test_readonly_sql_validator_should_reject_mutation_sql(self):
+        with self.assertRaises(ValueError):
+            _validate_readonly_sql('delete from demo_user')
+
+    def test_readonly_sql_validator_should_reject_multi_statement_sql(self):
+        with self.assertRaises(ValueError):
+            _validate_readonly_sql('select 1; drop table demo_user')
+
+    @patch('apps.dataservice.views.get_executor')
+    def test_query_should_cap_page_size(self, mock_get_executor):
+        executor = _MockExecutor([{'columns': ['id'], 'rows': [(1,)]}])
+        mock_get_executor.return_value = executor
+        view = QueryServiceView.as_view({'post': 'query'})
+        request = self.factory.post(
+            '/data-api/dataservice/query',
+            {
+                'dataSourceId': self.data_source.id,
+                'sql': 'select id from demo_user',
+                'pageSize': 99999,
+                'offset': 0,
+            },
+            format='json',
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['code'], 200)
+        self.assertEqual(executor.calls[0]['page_size'], 500)
 
     def test_interface_info_serializer_should_require_total_sql_when_total_enabled(self):
         serializer = InterfaceInfoCreateSerializer(data={
@@ -149,11 +186,23 @@ class InterfacePublishTests(TestCase):
         self.assertIn('filename=', response['Content-Disposition'])
 
     def test_publish_from_query_should_create_interface_and_fields(self):
+        namespace = AssetNamespace.objects.create(
+            data_source=self.data_source,
+            environment='default',
+            catalog_name='demo',
+            schema_name='',
+        )
+        asset = DataAsset.objects.create(
+            namespace=namespace,
+            object_name='demo_user',
+            display_name='用户表',
+        )
         view = InterfaceInfoViewSet.as_view({'post': 'publish_from_query'})
         request = self.factory.post(
             '/data-api/dataservice/interface-info/publish',
             {
                 'dataSourceId': self.data_source.id,
+                'assetId': asset.id,
                 'sql': 'select id, name from demo_user where dt = {{ biz_date }}',
                 'params': {'biz_date': '2026-04-19'},
                 'outputColumns': ['id', 'name'],
@@ -175,6 +224,7 @@ class InterfacePublishTests(TestCase):
         self.assertEqual(response.data['code'], 200)
         interface = InterfaceInfo.objects.get(interface_code='user_list_api')
         self.assertEqual(interface.interface_datasource, self.data_source.id)
+        self.assertEqual(interface.asset_id, asset.id)
         self.assertEqual(interface.interface_db_type, 'mysql')
         self.assertEqual(interface.interface_db_name, 'demo')
         self.assertEqual(interface.interface_sql, 'select id, name from demo_user where dt = {{ biz_date }}')
@@ -625,6 +675,8 @@ class FrontendApiIntegrationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = get_user_model().objects.create_user(username='frontend_tester', password='password123')
+        admin_role = Role.objects.create(role_name='前端管理员', role_key='admin', role_sort=0, status='0')
+        UserRole.objects.create(user=self.user, role=admin_role)
         self.client.force_authenticate(user=self.user)
         self.data_source = DataSource.objects.create(
             name='frontend-demo-source',

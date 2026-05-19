@@ -1,15 +1,62 @@
 from rest_framework.permissions import BasePermission
-from .models import UserRole
+from .models import Menu, RoleMenu, UserRole
+
+
+def _as_list(value):
+    if value in (None, '', False):
+        return []
+    if isinstance(value, str):
+        return [value]
+    return list(value)
 
 
 class HasRolePermission(BasePermission):
     def has_permission(self, request, view):
-        required = getattr(view, 'required_roles', None)
-        if not required:
-            return True
         user = request.user
         try:
-            roles = [ur.role.role_key for ur in UserRole.objects.filter(user=user).select_related('role')]
+            user_roles = list(
+                UserRole.objects.filter(
+                    user=user,
+                    del_flag='0',
+                    role__status='0',
+                    role__del_flag='0',
+                ).select_related('role')
+            )
+            roles = [ur.role.role_key for ur in user_roles]
         except Exception:
+            user_roles = []
             roles = []
-        return any(r in roles for r in required) or ('admin' in roles)
+        if 'admin' in roles:
+            return True
+
+        required_permissions = self._get_required_permissions(request, view)
+        if required_permissions:
+            role_ids = [ur.role_id for ur in user_roles]
+            granted_permissions = set(
+                Menu.objects.filter(
+                    menu_id__in=RoleMenu.objects.filter(
+                        role_id__in=role_ids,
+                        del_flag='0',
+                    ).values_list('menu_id', flat=True),
+                    del_flag='0',
+                    status='0',
+                    perms__gt='',
+                ).values_list('perms', flat=True)
+            )
+            if '*:*:*' in granted_permissions:
+                return True
+            return bool(set(required_permissions) & granted_permissions)
+
+        required = getattr(view, 'required_roles', 'common')
+        required_roles = _as_list(required)
+        if not required_roles:
+            return False
+        return any(role in roles for role in required_roles)
+
+    def _get_required_permissions(self, request, view):
+        action = getattr(view, 'action', None) or request.method.lower()
+        permission_map = getattr(view, 'permission_map', {}) or {}
+        if action in permission_map:
+            return _as_list(permission_map[action])
+        required_permissions = getattr(view, 'required_permissions', None)
+        return _as_list(required_permissions)

@@ -5,9 +5,10 @@
 ## 当前最高优先级
 
 1. 当前开发最优先要解决的事情，已明确收敛为“业务任务定义真源 + `datatask/TaskInstance` 统一任务运维纳管”。
-2. 未来 4 到 6 周的开发顺序纠偏方案，统一以 `docs/developments/development-priority-correction-2026-04-30.md` 为执行口径。
-3. 在该阶段完成前，不把任务发布、独立快照、冻结版本、复杂审批流、全量资产治理体系作为主线验收标准。
-4. 模块优先级当前固定为：`datasource / dataintegration / datadev / datatask` 第一优先级，`monitor / system` 第二优先级，`dataasset / dataservice` 第三优先级。
+2. `datasource`、`dataintegration`、`datadev` 后续开发必须按 `docs/developments/module-responsibility-execution-guide.md` 执行：三个业务模块负责业务定义、单次调试执行入口和发布任务到任务中心，实际任务执行、数据库查询、库表字段探查统一走 `apps.executors` / `apps.dbutils`。
+3. 未来 4 到 6 周的开发顺序纠偏方案，统一以 `docs/developments/development-priority-correction-2026-04-30.md` 为执行口径。
+4. 在该阶段完成前，不把独立发布中心、独立快照、冻结版本、复杂审批流、全量资产治理体系作为主线验收标准。
+5. 模块优先级当前固定为：`datasource / dataintegration / datadev / datatask` 第一优先级，`monitor / system` 第二优先级，`dataasset / dataservice` 第三优先级。
 
 ## 当前架构基线
 
@@ -18,10 +19,15 @@
    - `datatask`：Orchestration & DataOps
    - `dataasset`：Assetization & Service
 2. 平台任务边界按 ADR-012 执行：`datasource`、`dataintegration`、`datadev` 各自保留正式任务定义，`datatask.Task` 作为平台镜像，`datatask.TaskInstance` 作为唯一执行记录中心。
-3. `datasource`、`dataintegration` 与 `datadev` 已通过各自 source handler 接入 `datatask`，统一任务中心只保留任务内核与来源分发协议；其中 `datasource` 当前已将原 `task_source.py` 收敛并更名为 `task_handler.py`。
-4. `datatask` 当前通过 source handler / registry 分发来源模块执行能力；调度执行优先基于 `datatask.Task.task_config` 发布快照运行，不再默认回落到业务任务 live 配置作为执行事实来源。
-5. 数据源连接上下文统一复用 `apps.datasource.executor_info`。
-6. `dataservice` 已注册到 Django `INSTALLED_APPS` 并挂载到 `data-api/dataservice/`，数据服务前后端链路现以该入口作为唯一后端访问前缀。
+3. 三个业务模块职责按 `module-responsibility-execution-guide.md` 执行：业务模块只定义“要做什么”，`datatask` 管“什么时候跑、谁在跑、跑成什么样”，`executors/dbutils` 负责“怎么实际连接和执行”。
+4. `datasource`、`dataintegration` 与 `datadev` 已通过各自 source handler 接入 `datatask`，统一任务中心只保留任务内核与来源分发协议；其中 `datasource` 当前已将原 `task_source.py` 收敛并更名为 `task_handler.py`。
+5. `datatask` 当前通过 source handler / registry 分发来源模块执行能力；调度执行优先基于 `datatask.Task.task_config` 发布快照运行，不再默认回落到业务任务 live 配置作为执行事实来源。
+6. 数据源连接上下文统一复用 `apps.datasource.executor_info`；后续若继续演进，应优先沉淀为 datasource facade 或 dbutils 公共连接上下文，避免业务模块依赖内部文件。
+7. `dataservice` 已注册到 Django `INSTALLED_APPS` 并挂载到 `data-api/dataservice/`，数据服务前后端链路现以该入口作为唯一后端访问前缀。
+8. 后端权限基线当前已支持按视图 action 绑定菜单 `perms` 校验；主链路模块已声明 `permission_map`，`admin` 角色继续保留全量放行。
+9. Django 数据库默认读取 `backend/config/env.py` 中的 PostgreSQL 配置；生产敏感配置当前已支持通过环境变量覆盖 `SECRET_KEY`、`DEBUG`、`ALLOWED_HOSTS`、数据库连接与 Channel Layer 后端。
+10. 模块物理表名前缀当前已按模块归属收敛：`datasource.DataSource` 使用 `datasource_data_source`，`monitor` 日志表使用 `monitor_*` 前缀，历史错位表名通过迁移重命名保留数据。
+11. 前端 `views/data` 当前已按模块入口收敛：各数据模块的 `index.vue` 统一作为模块首页，列表、详情、日志、执行记录等具体功能页下沉到对应子目录，并由菜单种子的 `component` 路径精确指向。
 
 ## 当前产品口径
 
@@ -31,7 +37,7 @@
    - 数据库 / 表 / 字段发现
    - 单表采集到数据资产
    - 整库异步采集到数据资产
-2. `datasource` 模块首页当前已收敛为轻量入口页：只保留连接概览与当前关注的数据源，不再在首页同时堆叠流程说明、快捷入口区、能力清单与多块重复列表。
+2. `datasource` 模块首页当前已收敛为轻量入口页：只保留顶部统一操作入口、连接概览与当前关注的数据源，不再在首页同时堆叠重复跳转卡、流程说明、快捷入口区、能力清单与多块重复列表。
 3. `datasource` 已移除 snapshot 与 `DatabaseAssetSyncRun`；当前采集运行记录统一进入 `datatask.TaskInstance`，`datasource` 内只保留正式采集任务定义 `DataSourceCollectionTask`，且采集任务定义当前不再承载 `schedule_type`、`cron_expression`、`task_config` 等调度或平台快照字段。
 4. `datasource` 当前已完成采集链路职责收敛：`collectors.py` 只保留数据发现与元数据采集动作，任务纳管、执行分发、整库采集运行时与僵尸实例恢复统一收敛到 `task_handler.py`。
 5. `datasource` 详情页返回列表当前统一直接跳转 `/datasource/list`，不再依赖列表路由名回跳，避免菜单/动态路由状态失配时按钮报错。
@@ -57,12 +63,17 @@
 25. `docs/architecture/datatask-architecture-review-2026-04-29.md` 与 `ADR-010` 当前已完成时效性对齐：专项评审稿新增“已落实/待落实”收敛进度，`ADR-010` 中 `datasource` 接入状态补充了 2026-04-30 的阶段说明，避免历史决策描述与主干实现口径冲突。
 26. `initdata` 当前菜单种子继续保留 `/datadev` 与 `/datatask` 作为正式业务根菜单，同时显式停用历史 `/data-orchestration` 入口，菜单回归测试已按该现状对齐。
 27. 前端当前已清理未接入后端的遗留断链入口：移除 `/register` 静态路由，以及 monitor 的 `job / jobLog / logininfor` 与 `tool/gen` 相关页面和 API 封装，避免保留不可用前台代码。
-28. `dataasset` 当前已开始按“`asset*` 为主、`meta-*` 兼容保留”的方向收口：资产首页、元数据浏览页和血缘页的表选项都改为优先消费 `asset / asset-column`，同时 `asset*` 已补齐 legacy 时间过滤和表/字段写入能力。
-29. 前端当前已进一步清理未挂载后端的历史 API 封装：移除 `task-monitor`、`datataskmonitor` 与 `datastudio` 相关请求文件，避免重新引入不可用调用面。
-30. 前端构建脚本当前同时支持 `pnpm build` 与 `pnpm build:prod`，两者均执行生产构建，减少常规构建命令与项目脚本不一致导致的误用。
-31. `datatask` 当前在 source handler 执行抛异常时会稳定返回 `{ok:false,msg,data:null}` 失败 envelope 并记录服务端日志，不再让来源模块异常直接冒泡成任务中心 500。
-32. 通用 `BaseViewSet.perform_create` 当前默认禁止按主键或唯一字段静默复用旧记录；如确需兼容旧式 create-upsert，必须由子类显式开启 `create_reuse_existing`。
-33. `datadev` 模块首页当前已收敛到与 `dataasset`、`dataservice`、`dataintegration` 一致的浅色模块首页风格：只保留开发规模、核心入口、推荐流程和近期加工作业，不再使用独立渐变营销式首页。
+28. 前端当前已清理历史 `views/data/orchestration/` 页面及任务首页中的“进入依赖编排”断链按钮；任务运维入口统一保留在 `views/data/task/`。
+29. `dataasset` 当前已开始按“`asset*` 为主、`meta-*` 兼容保留”的方向收口：资产首页、元数据浏览页和血缘页的表选项都改为优先消费 `asset / asset-column`，同时 `asset*` 已补齐 legacy 时间过滤和表/字段写入能力。
+30. 前端当前已进一步清理未挂载后端的历史 API 封装：移除 `task-monitor`、`datataskmonitor` 与 `datastudio` 相关请求文件，避免重新引入不可用调用面。
+31. 前端构建脚本当前同时支持 `pnpm build` 与 `pnpm build:prod`，两者均执行生产构建，减少常规构建命令与项目脚本不一致导致的误用。
+32. `datatask` 当前在 source handler 执行抛异常时会稳定返回 `{ok:false,msg,data:null}` 失败 envelope 并记录服务端日志，不再让来源模块异常直接冒泡成任务中心 500。
+33. 通用 `BaseViewSet.perform_create` 当前默认禁止按主键或唯一字段静默复用旧记录；如确需兼容旧式 create-upsert，必须由子类显式开启 `create_reuse_existing`。
+34. `datadev` 模块首页当前已收敛到与 `dataasset`、`dataservice`、`dataintegration` 一致的浅色模块首页风格：只保留开发规模、核心入口、推荐流程和近期加工作业，不再使用独立渐变营销式首页。
+35. `dataservice` 查询与接口执行当前增加只读 SQL 治理：仅允许单条 SELECT / WITH / SHOW / DESCRIBE / EXPLAIN 类语句，并限制普通查询与导出最大行数。
+36. `dataservice.InterfaceInfo` 当前可选绑定 `dataasset.DataAsset` 作为资产锚点，发布接口时会校验资产所属数据源与接口数据源一致。
+37. `dataintegration` 的任务中心调度治理更新不再反写业务任务草稿中的 `schedule_type` / `cron_expression`；业务侧字段只作为发布前配置，调度事实源保留在 `datatask.Task`。
+38. 前端数据模块页面组织当前已收敛：`datasource`、`datadev`、`dataintegration`、`dataservice`、`datatask` 的首页保持在模块根 `index.vue`，具体功能页按 `list/detail/ide/model/query/interface/instances` 等子目录组织。
 
 ## 当前文档口径
 
@@ -71,6 +82,7 @@
 3. 历史信息统一进入 `docs/archive/`，不再继续堆在状态页与 README 中。
 4. `docs/architecture/datatask-architecture-review-2026-04-29.md` 已记录本轮 `datatask` 专项评审结论，当前明确后续收敛方向为“`Task` 仅承载发布纳管关系与调度索引，完整业务定义继续留在来源模块；如需冻结发布版本，再由独立快照层承接”。
 5. `docs/architecture/platform-target-architecture-2026-04-30.md` 已新增平台目标架构图与模块职责图；当前阶段口径已进一步收敛为“先完成业务任务定义真源 + `datatask/TaskInstance` 统一纳管”，暂不把任务发布、独立快照和版本冻结作为当前主线交付。
-6. `docs/developments/development-priority-correction-2026-04-30.md` 已新增开发顺序纠偏方案，并已提升为当前文档入口中的优先阅读项，用于约束未来 4 到 6 周的开发顺序、非目标范围和模块优先级。
-7. 项目根 README、前后端 README 与前端开发规范当前已完成实现口径校准：`datasource` 明确保留采集到资产能力，前端免登录白名单明确仅保留 `/login`。
-8. `docs/adr/README.md` 当前已按新编写规则重新分为“当前基线 / 背景决策 / 历史阶段口径 / 已删除旧 ADR”；ADR-006、ADR-008、ADR-009、ADR-010 已标注部分被 ADR-012 与当前主干实现覆盖，完全对应已下线 `apps.dataetl` 的 ADR-002 已删除。
+6. `docs/developments/module-responsibility-execution-guide.md` 已作为后续开发新的指导手册，明确三个业务模块、`datatask`、`executors`、`dbutils` 的职责边界与禁止事项。
+7. `docs/developments/development-priority-correction-2026-04-30.md` 已新增开发顺序纠偏方案，并已提升为当前文档入口中的优先阅读项，用于约束未来 4 到 6 周的开发顺序、非目标范围和模块优先级。
+8. 项目根 README、前后端 README 与前端开发规范当前已完成实现口径校准：`datasource` 明确保留采集到资产能力，前端免登录白名单明确仅保留 `/login`。
+9. `docs/adr/README.md` 当前已按新编写规则重新分为“当前基线 / 背景决策 / 历史阶段口径 / 已删除旧 ADR”；ADR-006、ADR-008、ADR-009、ADR-010 已标注部分被 ADR-012 与当前主干实现覆盖，完全对应已下线 `apps.dataetl` 的 ADR-002 已删除。

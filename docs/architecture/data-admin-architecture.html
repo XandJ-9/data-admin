@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Data Admin 架构图</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --ink: #1f2d3d;
+      --muted: #687789;
+      --line: #dce3ec;
+      --blue: #2f80ed;
+      --green: #18a058;
+      --orange: #d9822b;
+      --purple: #7c5cc4;
+      --cyan: #1296a3;
+      --red: #c94f4f;
+      --shadow: 0 16px 34px rgba(31, 45, 61, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    .page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+
+    .hero-main,
+    .hero-side,
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-main {
+      padding: 28px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #eaf3ff;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 16px 0 10px;
+      font-size: 32px;
+      line-height: 1.25;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .hero-main p {
+      max-width: 920px;
+      margin: 0;
+      line-height: 1.85;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .hero-side {
+      padding: 22px;
+    }
+
+    .hero-side h2,
+    .panel h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+
+    .hero-side ul {
+      margin: 14px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .panel {
+      margin-bottom: 18px;
+      padding: 22px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .section-head p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: #fff;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .dot.green { background: var(--green); }
+    .dot.orange { background: var(--orange); }
+    .dot.purple { background: var(--purple); }
+    .dot.cyan { background: var(--cyan); }
+
+    .diagram-shell {
+      overflow-x: auto;
+      padding: 8px 0 4px;
+    }
+
+    svg {
+      display: block;
+      min-width: 1180px;
+      width: 100%;
+      height: auto;
+    }
+
+    .svg-title {
+      font-size: 18px;
+      font-weight: 700;
+      fill: var(--ink);
+    }
+
+    .layer-label {
+      font-size: 13px;
+      font-weight: 700;
+      fill: #465568;
+    }
+
+    .node-title {
+      font-size: 15px;
+      font-weight: 700;
+      fill: var(--ink);
+    }
+
+    .node-sub {
+      font-size: 12px;
+      fill: #66768a;
+    }
+
+    .arrow-label {
+      font-size: 12px;
+      fill: #536273;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .module-card {
+      min-height: 180px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcff;
+    }
+
+    .module-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .module-card small {
+      display: inline-flex;
+      margin-bottom: 12px;
+      color: var(--muted);
+    }
+
+    .module-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 13px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      counter-reset: step;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 128px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .flow-step::before {
+      counter-increment: step;
+      content: counter(step, decimal-leading-zero);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      background: #eaf3ff;
+      color: var(--blue);
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .flow-step strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .flow-step p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 13px;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .note {
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fbfcff;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .hero,
+      .matrix,
+      .notes {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .flow {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page {
+        padding: 14px;
+      }
+
+      .hero,
+      .matrix,
+      .flow,
+      .notes {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 26px;
+      }
+
+      .section-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="hero-main">
+        <span class="eyebrow">Data Admin Architecture</span>
+        <h1>统一数据管理平台架构图</h1>
+        <p>
+          当前项目以 Django Apps + Vue3 前端为主干，按连接与发现、数据集成、数据开发、任务运维、资产与服务五个阶段组织。
+          现阶段最重要的设计原则是：业务任务定义留在来源模块，统一任务台账、调度索引和执行实例收敛到 datatask。
+        </p>
+      </div>
+      <aside class="hero-side">
+        <h2>当前建设口径</h2>
+        <ul>
+          <li>先完成任务定义真源与统一任务运维纳管。</li>
+          <li>dataasset 作为语义锚点，dataservice 作为消费出口。</li>
+          <li>通过 source handler / facade 降低模块间反向依赖。</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>平台总览</h2>
+          <p>从用户入口、应用模块、平台运行时、基础设施到外部数据系统的整体关系。</p>
+        </div>
+        <div class="legend" aria-label="图例">
+          <span><i class="dot"></i>应用模块</span>
+          <span><i class="dot green"></i>运行时</span>
+          <span><i class="dot orange"></i>数据链路</span>
+          <span><i class="dot purple"></i>治理与消费</span>
+          <span><i class="dot cyan"></i>平台基建</span>
+        </div>
+      </div>
+
+      <div class="diagram-shell">
+        <svg viewBox="0 0 1280 760" role="img" aria-label="Data Admin 平台架构图">
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#7d8ca0"></path>
+            </marker>
+            <style>
+              .box { fill: #ffffff; stroke: #dce3ec; stroke-width: 1.5; rx: 8; }
+              .box-blue { fill: #f0f7ff; stroke: #9bc7ff; }
+              .box-green { fill: #edf9f2; stroke: #a8dfbd; }
+              .box-orange { fill: #fff5e9; stroke: #efc58f; }
+              .box-purple { fill: #f4f0ff; stroke: #c9b8f0; }
+              .box-cyan { fill: #ecfbfd; stroke: #96d9df; }
+              .band { fill: #f8fafc; stroke: #e1e7ef; stroke-width: 1; rx: 10; }
+              .arrow { stroke: #7d8ca0; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+              .arrow-soft { stroke: #a0adbd; stroke-width: 1.6; stroke-dasharray: 6 5; fill: none; marker-end: url(#arrow); }
+            </style>
+          </defs>
+
+          <rect x="20" y="20" width="1240" height="104" class="band"></rect>
+          <text x="42" y="52" class="layer-label">用户与接入层</text>
+          <rect x="86" y="68" width="178" height="36" class="box"></rect>
+          <text x="112" y="91" class="node-title">平台运营人员</text>
+          <rect x="318" y="68" width="178" height="36" class="box"></rect>
+          <text x="346" y="91" class="node-title">数据消费者</text>
+          <rect x="550" y="58" width="210" height="56" class="box-blue"></rect>
+          <text x="592" y="82" class="node-title">frontend</text>
+          <text x="593" y="101" class="node-sub">Vue3 / Element Plus / Pinia</text>
+
+          <rect x="20" y="150" width="1240" height="210" class="band"></rect>
+          <text x="42" y="182" class="layer-label">平台应用层 Django Apps</text>
+          <rect x="72" y="210" width="128" height="62" class="box-cyan"></rect>
+          <text x="100" y="235" class="node-title">system</text>
+          <text x="91" y="254" class="node-sub">认证 / 菜单 / RBAC</text>
+
+          <rect x="234" y="210" width="148" height="62" class="box-blue"></rect>
+          <text x="272" y="235" class="node-title">datasource</text>
+          <text x="252" y="254" class="node-sub">连接 / 发现 / 采集</text>
+
+          <rect x="416" y="210" width="158" height="62" class="box-orange"></rect>
+          <text x="450" y="235" class="node-title">dataintegration</text>
+          <text x="444" y="254" class="node-sub">贴源同步 / 入仓</text>
+
+          <rect x="608" y="210" width="138" height="62" class="box-orange"></rect>
+          <text x="649" y="235" class="node-title">datadev</text>
+          <text x="630" y="254" class="node-sub">模型 / SQL / Python</text>
+
+          <rect x="780" y="210" width="138" height="62" class="box-green"></rect>
+          <text x="819" y="235" class="node-title">datatask</text>
+          <text x="805" y="254" class="node-sub">任务 / 调度 / 实例</text>
+
+          <rect x="952" y="210" width="126" height="62" class="box-purple"></rect>
+          <text x="985" y="235" class="node-title">dataasset</text>
+          <text x="975" y="254" class="node-sub">资产 / 血缘 / 治理</text>
+
+          <rect x="1112" y="210" width="126" height="62" class="box-purple"></rect>
+          <text x="1137" y="235" class="node-title">dataservice</text>
+          <text x="1132" y="254" class="node-sub">查询 / 接口 / 报表</text>
+
+          <rect x="72" y="300" width="128" height="40" class="box-cyan"></rect>
+          <text x="108" y="325" class="node-title">monitor</text>
+          <rect x="234" y="300" width="148" height="40" class="box-cyan"></rect>
+          <text x="274" y="325" class="node-title">terminal</text>
+
+          <rect x="20" y="390" width="1240" height="136" class="band"></rect>
+          <text x="42" y="422" class="layer-label">平台运行时与基础设施</text>
+          <rect x="86" y="450" width="190" height="50" class="box-green"></rect>
+          <text x="122" y="472" class="node-title">Task / Dependency</text>
+          <text x="125" y="491" class="node-sub">统一任务台账与依赖</text>
+          <rect x="324" y="450" width="190" height="50" class="box-green"></rect>
+          <text x="367" y="472" class="node-title">TaskInstance</text>
+          <text x="356" y="491" class="node-sub">统一执行记录中心</text>
+          <rect x="562" y="450" width="190" height="50" class="box-green"></rect>
+          <text x="594" y="472" class="node-title">Source Handler</text>
+          <text x="585" y="491" class="node-sub">来源注册与执行归一</text>
+          <rect x="800" y="450" width="190" height="50" class="box-cyan"></rect>
+          <text x="836" y="472" class="node-title">executors / dbutils</text>
+          <text x="850" y="491" class="node-sub">执行器与数据库适配</text>
+          <rect x="1038" y="450" width="170" height="50" class="box-cyan"></rect>
+          <text x="1069" y="472" class="node-title">common / utils</text>
+          <text x="1066" y="491" class="node-sub">分页 / 响应 / 横切能力</text>
+
+          <rect x="20" y="556" width="1240" height="154" class="band"></rect>
+          <text x="42" y="588" class="layer-label">数据与外部系统</text>
+          <rect x="74" y="622" width="170" height="52" class="box-orange"></rect>
+          <text x="104" y="645" class="node-title">外部数据源</text>
+          <text x="88" y="664" class="node-sub">MySQL / PG / Trino / StarRocks</text>
+          <rect x="292" y="622" width="118" height="52" class="box-orange"></rect>
+          <text x="330" y="645" class="node-title">ODS</text>
+          <text x="314" y="664" class="node-sub">贴源层</text>
+          <rect x="458" y="622" width="118" height="52" class="box-orange"></rect>
+          <text x="496" y="645" class="node-title">DWD</text>
+          <text x="475" y="664" class="node-sub">明细标准层</text>
+          <rect x="624" y="622" width="118" height="52" class="box-orange"></rect>
+          <text x="662" y="645" class="node-title">DWS</text>
+          <text x="642" y="664" class="node-sub">主题汇总层</text>
+          <rect x="790" y="622" width="118" height="52" class="box-orange"></rect>
+          <text x="829" y="645" class="node-title">ADS</text>
+          <text x="808" y="664" class="node-sub">应用服务层</text>
+          <rect x="956" y="622" width="128" height="52" class="box-purple"></rect>
+          <text x="990" y="645" class="node-title">META</text>
+          <text x="974" y="664" class="node-sub">资产语义存储</text>
+          <rect x="1132" y="622" width="96" height="52" class="box-purple"></rect>
+          <text x="1158" y="645" class="node-title">API</text>
+          <text x="1150" y="664" class="node-sub">消费出口</text>
+
+          <path d="M264 86 H550" class="arrow"></path>
+          <path d="M496 86 H550" class="arrow"></path>
+          <path d="M655 114 V150" class="arrow"></path>
+
+          <path d="M760 86 C930 88 1025 125 1175 210" class="arrow-soft"></path>
+          <path d="M308 272 V622" class="arrow"></path>
+          <path d="M382 241 H416" class="arrow"></path>
+          <path d="M574 241 H608" class="arrow"></path>
+          <path d="M746 241 H780" class="arrow"></path>
+          <path d="M918 241 H952" class="arrow"></path>
+          <path d="M1078 241 H1112" class="arrow"></path>
+
+          <path d="M308 272 C380 330 505 365 657 450" class="arrow-soft"></path>
+          <path d="M495 272 C540 330 615 380 657 450" class="arrow-soft"></path>
+          <path d="M677 272 C685 335 680 390 657 450" class="arrow-soft"></path>
+          <path d="M849 272 V450" class="arrow"></path>
+          <path d="M849 272 C760 350 675 390 657 450" class="arrow-soft"></path>
+
+          <path d="M849 272 C880 335 888 398 895 450" class="arrow"></path>
+          <path d="M1015 272 V622" class="arrow"></path>
+          <path d="M1175 272 V622" class="arrow"></path>
+          <path d="M990 648 H1132" class="arrow"></path>
+
+          <path d="M244 648 H292" class="arrow"></path>
+          <path d="M410 648 H458" class="arrow"></path>
+          <path d="M576 648 H624" class="arrow"></path>
+          <path d="M742 648 H790" class="arrow"></path>
+          <path d="M908 648 H956" class="arrow"></path>
+
+          <text x="386" y="230" class="arrow-label">同步配置</text>
+          <text x="578" y="230" class="arrow-label">入仓后开发</text>
+          <text x="751" y="230" class="arrow-label">发布纳管</text>
+          <text x="922" y="230" class="arrow-label">沉淀资产</text>
+          <text x="1081" y="230" class="arrow-label">服务化</text>
+        </svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>模块职责矩阵</h2>
+          <p>按当前主干实现与 ADR 口径整理出的职责边界。</p>
+        </div>
+      </div>
+      <div class="matrix">
+        <article class="module-card">
+          <strong>datasource</strong>
+          <small>Connection & Discovery</small>
+          <p>维护数据源、连接测试、库表字段发现，并通过采集任务把源端元数据同步到资产侧。</p>
+        </article>
+        <article class="module-card">
+          <strong>dataintegration</strong>
+          <small>Data Integration</small>
+          <p>维护贴源同步任务、源目标映射和入仓策略；执行实例统一进入 datatask。</p>
+        </article>
+        <article class="module-card">
+          <strong>datadev</strong>
+          <small>Data Development</small>
+          <p>承载模型设计、SQL/Python 加工作业、开发态版本与发布前治理卡点。</p>
+        </article>
+        <article class="module-card">
+          <strong>datatask</strong>
+          <small>Orchestration & DataOps</small>
+          <p>作为统一任务镜像、依赖、调度、执行和 TaskInstance 实例中心，不直接持有业务真身。</p>
+        </article>
+        <article class="module-card">
+          <strong>dataasset</strong>
+          <small>Assetization</small>
+          <p>沉淀资产目录、元数据、标签、血缘与治理信息，是平台统一语义锚点。</p>
+        </article>
+        <article class="module-card">
+          <strong>dataservice</strong>
+          <small>Service</small>
+          <p>提供查询、接口、报表、导出和调用审计能力，是数据消费出口。</p>
+        </article>
+        <article class="module-card">
+          <strong>system / monitor</strong>
+          <small>Control Plane</small>
+          <p>负责认证、菜单、角色、操作日志、服务器监控与平台基础控制面。</p>
+        </article>
+        <article class="module-card">
+          <strong>executors / dbutils</strong>
+          <small>Foundation</small>
+          <p>统一数据源执行器、数据库访问适配、SQL 查询执行和底层连接封装。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>主链路</h2>
+          <p>平台从接入数据源到形成数据服务的推荐流向。</p>
+        </div>
+      </div>
+      <div class="flow">
+        <article class="flow-step">
+          <strong>连接与发现</strong>
+          <p>在 datasource 维护连接，完成连通性测试、库表字段发现和采集任务定义。</p>
+        </article>
+        <article class="flow-step">
+          <strong>贴源入仓</strong>
+          <p>在 dataintegration 配置源表、目标表、同步策略和字段映射。</p>
+        </article>
+        <article class="flow-step">
+          <strong>建模加工</strong>
+          <p>在 datadev 设计模型，编写 SQL/Python 作业，发布稳定开发事实。</p>
+        </article>
+        <article class="flow-step">
+          <strong>统一运维</strong>
+          <p>datatask 统一纳管任务镜像、依赖、调度和执行实例。</p>
+        </article>
+        <article class="flow-step">
+          <strong>资产与服务</strong>
+          <p>dataasset 形成语义资产，dataservice 将 ADS 或查询能力转成接口与报表。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>架构建议</h2>
+          <p>结合当前代码评审，建议优先补齐这些平台化边界。</p>
+        </div>
+      </div>
+      <div class="notes">
+        <article class="note">
+          <strong>权限基线</strong>
+          <p>后端 action 需要真正绑定菜单 perms、角色和数据权限，避免只靠前端菜单隐藏。</p>
+        </article>
+        <article class="note">
+          <strong>生产配置</strong>
+          <p>拆分 dev/prod settings，密钥、数据库、DEBUG、ALLOWED_HOSTS、Channel Layer 全部环境化。</p>
+        </article>
+        <article class="note">
+          <strong>查询治理</strong>
+          <p>dataservice 建议补参数化、只读连接、SQL 超时、最大行数、导出限制与审计告警。</p>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

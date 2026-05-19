@@ -175,7 +175,7 @@ import {
   taskTypeLabel,
   taskTypeTag,
   triggerModeLabel,
-} from './taskMeta'
+} from '../taskMeta'
 
 const route = useRoute()
 const router = useRouter()

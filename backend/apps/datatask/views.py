@@ -25,6 +25,14 @@ from .services import TaskService
 
 class TaskViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'datatask:task:list',
+        'model_list': 'datatask:task:list',
+        'retrieve': 'datatask:task:view',
+        'instances': 'datatask:task:view',
+        'update': 'datatask:task:edit',
+        'execute_task': 'datatask:task:execute',
+    }
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
     pagination_class = StandardPagination
@@ -93,6 +101,14 @@ class TaskViewSet(BaseViewSet):
 
 class TaskDependencyViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'datatask:dependency:query',
+        'model_list': 'datatask:dependency:query',
+        'retrieve': 'datatask:dependency:query',
+        'create': 'datatask:dependency:query',
+        'update': 'datatask:dependency:query',
+        'destroy': 'datatask:dependency:query',
+    }
     queryset = TaskDependency.objects.select_related('upstream_task', 'downstream_task').all()
     serializer_class = TaskDependencySerializer
     pagination_class = None
@@ -191,6 +207,11 @@ class TaskDependencyViewSet(BaseViewSet):
 
 class TaskInstanceViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'datatask:instance:list',
+        'model_list': 'datatask:instance:list',
+        'retrieve': 'datatask:instance:list',
+    }
     queryset = TaskInstance.objects.select_related('task').all()
     serializer_class = TaskInstanceSerializer
     pagination_class = StandardPagination

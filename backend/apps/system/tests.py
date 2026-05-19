@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from io import StringIO
+from types import SimpleNamespace
 from django.core.management import call_command
 from django.test import TestCase
 from django.core.cache import cache
@@ -9,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .models import Menu, Role, RoleMenu, UserRole
+from .permission import HasRolePermission
 from .views.core import BaseViewSet, GetInfoView, LoginView
 
 
@@ -136,6 +138,60 @@ class GetInfoViewTests(TestCase):
             response.data['permissions'],
             ['dataintegration:task:view', 'datatask:task:list'],
         )
+
+
+class HasRolePermissionTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.permission = HasRolePermission()
+        self.user = get_user_model().objects.create_user(username='perm_user', password='password123')
+        self.role = Role.objects.create(
+            role_name='任务角色',
+            role_key='task_operator',
+            role_sort=1,
+            status='0',
+            create_by='tester',
+        )
+        UserRole.objects.create(user=self.user, role=self.role, create_by='tester')
+
+    def test_should_allow_action_when_role_has_menu_permission(self):
+        menu = Menu.objects.create(
+            menu_name='任务执行',
+            order_num=1,
+            menu_type='F',
+            perms='datatask:task:execute',
+            status='0',
+            create_by='tester',
+        )
+        RoleMenu.objects.create(role=self.role, menu=menu, create_by='tester')
+        request = self.factory.post('/data-api/datatask/task/1/execute')
+        request.user = self.user
+        view = SimpleNamespace(action='execute_task', permission_map={'execute_task': 'datatask:task:execute'})
+
+        self.assertTrue(self.permission.has_permission(request, view))
+
+    def test_should_deny_action_when_role_lacks_menu_permission(self):
+        request = self.factory.post('/data-api/datatask/task/1/execute')
+        request.user = self.user
+        view = SimpleNamespace(action='execute_task', permission_map={'execute_task': 'datatask:task:execute'})
+
+        self.assertFalse(self.permission.has_permission(request, view))
+
+    def test_admin_role_should_bypass_menu_permission(self):
+        admin_role = Role.objects.create(
+            role_name='管理员',
+            role_key='admin',
+            role_sort=0,
+            status='0',
+            create_by='tester',
+        )
+        admin_user = get_user_model().objects.create_user(username='admin_perm_user', password='password123')
+        UserRole.objects.create(user=admin_user, role=admin_role, create_by='tester')
+        request = self.factory.post('/data-api/datatask/task/1/execute')
+        request.user = admin_user
+        view = SimpleNamespace(action='execute_task', permission_map={'execute_task': 'datatask:task:execute'})
+
+        self.assertTrue(self.permission.has_permission(request, view))
 
 
 class LoginViewTests(TestCase):

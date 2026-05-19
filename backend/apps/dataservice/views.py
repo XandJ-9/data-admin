@@ -8,6 +8,7 @@ from apps.system.views.core import BaseViewSet, BaseViewMixin
 from apps.system.permission import HasRolePermission
 from apps.system.models import User
 from apps.datasource.models import DataSource
+from apps.dataasset.models import DataAsset
 from .models import QueryLog
 from .serializers import (
     DataServiceQuerySerializer, DataServiceQueryLogSerializer, InterfacePublishSerializer,
@@ -28,6 +29,85 @@ from openpyxl import load_workbook
 from apps.datasource.executor_info import build_executor_info
 
 import time
+import re
+
+QUERY_MAX_PAGE_SIZE = 500
+EXPORT_MAX_PAGE_SIZE = 10000
+READONLY_SQL_PREFIXES = ('select', 'with', 'show', 'describe', 'desc', 'explain')
+BLOCKED_SQL_KEYWORDS = (
+    'insert', 'update', 'delete', 'drop', 'alter', 'truncate', 'create', 'replace', 'merge',
+    'grant', 'revoke', 'call', 'execute', 'exec', 'use', 'set', 'load', 'unload', 'copy',
+)
+
+
+def _strip_sql_comments(sql_text: str) -> str:
+    without_block_comments = re.sub(r'/\*.*?\*/', ' ', sql_text or '', flags=re.S)
+    return re.sub(r'--.*?(\r?\n|$)', ' ', without_block_comments)
+
+
+def _split_sql_statements(sql_text: str) -> list[str]:
+    statements = []
+    current = []
+    quote_char = ''
+    escaped = False
+    for char in sql_text or '':
+        if quote_char:
+            current.append(char)
+            if escaped:
+                escaped = False
+                continue
+            if char == '\\':
+                escaped = True
+                continue
+            if char == quote_char:
+                quote_char = ''
+            continue
+        if char in ("'", '"'):
+            quote_char = char
+            current.append(char)
+            continue
+        if char == ';':
+            statement = ''.join(current).strip()
+            if statement:
+                statements.append(statement)
+            current = []
+            continue
+        current.append(char)
+    statement = ''.join(current).strip()
+    if statement:
+        statements.append(statement)
+    return statements
+
+
+def _mask_string_literals(sql_text: str) -> str:
+    return re.sub(r"'(?:''|[^'])*'|\"(?:\\\"|[^\"])*\"", "''", sql_text or '')
+
+
+def _validate_readonly_sql(sql_text: str, *, label: str = 'SQL') -> str:
+    cleaned_sql = _strip_sql_comments(sql_text).strip()
+    if not cleaned_sql:
+        raise ValueError(f'{label}不能为空')
+    statements = _split_sql_statements(cleaned_sql)
+    if len(statements) != 1:
+        raise ValueError(f'{label}仅允许单条只读语句')
+    statement = statements[0].strip()
+    normalized_sql = _mask_string_literals(statement).lower()
+    first_word_match = re.match(r'^\s*([a-z]+)', normalized_sql)
+    first_word = first_word_match.group(1) if first_word_match else ''
+    if first_word not in READONLY_SQL_PREFIXES:
+        raise ValueError(f'{label}仅允许 SELECT / WITH / SHOW / DESCRIBE / EXPLAIN 只读语句')
+    blocked_pattern = r'\b(' + '|'.join(re.escape(keyword) for keyword in BLOCKED_SQL_KEYWORDS) + r')\b'
+    if re.search(blocked_pattern, normalized_sql):
+        raise ValueError(f'{label}包含非只读关键字，已拒绝执行')
+    return statement
+
+
+def _normalize_page_size(value, *, default: int, maximum: int) -> int:
+    try:
+        page_size = int(value if value not in (None, '') else default)
+    except (TypeError, ValueError):
+        page_size = default
+    return max(1, min(page_size, maximum))
 
 def _render_sql(sql_raw: str, params_map: dict, default_map: dict = {}):
     context_map = {**default_map, **(params_map or {})}
@@ -64,8 +144,32 @@ def _normalize_output_columns(columns):
     return normalized_columns
 
 
+def _get_asset_anchor(asset_id):
+    if asset_id in (None, ''):
+        return None
+    try:
+        return DataAsset.objects.select_related('namespace', 'namespace__data_source').get(id=asset_id, del_flag='0')
+    except DataAsset.DoesNotExist:
+        raise ValueError('资产锚点不存在')
+
+
+def _apply_asset_anchor(validated_data: dict) -> None:
+    asset = _get_asset_anchor(validated_data.get('asset_id'))
+    if asset is None:
+        return
+    data_source = asset.namespace.data_source
+    validated_data['interface_datasource'] = data_source.id
+    validated_data.setdefault('interface_db_type', data_source.db_type)
+    if not str(validated_data.get('interface_db_name') or '').strip():
+        validated_data['interface_db_name'] = asset.namespace.display_name or data_source.db_name
+
+
 class QueryServiceView(BaseViewMixin, ViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'query': 'dataservice:sql:query',
+        'export': 'dataservice:sql:query',
+    }
 
     # 使用 POST /dataservice/query 执行查询
     def query(self, request):
@@ -89,7 +193,7 @@ class QueryServiceView(BaseViewMixin, ViewSet):
 
         # 先渲染模板 SQL
         try:
-            rendered_sql = _render_sql(sql_raw, params_map)
+            rendered_sql = _validate_readonly_sql(_render_sql(sql_raw, params_map))
         except Exception as e:
             status_flag = 'fail'
             error_msg = str(e)
@@ -101,7 +205,7 @@ class QueryServiceView(BaseViewMixin, ViewSet):
         try:
             res = ex.execute_query(
                 sql=rendered_sql,
-                page_size=vd.get('pageSize', 100),
+                page_size=_normalize_page_size(vd.get('pageSize'), default=100, maximum=QUERY_MAX_PAGE_SIZE),
                 offset=vd.get('offset', 0),
             )
             return self.data(res)
@@ -138,7 +242,7 @@ class QueryServiceView(BaseViewMixin, ViewSet):
 
         # 渲染模板 SQL
         try:
-            rendered_sql = _render_sql(sql_raw, params_map)
+            rendered_sql = _validate_readonly_sql(_render_sql(sql_raw, params_map))
         except Exception as e:
             status_flag = 'fail'
             error_msg = str(e)
@@ -150,7 +254,7 @@ class QueryServiceView(BaseViewMixin, ViewSet):
         try:
             res = ex.execute_query(
                 sql=rendered_sql,
-                page_size=vd.get('pageSize', 10000),
+                page_size=_normalize_page_size(vd.get('pageSize'), default=EXPORT_MAX_PAGE_SIZE, maximum=EXPORT_MAX_PAGE_SIZE),
                 offset=vd.get('offset', 0),
             )
         except Exception as e:
@@ -174,6 +278,11 @@ class QueryServiceView(BaseViewMixin, ViewSet):
 
 class QueryLogViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataservice:querylog:query',
+        'model_list': 'dataservice:querylog:query',
+        'retrieve': 'dataservice:querylog:query',
+    }
     queryset = QueryLog.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = DataServiceQueryLogSerializer
 
@@ -189,6 +298,23 @@ class QueryLogViewSet(BaseViewSet):
 
 class InterfaceInfoViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataservice:interface:query',
+        'model_list': 'dataservice:interface:query',
+        'retrieve': 'dataservice:interface:view',
+        'create': 'dataservice:interface:add',
+        'publish_from_query': 'dataservice:interface:add',
+        'import_meta': 'dataservice:interface:add',
+        'update': 'dataservice:interface:edit',
+        'update_by_body': 'dataservice:interface:edit',
+        'change_status': 'dataservice:interface:edit',
+        'destroy': 'dataservice:interface:remove',
+        'test_by_id': 'dataservice:interface:view',
+        'execute_by_id': 'dataservice:interface:view',
+        'export_by_id': 'dataservice:interface:view',
+        'export_meta': 'dataservice:interface:view',
+        'export_by_body': 'dataservice:interface:view',
+    }
     queryset = InterfaceInfo.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = InterfaceInfoSerializer
     update_body_serializer_class = InterfaceInfoUpdateSerializer
@@ -221,6 +347,10 @@ class InterfaceInfoViewSet(BaseViewSet):
         if username and not str(serializer.validated_data.get('user_name') or '').strip():
             serializer.validated_data['user_name'] = username
         try:
+            _apply_asset_anchor(serializer.validated_data)
+        except ValueError as exc:
+            raise ValidationError(str(exc))
+        try:
             super().perform_create(serializer)
         except IntegrityError as exc:
             if 'interface_code' in str(exc).lower() or 'unique' in str(exc).lower():
@@ -236,6 +366,10 @@ class InterfaceInfoViewSet(BaseViewSet):
         current_owner = getattr(serializer.instance, 'user_name', '') if serializer.instance else ''
         if not str(serializer.validated_data.get('user_name') or '').strip():
             serializer.validated_data['user_name'] = current_owner or username
+        try:
+            _apply_asset_anchor(serializer.validated_data)
+        except ValueError as exc:
+            raise ValidationError(str(exc))
         try:
             super().perform_update(serializer)
         except IntegrityError as exc:
@@ -300,9 +434,17 @@ class InterfaceInfoViewSet(BaseViewSet):
             return self.error('接口编码已存在，请更换后再发布')
 
         try:
+            _validate_readonly_sql(validated_data['sql'])
+            if validated_data.get('totalSql'):
+                _validate_readonly_sql(validated_data.get('totalSql'), label='合计SQL')
             data_source = DataSource.objects.get(id=validated_data['dataSourceId'], del_flag='0')
+            asset_anchor = _get_asset_anchor(validated_data.get('assetId'))
+            if asset_anchor is not None and asset_anchor.data_source_id != data_source.id:
+                return self.error('资产锚点所属数据源与接口数据源不一致')
         except DataSource.DoesNotExist:
             return self.not_found('数据源不存在')
+        except ValueError as exc:
+            return self.error(str(exc))
 
         try:
             output_columns = _normalize_output_columns(validated_data.get('outputColumns'))
@@ -317,6 +459,7 @@ class InterfaceInfoViewSet(BaseViewSet):
                 interface_name=validated_data['interfaceName'],
                 interface_code=validated_data['interfaceCode'],
                 interface_desc=validated_data.get('interfaceDesc') or '由 SQL 查询发布',
+                asset=asset_anchor,
                 interface_db_type=data_source.db_type,
                 interface_db_name=data_source.db_name,
                 interface_sql=validated_data['sql'],
@@ -372,7 +515,7 @@ class InterfaceInfoViewSet(BaseViewSet):
 
         return self.data({'interfaceId': interface.id})
 
-    def _execute_interface_payload(self, request, interface, page_size, offset, record_log=True):
+    def _execute_interface_payload(self, request, interface, page_size, offset, record_log=True, max_page_size=QUERY_MAX_PAGE_SIZE):
         if interface.enable != '1':
             return {'code': '-1', 'message': '接口已下线，不能执行查询'}
 
@@ -395,13 +538,16 @@ class InterfaceInfoViewSet(BaseViewSet):
         params_map = request.data.get('params') or None
 
         try:
-            rendered_sql = _render_sql(sql_raw, params_map)
-            rendered_total_sql = _render_sql(total_sql_raw, params_map) if interface.is_total == '1' and total_sql_raw else None
+            rendered_sql = _validate_readonly_sql(_render_sql(sql_raw, params_map))
+            rendered_total_sql = (
+                _validate_readonly_sql(_render_sql(total_sql_raw, params_map), label='合计SQL')
+                if interface.is_total == '1' and total_sql_raw else None
+            )
             wrapper = InterfaceQueryWrapper(
                 interface=interface,
                 executor=ex,
                 offset=offset,
-                page_size=page_size,
+                page_size=_normalize_page_size(page_size, default=100, maximum=max_page_size),
             )
             result = wrapper.execute(rendered_sql, rendered_total_sql)
             if result.get('code') != '0':
@@ -450,6 +596,7 @@ class InterfaceInfoViewSet(BaseViewSet):
             obj,
             page_size=int(request.data.get('pageSize') or 10000),
             offset=int(request.data.get('offset') or 0),
+            max_page_size=EXPORT_MAX_PAGE_SIZE,
         )
         if result.get('code') != '0':
             return Response(result)
@@ -504,14 +651,14 @@ class InterfaceInfoViewSet(BaseViewSet):
         sql_raw = vd['sql']
         params_map = vd.get('params') or None
         try:
-            rendered_sql = _render_sql(sql_raw, params_map)
+            rendered_sql = _validate_readonly_sql(_render_sql(sql_raw, params_map))
         except Exception as e:
             ex.close()
             return self.error(str(e))
         try:
             res = ex.execute_query(
                 sql=rendered_sql,
-                page_size=vd.get('pageSize', 10000),
+                page_size=_normalize_page_size(vd.get('pageSize'), default=EXPORT_MAX_PAGE_SIZE, maximum=EXPORT_MAX_PAGE_SIZE),
                 offset=vd.get('offset', 0),
             )
         except Exception as e:
@@ -600,6 +747,15 @@ class InterfaceInfoViewSet(BaseViewSet):
 
 class InterfaceFieldViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataservice:interface:query',
+        'model_list': 'dataservice:interface:query',
+        'retrieve': 'dataservice:interface:view',
+        'create': 'dataservice:interface:add',
+        'update': 'dataservice:interface:edit',
+        'update_by_body': 'dataservice:interface:edit',
+        'destroy': 'dataservice:interface:remove',
+    }
     queryset = InterfaceField.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = InterfaceFieldSerializer
     update_body_serializer_class = InterfaceFieldUpdateSerializer
@@ -708,6 +864,15 @@ class InterfaceFieldViewSet(BaseViewSet):
 
 class ReportInfoViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataservice:report:query',
+        'model_list': 'dataservice:report:query',
+        'retrieve': 'dataservice:report:view',
+        'create': 'dataservice:report:add',
+        'update': 'dataservice:report:edit',
+        'update_by_body': 'dataservice:report:edit',
+        'destroy': 'dataservice:report:remove',
+    }
     queryset = ReportInfo.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = ReportInfoSerializer
     update_body_serializer_class = ReportInfoUpdateSerializer

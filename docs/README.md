@@ -6,10 +6,11 @@
 
 1. `docs/adr/ADR-011-平台五阶段职责划分规范.md`
 2. `docs/adr/ADR-012-统一任务定义与执行实例边界规范.md`
-3. `docs/adr/ADR-010-后端平台分层与模块职责重构.md`
-4. `docs/developments/development-priority-correction-2026-04-30.md`
-5. `docs/requirements/active_tasks.md`
-6. `docs/changelog.md`
+3. `docs/developments/module-responsibility-execution-guide.md`
+4. `docs/adr/ADR-010-后端平台分层与模块职责重构.md`
+5. `docs/developments/development-priority-correction-2026-04-30.md`
+6. `docs/requirements/active_tasks.md`
+7. `docs/changelog.md`
 
 ## 按需再看
 

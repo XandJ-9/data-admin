@@ -63,12 +63,21 @@ hotfix/<topic>
 | 连接与发现 | `apps.datasource` | `views/data/datasource/` |
 | 数据集成 | `apps.dataintegration` | `views/data/integration/` |
 | 数据开发 | `apps.datadev` | `views/data/dev/` |
-| 任务运维 | `apps.datatask` | `views/data/task/`, `views/data/orchestration/` |
+| 任务运维 | `apps.datatask` | `views/data/task/` |
 | 资产与服务 | `apps.dataasset`, `apps.dataservice` | `views/data/asset/`, `views/data/service/` |
 
 ## 当前文档入口
 
 1. `docs/README.md`
-2. `docs/requirements/active_tasks.md`
-3. `docs/changelog.md`
-4. `docs/adr/ADR-011-平台五阶段职责划分规范.md`
+2. `docs/developments/module-responsibility-execution-guide.md`
+3. `docs/requirements/active_tasks.md`
+4. `docs/changelog.md`
+5. `docs/adr/ADR-011-平台五阶段职责划分规范.md`
+
+## 当前开发硬约束
+
+1. `datasource`、`dataintegration`、`datadev` 负责业务定义、调试入口和发布到任务中心。
+2. `datatask` 负责任务镜像、调度索引、依赖和唯一 `TaskInstance` 实例中心。
+3. 数据库连接、查询、库表字段探查统一走 `apps.dbutils`。
+4. 任务级执行统一走 `apps.executors`。
+5. 业务模块不得新增私有执行历史表或私有数据库连接实现。

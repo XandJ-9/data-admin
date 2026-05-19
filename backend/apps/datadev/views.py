@@ -62,6 +62,15 @@ class DataDevDirectoryViewSet(BaseViewSet):
     """数据目录管理（兼容保留，不再作为主工作流）。"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'datadev:catalog:query',
+        'model_list': 'datadev:catalog:query',
+        'retrieve': 'datadev:catalog:query',
+        'tree': 'datadev:catalog:query',
+        'create': 'datadev:catalog:add',
+        'update': 'datadev:catalog:edit',
+        'destroy': 'datadev:catalog:remove',
+    }
     queryset = DataDevDirectory.objects.order_by('order_num', 'directory_id')
     serializer_class = DataDevDirectorySerializer
     pagination_class = None
@@ -171,6 +180,21 @@ class ScriptViewSet(BaseViewSet):
     """加工作业管理。"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'datadev:ide:view',
+        'model_list': 'datadev:ide:view',
+        'retrieve': 'datadev:ide:view',
+        'create': 'datadev:ide:view',
+        'update': 'datadev:ide:view',
+        'destroy': 'datadev:ide:view',
+        'list_versions': 'datadev:ide:view',
+        'create_version': 'datadev:ide:view',
+        'publish_version': 'datadev:ide:view',
+        'rollback_version': 'datadev:ide:view',
+        'publish_task': 'datadev:ide:view',
+        'execute_script': 'datadev:ide:view',
+        'list_executions': 'datadev:ide:view',
+    }
     queryset = DataDevScript.objects.select_related('datasource', 'target_model').all()
     serializer_class = ScriptListSerializer
     pagination_class = StandardPagination
@@ -494,6 +518,11 @@ class ScriptViewSet(BaseViewSet):
 
 class ScriptExecutionViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'datadev:ide:view',
+        'model_list': 'datadev:ide:view',
+        'retrieve': 'datadev:ide:view',
+    }
     queryset = TaskInstance.objects.select_related('task').filter(task__source_module='datadev.script')
     serializer_class = ScriptExecutionSerializer
     pagination_class = StandardPagination
@@ -528,6 +557,15 @@ class DataModelViewSet(BaseViewSet):
     """数据建模模块。"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'datadev:model:query',
+        'model_list': 'datadev:model:query',
+        'retrieve': 'datadev:model:query',
+        'create': 'datadev:model:add',
+        'update': 'datadev:model:edit',
+        'destroy': 'datadev:model:remove',
+        'submit_model': 'datadev:model:submit',
+    }
     queryset = DataDevModel.objects.prefetch_related('model_fields').all()
     serializer_class = DataModelListSerializer
     pagination_class = StandardPagination

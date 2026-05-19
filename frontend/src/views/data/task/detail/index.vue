@@ -179,7 +179,7 @@ import {
   statusTag,
   taskTypeLabel,
   taskTypeTag,
-} from './taskMeta'
+} from '../taskMeta'
 
 const route = useRoute()
 const router = useRouter()

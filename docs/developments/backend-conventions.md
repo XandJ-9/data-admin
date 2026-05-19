@@ -45,9 +45,10 @@ module/
 ├── services/        # 业务逻辑层
 │   ├── __init__.py
 │   └── task_service.py
-├── executors/       # 执行器（如有）
 └── migrations/
 ```
+
+> 任务级执行器统一放在 `apps.executors`，数据库级查询与探查统一放在 `apps.dbutils`。业务模块目录下默认不再新增本地 `executors/`，除非只是非常薄的适配层且已在文档中说明收敛方向。
 
 ## Model 模式
 
@@ -247,6 +248,18 @@ executor = get_executor(info)
 
 **SQL 安全**：`_check_sql()` 仅允许 `SELECT`、`WITH`、`SHOW`、`DESCRIBE`、`EXPLAIN` 前缀的语句。
 
+## 业务模块与统一执行层约束
+
+后续涉及 `datasource`、`dataintegration`、`datadev` 的开发，必须同时遵守 `docs/developments/module-responsibility-execution-guide.md`：
+
+1. `datasource`、`dataintegration`、`datadev` 负责业务定义、单次调试执行入口和发布任务到任务中心。
+2. `datatask` 负责平台任务镜像、调度索引、依赖和唯一执行实例中心。
+3. 外部数据库连接、SQL 查询、库表字段探查必须通过 `apps.dbutils`。
+4. DataX、Spark/Hive、MVP/Mock、建模执行等任务级执行必须通过 `apps.executors`。
+5. 业务模块不得直接引入外部数据库驱动并自行连接外部数据源。
+6. 业务模块不得新增私有执行历史表，所有执行历史必须进入 `datatask.TaskInstance`。
+7. 新来源模块接入任务中心必须注册 `apps.datatask.source_registry.SourceHandler`。
+
 ## 关键抽象位置
 
 | 组件 | 文件位置 |
@@ -256,7 +269,8 @@ executor = get_executor(info)
 | `BaseViewMixin` | `apps/common/mixins.py` |
 | `BaseModelSerializer` | `apps/system/serializers.py` |
 | `DataSourceExecutor` | `apps/dbutils/base.py` |
-| `ExecutorFactory` | `apps/dbutils/factory.py` |
+| `get_executor` | `apps/dbutils/factory.py` |
+| `ExecutorFactory` | `apps/executors/base.py` |
 | `HasRolePermission` | `apps/system/permission.py` |
 | `StandardPagination` | `apps/common/pagination.py` |
 | `custom_exception_handler` | `apps/common/exceptions.py` |

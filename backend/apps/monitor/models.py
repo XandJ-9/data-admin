@@ -24,7 +24,7 @@ class OperLog(BaseModel):
     cost_time = models.IntegerField(default=0, verbose_name='消耗时间(毫秒)')
 
     class Meta:
-        db_table = 'sys_oper_log'
+        db_table = 'monitor_oper_log'
         verbose_name = '操作日志'
         verbose_name_plural = '操作日志'
         indexes = [
@@ -52,7 +52,7 @@ class Logininfor(models.Model):
     login_time = models.DateTimeField(verbose_name='访问时间', auto_now_add=True)
 
     class Meta:
-        db_table = 'sys_logininfor'
+        db_table = 'monitor_login_info'
         verbose_name = '系统登录日志'
         verbose_name_plural = '系统登录日志'
         ordering = ['-login_time']

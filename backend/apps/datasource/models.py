@@ -32,7 +32,7 @@ class DataSource(BaseModel):
     connectivity_tested_at = models.DateTimeField(blank=True, null=True, verbose_name='最近连通性测试时间')
 
     class Meta:
-        db_table = 'dataasset_datasource'
+        db_table = 'datasource_data_source'
         verbose_name = '数据源'
         verbose_name_plural = '数据源'
         indexes = [

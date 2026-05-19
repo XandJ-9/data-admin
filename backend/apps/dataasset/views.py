@@ -67,6 +67,11 @@ class AssetNamespaceViewSet(BaseViewSet):
     """规范资产命名空间查询接口"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataasset:asset:query',
+        'model_list': 'dataasset:asset:query',
+        'retrieve': 'dataasset:asset:query',
+    }
     http_method_names = ['get', 'head', 'options']
     queryset = AssetNamespace.objects.filter(del_flag='0').select_related('data_source').order_by('data_source_id', 'catalog_name', 'schema_name')
     serializer_class = AssetNamespaceSerializer
@@ -106,6 +111,15 @@ class DataAssetViewSet(BaseViewSet):
     """规范数据资产查询接口"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataasset:asset:query',
+        'model_list': 'dataasset:asset:query',
+        'retrieve': 'dataasset:asset:query',
+        'create': 'dataasset:asset:edit',
+        'update': 'dataasset:asset:edit',
+        'partial_update': 'dataasset:asset:edit',
+        'destroy': 'dataasset:asset:edit',
+    }
     http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
     queryset = DataAsset.objects.filter(del_flag='0').select_related('namespace', 'namespace__data_source').prefetch_related(
         Prefetch(
@@ -302,6 +316,15 @@ class DataAssetColumnViewSet(BaseViewSet):
     """规范数据资产字段查询接口"""
 
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataasset:asset:query',
+        'model_list': 'dataasset:asset:query',
+        'retrieve': 'dataasset:asset:query',
+        'create': 'dataasset:asset:edit',
+        'update': 'dataasset:asset:edit',
+        'partial_update': 'dataasset:asset:edit',
+        'destroy': 'dataasset:asset:edit',
+    }
     http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
     queryset = DataAssetColumn.objects.filter(del_flag='0').select_related(
         'asset', 'asset__namespace', 'asset__namespace__data_source'
@@ -440,6 +463,15 @@ class DataAssetColumnViewSet(BaseViewSet):
 class MetaTableViewSet(BaseViewSet):
     """元数据表管理"""
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataasset:metadata:query',
+        'model_list': 'dataasset:metadata:query',
+        'retrieve': 'dataasset:metadata:query',
+        'create': 'dataasset:metadata:edit',
+        'update': 'dataasset:metadata:edit',
+        'partial_update': 'dataasset:metadata:edit',
+        'destroy': 'dataasset:metadata:edit',
+    }
     queryset = MetaTable.objects.filter(del_flag='0').select_related('data_source').order_by('table_name')
     serializer_class = MetaTableSerializer
 
@@ -623,6 +655,15 @@ class MetaTableViewSet(BaseViewSet):
 class MetaColumnViewSet(BaseViewSet):
     """元数据字段管理"""
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataasset:metadata:query',
+        'model_list': 'dataasset:metadata:query',
+        'retrieve': 'dataasset:metadata:query',
+        'create': 'dataasset:metadata:edit',
+        'update': 'dataasset:metadata:edit',
+        'partial_update': 'dataasset:metadata:edit',
+        'destroy': 'dataasset:metadata:edit',
+    }
     queryset = MetaColumn.objects.filter(del_flag='0').select_related('table', 'data_source').order_by('table__table_name', 'order')
     serializer_class = MetaColumnSerializer
 
@@ -847,6 +888,18 @@ class MetaColumnViewSet(BaseViewSet):
 class TableLineageViewSet(BaseViewSet):
     """表血缘管理"""
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'dataasset:lineage:query',
+        'model_list': 'dataasset:lineage:query',
+        'retrieve': 'dataasset:lineage:query',
+        'upstream': 'dataasset:lineage:query',
+        'downstream': 'dataasset:lineage:query',
+        'graph': 'dataasset:lineage:query',
+        'create': 'dataasset:lineage:edit',
+        'update': 'dataasset:lineage:edit',
+        'partial_update': 'dataasset:lineage:edit',
+        'destroy': 'dataasset:lineage:edit',
+    }
     queryset = TableLineage.objects.filter(del_flag='0').select_related('source_table', 'target_table').order_by('-create_time')
     serializer_class = TableLineageSerializer
 

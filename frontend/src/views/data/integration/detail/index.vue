@@ -113,10 +113,10 @@
 import { ArrowLeft, Histogram, Upload, VideoPlay } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import { checkPermi } from '@/utils/permission'
-import ExecutionRecordsDialog from './components/ExecutionRecordsDialog.vue'
-import IntegrationTaskFormSections from './components/IntegrationTaskFormSections.vue'
-import { useIntegrationTaskForm } from './components/useIntegrationTaskForm'
-import { executorLabel, loadTypeLabel, scheduleTypeLabel, statusLabel, statusTagType, writeModeLabel } from './components/taskViewMeta'
+import ExecutionRecordsDialog from '../components/ExecutionRecordsDialog.vue'
+import IntegrationTaskFormSections from '../components/IntegrationTaskFormSections.vue'
+import { useIntegrationTaskForm } from '../components/useIntegrationTaskForm'
+import { executorLabel, loadTypeLabel, scheduleTypeLabel, statusLabel, statusTagType, writeModeLabel } from '../components/taskViewMeta'
 
 const route = useRoute()
 
