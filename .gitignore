@@ -18,3 +18,4 @@ deploy/
 .env
 .github
 .DS_Store
+.vscode/
