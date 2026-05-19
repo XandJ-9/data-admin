@@ -146,6 +146,13 @@ class ScriptExecutionSerializer(serializers.ModelSerializer):
         version_id = (obj.runtime_config or {}).get('scriptVersionId')
         if not version_id:
             return None
+        version_number_map = self.context.get('script_version_number_map') or {}
+        try:
+            normalized_version_id = int(version_id)
+        except (TypeError, ValueError):
+            normalized_version_id = version_id
+        if normalized_version_id in version_number_map:
+            return version_number_map[normalized_version_id]
         version = DataDevScriptVersion.objects.filter(id=version_id).only('version_number').first()
         return version.version_number if version is not None else None
 

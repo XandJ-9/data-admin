@@ -49,7 +49,7 @@
       <el-table-column label="操作" width="320" fixed="right">
         <template #default="scope">
           <el-button link type="primary" v-hasPermi="['datadev:model:query']" @click="handleDetail(scope.row)">详情</el-button>
-          <el-button link type="success" @click="handleCreateJob(scope.row)">创建加工作业</el-button>
+          <el-button link type="success" v-hasPermi="['datadev:ide:add']" @click="handleCreateJob(scope.row)">创建加工作业</el-button>
           <el-button link type="success" v-hasPermi="['datadev:model:submit']" @click="handleSubmit(scope.row)">提交建表</el-button>
           <el-button link type="danger" v-hasPermi="['datadev:model:remove']" @click="handleDelete(scope.row)">删除</el-button>
         </template>

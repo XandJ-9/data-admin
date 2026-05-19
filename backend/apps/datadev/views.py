@@ -44,7 +44,6 @@ from .task_source import (
     build_datamodel_create_sql,
     execute_model_task,
     execute_script,
-    sync_model_source_task,
     sync_script_source_task,
 )
 
@@ -56,6 +55,27 @@ def _is_missing_task_table_error(exc) -> bool:
     missing_table_markers = ['datatask_task', 'datatask_task_instance']
     return any(marker in raw_message for marker in missing_table_markers) and (
         'no such table' in raw_message or 'does not exist' in raw_message
+    )
+
+
+def _build_script_execution_serializer(executions, many: bool = True):
+    items = list(executions) if many else [executions]
+    version_ids = set()
+    for item in items:
+        version_id = (item.runtime_config or {}).get('scriptVersionId')
+        if version_id in (None, ''):
+            continue
+        try:
+            version_ids.add(int(version_id))
+        except (TypeError, ValueError):
+            continue
+    version_number_map = dict(
+        DataDevScriptVersion.objects.filter(id__in=version_ids).values_list('id', 'version_number')
+    ) if version_ids else {}
+    return ScriptExecutionSerializer(
+        items if many else items[0],
+        many=many,
+        context={'script_version_number_map': version_number_map},
     )
 
 
@@ -494,8 +514,8 @@ class ScriptViewSet(BaseViewSet):
             qs = qs.filter(triggered_by=vd['executedBy'])
         page = self.paginate_queryset(qs)
         if page is not None:
-            return self.get_paginated_response(ScriptExecutionSerializer(page, many=True).data)
-        return self.data(ScriptExecutionSerializer(qs, many=True).data)
+            return self.get_paginated_response(_build_script_execution_serializer(page, many=True).data)
+        return self.data(_build_script_execution_serializer(qs, many=True).data)
 
     def _resolve_target_model(self, target_model_id):
         if target_model_id in (None, ''):
@@ -555,14 +575,14 @@ class ScriptExecutionViewSet(BaseViewSet):
         qs = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(qs)
         if page is not None:
-            return self.get_paginated_response(ScriptExecutionSerializer(page, many=True).data)
-        return self.data(ScriptExecutionSerializer(qs, many=True).data)
+            return self.get_paginated_response(_build_script_execution_serializer(page, many=True).data)
+        return self.data(_build_script_execution_serializer(qs, many=True).data)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.task.source_module != 'datadev.script':
             return self.not_found('执行记录不存在')
-        return self.data(ScriptExecutionSerializer(instance).data)
+        return self.data(_build_script_execution_serializer(instance, many=False).data)
 
 
 class DataModelViewSet(BaseViewSet):
@@ -632,7 +652,6 @@ class DataModelViewSet(BaseViewSet):
                 update_by=username,
             )
             self._replace_fields(model, vd['fields'], username)
-            sync_model_source_task(model, username=username)
         return self.data({'modelId': model.id}, msg='创建成功')
 
     def update(self, request, *args, **kwargs):
@@ -655,7 +674,6 @@ class DataModelViewSet(BaseViewSet):
             instance.update_by = username
             instance.save()
             self._replace_fields(instance, vd['fields'], username)
-            sync_model_source_task(instance, username=username)
         return self.data({'modelId': instance.id}, msg='保存成功')
 
     def destroy(self, request, *args, **kwargs):
@@ -663,7 +681,6 @@ class DataModelViewSet(BaseViewSet):
         with transaction.atomic():
             DataDevModelField.objects.filter(model=instance, del_flag='0').update(del_flag='1')
             DataDevModel.objects.filter(pk=instance.pk).update(del_flag='1')
-            TaskService.soft_delete_source_task(source_module='datadev.model', source_record_id=instance.id, username=request.user.username)
         return self.ok(msg='删除成功')
 
     @action(detail=True, methods=['post'], url_path='submit')

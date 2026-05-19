@@ -49,7 +49,7 @@
 5. `datasource` 详情页返回列表当前统一直接跳转 `/datasource/list`，不再依赖列表路由名回跳，避免菜单/动态路由状态失配时按钮报错。
 6. `dataintegration` 已改为直接填写 `sourceDatabaseName` / `sourceTableName`。
 7. 删除数据源不会再被历史集成任务阻塞；若数据源被删，相关集成任务需重新绑定后才能继续执行，自动生成的源数据采集任务会一并回收。
-8. `datadev` 当前只保留 `DataDevScript` / `DataDevModel` 作为业务任务定义，脚本调试执行、建模执行与历史执行记录统一进入 `datatask.TaskInstance`，不再保留 `DataDevScriptExecution` 私有执行表。
+8. `datadev` 当前只将 `DataDevScript` 作为可发布到任务运维的业务任务定义；`DataDevModel` 仅作为模型定义，保存、字段维护和直接建表不再同步 `datadev.model` 平台任务镜像，也不再保留 `DataDevScriptExecution` 私有执行表。
 9. 登录链路当前包含验证码校验与失败次数限流。
 10. `dataasset` 已建立 `facades/` 公开边界，元数据采集与规范资产同步默认通过 facade 进入，不再把 `services.py` 视为跨模块公共入口。
 11. 任务运维执行记录页与任务详情页当前会直接展示 `datasource.collection` 的执行结果、失败原因与采集进度摘要；存在进行中实例时页面会自动轮询刷新状态。

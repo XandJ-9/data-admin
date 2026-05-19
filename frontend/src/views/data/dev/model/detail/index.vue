@@ -7,9 +7,9 @@
       </div>
       <div class="header-actions">
         <el-button @click="goBack">返回</el-button>
-        <el-button v-if="!isCreate && currentModelId" type="primary" plain @click="handleCreateJob">创建加工作业</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">保存模型</el-button>
-        <el-button type="success" :loading="submitting" @click="handleSubmit">提交建表</el-button>
+        <el-button v-if="!isCreate && currentModelId" type="primary" plain v-hasPermi="['datadev:ide:add']" @click="handleCreateJob">创建加工作业</el-button>
+        <el-button type="primary" :loading="saving" v-hasPermi="[isCreate ? 'datadev:model:add' : 'datadev:model:edit']" @click="handleSave">保存模型</el-button>
+        <el-button type="success" :loading="submitting" v-hasPermi="['datadev:model:submit']" @click="handleSubmit">提交建表</el-button>
       </div>
     </div>
 

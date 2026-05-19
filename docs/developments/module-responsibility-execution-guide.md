@@ -43,7 +43,7 @@
 | --- | --- | --- |
 | `datasource` | 已保留 `DataSource` 与 `DataSourceCollectionTask`；发现链路通过 `dbutils`；采集实例统一进入 `TaskInstance` | 采集任务目前更多由采集入口隐式创建与同步，后续应补齐显式采集任务列表、编辑、发布入口 |
 | `dataintegration` | 已将保存业务配置和发布到任务中心分离；执行通过 `ExecutorFactory`；执行实例统一进入 `TaskInstance` | 继续避免把发布、调度、快照字段重新塞回业务任务定义 |
-| `datadev` | 已保留 `DataDevScript` / `DataDevModel` 作为真源；调试执行和建模执行统一进入 `TaskInstance`；SQL 查询走 `dbutils`，Spark/Hive 走 `executors` | MVP 预演、建模执行等运行逻辑后续应尽量沉淀为正式 executor，减少业务模块内的执行分支 |
+| `datadev` | 已保留 `DataDevScript` / `DataDevModel` 作为真源；只有脚本发布为任务中心来源，模型定义、保存和建表动作不再同步平台任务镜像；SQL 查询走 `dbutils`，Spark/Hive 走 `executors` | MVP 预演、建模执行等运行逻辑后续应尽量沉淀为正式 executor，模型建表建议进一步复用脚本执行链路 |
 | `datatask` | 已具备 `TaskService`、发布快照边界、source handler 分发与执行 envelope 归一化 | 继续保持任务镜像定位，不扩张为业务定义中心 |
 | `executors/dbutils` | 已承接数据库查询、库表探查、DataX、Spark SQL、Mock/MVP 类执行器 | 需要把“唯一执行层”写入后续代码评审标准，新增执行能力默认先落这里 |
 
@@ -129,9 +129,9 @@
 3. 模型定义：`DataDevModel` 与 `DataDevModelField`。
 4. SQL/Python 作业调试入口。
 5. 模型建表或建模执行入口。
-6. 发布脚本或模型任务到任务中心。
+6. 发布脚本任务到任务中心。
 7. 开发态治理卡点，例如负责人、表注释、字段注释、目标层级。
-8. 通过 source handler 向 `datatask` 暴露脚本和模型任务加载、执行和治理字段回写能力。
+8. 通过 source handler 向 `datatask` 暴露脚本任务加载、执行和治理字段回写能力。
 
 不应该负责：
 
@@ -146,13 +146,14 @@
 1. 绑定数据源的 SQL 查询必须通过 `apps.dbutils.factory.get_executor(...).execute_query(...)`。
 2. Spark/Hive/建模执行必须通过 `apps.executors.base.ExecutorFactory`。
 3. MVP 预演类能力后续应沉淀到 `apps.executors`，业务模块只传入执行计划。
-4. 所有调试执行和平台执行都必须创建 `TaskInstance`。
-5. 发布任务时，`datadev` 只发布当前业务定义快照，不把完整业务真身迁移到 `datatask`。
+4. 脚本调试执行和平台执行都必须创建 `TaskInstance`。
+5. 模型定义、保存和直接建表不具备任务属性；需要调度编排时应先生成或绑定加工作业，再发布脚本任务。
+6. 发布任务时，`datadev` 只发布当前脚本定义快照，不把完整业务真身迁移到 `datatask`。
 
 后续优先补齐：
 
 1. 把当前业务模块内的 MVP 预演执行逻辑沉淀为正式 executor。
-2. 把建模 SQL 生成保留在业务层，但执行动作继续只走 executor。
+2. 把建模 SQL 生成保留在业务层，建表动作继续只走 executor，并逐步复用脚本执行链路。
 3. 继续保持脚本版本与平台运行快照的边界清晰。
 
 ### 4.4 `datatask`

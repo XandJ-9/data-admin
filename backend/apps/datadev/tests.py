@@ -14,7 +14,7 @@ from apps.datatask.services import TaskService
 from apps.system.models import Role, UserRole
 from .models import DataDevDirectory, DataDevModel, DataDevModelField, DataDevScript
 from .models import DataDevScriptVersion
-from .task_source import sync_model_source_task, sync_script_source_task
+from .task_source import sync_script_source_task
 from .views import DataDevDirectoryViewSet, DataModelViewSet, ScriptViewSet
 
 
@@ -830,9 +830,7 @@ class DataModelViewSetTests(TestCase):
         model = DataDevModel.objects.get(pk=model_id)
         self.assertEqual(model.owner, 'data_owner')
         self.assertEqual(model.model_fields.filter(del_flag='0').count(), 2)
-        task = Task.objects.get(source_module='datadev.model', source_record_id=model.id, del_flag='0')
-        self.assertEqual(task.task_config['fieldCount'], 2)
-        self.assertEqual(task.task_config['engineType'], 'spark')
+        self.assertFalse(Task.objects.filter(source_module='datadev.model', source_record_id=model.id).exists())
 
         retrieve_view = DataModelViewSet.as_view({'get': 'retrieve'})
         retrieve_request = self.factory.get(f'/data-api/datadev/models/{model.id}')
@@ -845,7 +843,7 @@ class DataModelViewSetTests(TestCase):
         self.assertIn("COMMENT '订单ID'", retrieve_response.data['data']['generatedSql'])
         self.assertEqual(len(retrieve_response.data['data']['fields']), 2)
 
-    def test_update_model_should_replace_fields_and_sync_task(self):
+    def test_update_model_should_replace_fields_without_syncing_task(self):
         model = DataDevModel.objects.create(
             model_name='订单宽表',
             model_code='dwd_order_wide_update',
@@ -868,8 +866,6 @@ class DataModelViewSetTests(TestCase):
             create_by='model_admin',
             update_by='model_admin',
         )
-        sync_model_source_task(model, username='model_admin')
-
         update_payload = {
             **self.base_payload,
             'modelCode': 'dwd_order_wide_update',
@@ -905,9 +901,48 @@ class DataModelViewSetTests(TestCase):
         self.assertEqual(model.model_fields.filter(del_flag='0').count(), 2)
         self.assertEqual(model.model_fields.filter(del_flag='1').count(), 1)
         self.assertTrue(model.model_fields.filter(field_name='buyer_id', del_flag='0').exists())
-        task = Task.objects.get(source_module='datadev.model', source_record_id=model.id, del_flag='0')
-        self.assertEqual(task.task_name, '订单宽表（更新）')
-        self.assertEqual(task.task_config['fieldCount'], 2)
+        self.assertFalse(Task.objects.filter(source_module='datadev.model', source_record_id=model.id).exists())
+
+    def test_update_model_should_allow_replacing_same_field_multiple_times(self):
+        create_view = DataModelViewSet.as_view({'post': 'create'})
+        create_request = self.factory.post('/data-api/datadev/models', self.base_payload, format='json')
+        force_authenticate(create_request, user=self.user)
+        create_response = create_view(create_request)
+        model_id = create_response.data['data']['modelId']
+
+        update_view = DataModelViewSet.as_view({'put': 'update'})
+        for table_comment in ('订单宽表第一次更新', '订单宽表第二次更新'):
+            update_payload = {
+                **self.base_payload,
+                'tableComment': table_comment,
+                'fields': [
+                    {
+                        'fieldName': 'order_id',
+                        'fieldType': 'STRING',
+                        'fieldComment': '订单ID',
+                        'isNullable': False,
+                        'ordinalPosition': 1,
+                    },
+                    {
+                        'fieldName': 'pay_amount',
+                        'fieldType': 'DECIMAL(18,2)',
+                        'fieldComment': '支付金额',
+                        'isNullable': True,
+                        'ordinalPosition': 2,
+                    },
+                ],
+            }
+            update_request = self.factory.put(f'/data-api/datadev/models/{model_id}', update_payload, format='json')
+            force_authenticate(update_request, user=self.user)
+
+            update_response = update_view(update_request, pk=str(model_id))
+
+            self.assertEqual(update_response.status_code, 200)
+            self.assertEqual(update_response.data['code'], 200)
+
+        model = DataDevModel.objects.get(pk=model_id)
+        self.assertEqual(model.model_fields.filter(del_flag='0').count(), 2)
+        self.assertEqual(model.model_fields.filter(field_name='order_id', del_flag='0').count(), 1)
 
     @patch('apps.executors.base.ExecutorFactory.create_executor')
     def test_submit_and_destroy_model_should_update_status_and_soft_delete(self, mock_create_executor):
@@ -954,11 +989,8 @@ class DataModelViewSetTests(TestCase):
         self.assertEqual(submit_response.data['code'], 200)
         model.refresh_from_db()
         self.assertEqual(model.status, 'deployed')
-        task = Task.objects.get(source_module='datadev.model', source_record_id=model.id, del_flag='0')
-        task_instance = TaskInstance.objects.get(task=task)
-        self.assertEqual(task_instance.status, 'success')
-        self.assertEqual(task.status, 'active')
         self.assertEqual(submit_response.data['data']['rows'][0]['tableName'], 'ads_campaign_summary')
+        self.assertFalse(Task.objects.filter(source_module='datadev.model', source_record_id=model.id).exists())
 
         destroy_view = DataModelViewSet.as_view({'delete': 'destroy'})
         destroy_request = self.factory.delete(f'/data-api/datadev/models/{model.id}')
@@ -970,109 +1002,4 @@ class DataModelViewSetTests(TestCase):
         model.refresh_from_db()
         self.assertEqual(model.del_flag, '1')
         self.assertEqual(model.model_fields.filter(del_flag='0').count(), 0)
-        task.refresh_from_db()
-        self.assertEqual(task.del_flag, '1')
-
-    @patch('apps.executors.base.ExecutorFactory.create_executor')
-    def test_dependency_execution_of_model_should_preserve_runtime_config(self, mock_create_executor):
-        model = DataDevModel.objects.create(
-            model_name='用户标签汇总表',
-            model_code='dws_user_tag_summary',
-            layer='DWS',
-            table_name='dws_user_tag_summary',
-            schema_name='dws',
-            table_comment='用户标签汇总表',
-            engine_type='spark',
-            owner='tag_owner',
-            create_by='model_admin',
-            update_by='model_admin',
-        )
-        DataDevModelField.objects.create(
-            model=model,
-            field_name='user_id',
-            field_type='STRING',
-            field_comment='用户ID',
-            is_nullable=False,
-            ordinal_position=1,
-            create_by='model_admin',
-            update_by='model_admin',
-        )
-        mock_create_executor.return_value = type('SparkExecutorStub', (), {
-            'validate': staticmethod(lambda: (True, '')),
-            'execute': staticmethod(lambda: {
-                'status': 'success',
-                'columns': [],
-                'rows': [],
-                'duration_seconds': 1,
-                'raw_output': 'OK',
-            }),
-        })()
-        task = sync_model_source_task(model, username='model_admin')
-
-        result = TaskService.execute_task(
-            task,
-            username='scheduler',
-            trigger_mode='dependency',
-            runtime_config={
-                'dependencyFingerprint': '10:instance-1',
-                'scheduleTick': '2026-04-25T12:00:00Z',
-            },
-        )
-
-        self.assertTrue(result['ok'])
-        task_instance = TaskInstance.objects.get(task=task)
-        self.assertEqual(task_instance.runtime_config['dependencyFingerprint'], '10:instance-1')
-        self.assertEqual(task_instance.runtime_config['scheduleTick'], '2026-04-25T12:00:00Z')
-        self.assertEqual(task_instance.runtime_config['tableName'], 'dws_user_tag_summary')
-
-    @patch('apps.executors.base.ExecutorFactory.create_executor')
-    def test_platform_execute_model_should_keep_task_snapshot_sql(self, mock_create_executor):
-        captured_config = {}
-        model = DataDevModel.objects.create(
-            model_name='快照模型',
-            model_code='dwd_snapshot_model',
-            layer='DWD',
-            table_name='dwd_snapshot_model',
-            schema_name='dwd',
-            table_comment='快照模型',
-            engine_type='spark',
-            owner='snapshot_owner',
-            create_by='model_admin',
-            update_by='model_admin',
-        )
-        DataDevModelField.objects.create(
-            model=model,
-            field_name='order_id',
-            field_type='STRING',
-            field_comment='订单ID',
-            is_nullable=False,
-            ordinal_position=1,
-            create_by='model_admin',
-            update_by='model_admin',
-        )
-
-        class _Executor:
-            def validate(self):
-                return True, ''
-
-            def execute(self):
-                return {'status': 'success', 'columns': [], 'rows': [], 'duration_seconds': 1}
-
-        def _capture_executor(engine, source_record, config):
-            captured_config['engine'] = engine
-            captured_config['sql'] = config['sql']
-            return _Executor()
-
-        mock_create_executor.side_effect = _capture_executor
-        task = sync_model_source_task(model, username='model_admin')
-        snapshot_sql = task.task_config['sqlText']
-
-        model.table_name = 'dwd_snapshot_model_new'
-        model.save(update_fields=['table_name'])
-
-        result = TaskService.execute_task(task, username='scheduler', trigger_mode='manual')
-
-        self.assertTrue(result['ok'])
-        self.assertEqual(captured_config['sql'], snapshot_sql)
-        task.refresh_from_db()
-        self.assertEqual(task.task_config['sqlText'], snapshot_sql)
+        self.assertFalse(Task.objects.filter(source_module='datadev.model', source_record_id=model.id).exists())

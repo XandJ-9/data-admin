@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from apps.system.models import BaseModel
 from apps.datasource.models import DataSource
 
@@ -253,7 +254,11 @@ class DataDevModelField(BaseModel):
         verbose_name_plural = '数据模型字段'
         ordering = ['ordinal_position', 'id']
         constraints = [
-            models.UniqueConstraint(fields=['model', 'field_name', 'del_flag'], name='datadev_model_field_unique_name'),
+            models.UniqueConstraint(
+                fields=['model', 'field_name'],
+                condition=Q(del_flag='0'),
+                name='datadev_model_field_unique_name',
+            ),
         ]
         indexes = [
             models.Index(fields=['del_flag']),

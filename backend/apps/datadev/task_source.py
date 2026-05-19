@@ -12,20 +12,15 @@ from apps.datasource.executor_info import build_executor_info
 from apps.datasource.models import DataSource
 from apps.datatask.source_registry import ExecuteTaskResult, SourceHandler, register_source_handler
 
-from .models import DataDevModel, DataDevScript
+from .models import DataDevScript
 
 logger = logging.getLogger(__name__)
 
 SCRIPT_SOURCE_MODULE = 'datadev.script'
-MODEL_SOURCE_MODULE = 'datadev.model'
 SCRIPT_STATUS_TO_TASK_STATUS = {
     'draft': 'draft',
     'published': 'active',
     'archived': 'archived',
-}
-MODEL_STATUS_TO_TASK_STATUS = {
-    'draft': 'draft',
-    'deployed': 'active',
 }
 
 
@@ -43,6 +38,33 @@ class ScriptExecutionPlan:
 
 @dataclass
 class ScriptExecutionResult:
+    status: str = 'success'
+    error_msg: str = ''
+    columns: list[dict] | list[str] | None = None
+    rows: list[dict] | None = None
+    engine_result: dict | None = None
+
+    def __post_init__(self):
+        if self.columns is None:
+            self.columns = []
+        if self.rows is None:
+            self.rows = []
+        if self.engine_result is None:
+            self.engine_result = {}
+
+
+@dataclass(frozen=True)
+class ModelExecutionPlan:
+    sql: str
+    runtime_layer: str
+    runtime_table_name: str
+    runtime_schema_name: str
+    runtime_engine_type: str
+    merged_runtime_config: dict
+
+
+@dataclass
+class ModelExecutionResult:
     status: str = 'success'
     error_msg: str = ''
     columns: list[dict] | list[str] | None = None
@@ -560,116 +582,30 @@ def build_datamodel_create_sql(model) -> str:
     ])
 
 
-def build_datamodel_task_config(model, sql_text: str) -> dict:
-    return {
-        'modelId': model.id,
-        'modelCode': model.model_code,
-        'layer': model.layer,
-        'tableName': model.table_name,
-        'schemaName': model.schema_name,
-        'tableComment': model.table_comment,
-        'engineType': model.engine_type,
-        'fieldCount': model.model_fields.filter(del_flag='0').count(),
-        'sqlText': sql_text,
-    }
-
-
-def sync_model_source_task(model, username: str = ''):
-    from apps.datatask.models import Task
-    from apps.datatask.services import TaskService
-
-    sql_text = build_datamodel_create_sql(model)
-    existing_task = Task.objects.filter(
-        source_module=MODEL_SOURCE_MODULE,
-        source_record_id=model.id,
-        del_flag='0',
-    ).first()
-    default_status = MODEL_STATUS_TO_TASK_STATUS.get(model.status, 'draft')
-    preserved_status, preserved_schedule_type, preserved_cron_expression = TaskService.get_task_governance_defaults(
-        existing_task
-    )
-    task, _ = TaskService.upsert_source_task(
-        task_name=model.model_name,
-        task_type='SQL_COMPUTE',
-        source_module=MODEL_SOURCE_MODULE,
-        source_record_id=model.id,
-        status=existing_task.status if existing_task else default_status,
-        schedule_type=preserved_schedule_type,
-        cron_expression=preserved_cron_expression,
-        owner=model.owner or username,
-        task_config=build_datamodel_task_config(model, sql_text),
-        remark=model.remark or '',
-        username=username,
-    )
-    if existing_task is None and task.status != default_status:
-        task.status = default_status
-        task.save(update_fields=['status', 'update_time'])
-    return task
-
-
-def sync_model_platform_snapshot(task, changed_fields: set[str] | None = None, username: str = '') -> None:
-    changed_fields = changed_fields or set()
-    if not changed_fields or not task.source_record_id:
-        return
-    model = DataDevModel.objects.filter(pk=task.source_record_id, del_flag='0').first()
-    if model is None:
-        return
-    update_fields: list[str] = []
-    if 'owner' in changed_fields and model.owner != task.owner:
-        model.owner = task.owner
-        update_fields.append('owner')
-    if 'remark' in changed_fields and model.remark != task.remark:
-        model.remark = task.remark
-        update_fields.append('remark')
-    if not update_fields:
-        return
-    model.update_by = username
-    model.save(update_fields=update_fields + ['update_by', 'update_time'])
-
-
-def get_model_source_record(source_record_id: int):
-    return DataDevModel.objects.prefetch_related('model_fields').filter(pk=source_record_id, del_flag='0').first()
-
-
-def execute_model_task(
-    model,
-    *,
-    username: str = '',
-    trigger_mode: str = 'manual',
-    runtime_config: dict | None = None,
-    platform_task=None,
-) -> dict:
-    from apps.datatask.models import Task
-    from apps.datatask.services import TaskService
-    from apps.executors.base import ExecutorFactory
-
+def _validate_model_execution_ready(model) -> None:
     if not model.owner:
-        return {'ok': False, 'msg': '提交建表前必须填写负责人', 'data': None}
+        raise ValueError('提交建表前必须填写负责人')
     if not model.table_comment:
-        return {'ok': False, 'msg': '提交建表前必须填写表注释', 'data': None}
+        raise ValueError('提交建表前必须填写表注释')
     active_fields = model.model_fields.filter(del_flag='0').order_by('ordinal_position', 'id')
     if not active_fields.exists():
-        return {'ok': False, 'msg': '提交建表前至少需要定义一个字段', 'data': None}
+        raise ValueError('提交建表前至少需要定义一个字段')
     for field in active_fields:
         if not field.field_comment:
-            return {'ok': False, 'msg': f'字段 {field.field_name} 缺少字段注释', 'data': None}
+            raise ValueError(f'字段 {field.field_name} 缺少字段注释')
 
+
+def _build_model_execution_plan(
+    model,
+    *,
+    runtime_config: dict | None = None,
+) -> ModelExecutionPlan:
     execution_runtime_config = runtime_config or {}
-    task = platform_task
-    if task is None:
-        task = Task.objects.filter(
-            source_module=MODEL_SOURCE_MODULE,
-            source_record_id=model.id,
-            del_flag='0',
-        ).first()
-        if task is None:
-            task = sync_model_source_task(model, username=username)
-    task_config = TaskService.get_published_snapshot(task)
-    sql_text = execution_runtime_config.get('sqlText') or task_config.get('sqlText') or build_datamodel_create_sql(model)
-    runtime_layer = execution_runtime_config.get('layer') or task_config.get('layer') or model.layer
-    runtime_table_name = execution_runtime_config.get('tableName') or task_config.get('tableName') or model.table_name
-    runtime_schema_name = execution_runtime_config.get('schemaName') or task_config.get('schemaName') or model.schema_name
-    runtime_engine_type = execution_runtime_config.get('engineType') or task_config.get('engineType') or model.engine_type
+    sql_text = execution_runtime_config.get('sqlText') or build_datamodel_create_sql(model)
+    runtime_layer = execution_runtime_config.get('layer') or model.layer
+    runtime_table_name = execution_runtime_config.get('tableName') or model.table_name
+    runtime_schema_name = execution_runtime_config.get('schemaName') or model.schema_name
+    runtime_engine_type = execution_runtime_config.get('engineType') or model.engine_type
     merged_runtime_config = {
         **execution_runtime_config,
         'layer': runtime_layer,
@@ -678,28 +614,27 @@ def execute_model_task(
         'engineType': runtime_engine_type,
         'sqlText': sql_text,
     }
-    task_instance = TaskService.create_task_instance(
-        task=task,
-        trigger_mode=trigger_mode,
-        runtime_config=merged_runtime_config,
-        triggered_by=username or trigger_mode,
-        executor_type=runtime_engine_type,
-    )
-    TaskService.mark_instance_running(task_instance, executor_type=runtime_engine_type)
 
-    start_time = timezone.now()
-    start_perf = timezone.now().timestamp()
-    executor = ExecutorFactory.create_executor(
-        runtime_engine_type,
-        model,
-        config={'engine': runtime_engine_type, 'sql': sql_text},
+    return ModelExecutionPlan(
+        sql=sql_text,
+        runtime_layer=runtime_layer,
+        runtime_table_name=runtime_table_name,
+        runtime_schema_name=runtime_schema_name,
+        runtime_engine_type=runtime_engine_type,
+        merged_runtime_config=merged_runtime_config,
     )
-    status = 'success'
-    error_msg = ''
-    engine_result = {}
-    columns = []
-    rows = []
+
+
+def _execute_model_plan(model, plan: ModelExecutionPlan) -> ModelExecutionResult:
+    from apps.executors.base import ExecutorFactory
+
+    executor = None
     try:
+        executor = ExecutorFactory.create_executor(
+            plan.runtime_engine_type,
+            model,
+            config={'engine': plan.runtime_engine_type, 'sql': plan.sql},
+        )
         is_valid, validate_message = executor.validate()
         if not is_valid:
             raise ValueError(validate_message)
@@ -714,10 +649,16 @@ def execute_model_task(
                 columns = list(raw_rows[0].keys())
         else:
             rows = [dict(zip(columns, row)) for row in raw_rows]
+        return ModelExecutionResult(
+            status=status,
+            error_msg=error_msg,
+            columns=columns,
+            rows=rows,
+            engine_result=engine_result,
+        )
     except Exception as exc:
-        status = 'failed'
-        error_msg = str(exc)
         logger.exception('模型建表失败: model_id=%s, error=%s', model.id, exc)
+        return ModelExecutionResult(status='failed', error_msg=str(exc))
     finally:
         if executor and hasattr(executor, 'close'):
             try:
@@ -725,60 +666,90 @@ def execute_model_task(
             except Exception:
                 logger.warning('关闭模型执行器失败: model_id=%s', model.id, exc_info=True)
 
-    if status == 'success' and not columns and not rows:
-        columns = ['layer', 'tableName', 'engineType', 'owner']
-        rows = [{
-            'layer': runtime_layer,
-            'tableName': runtime_table_name,
-            'engineType': runtime_engine_type,
+
+def _apply_model_success_fallback(model, plan: ModelExecutionPlan, result: ModelExecutionResult) -> None:
+    if result.status == 'success' and not result.columns and not result.rows:
+        result.columns = ['layer', 'tableName', 'engineType', 'owner']
+        result.rows = [{
+            'layer': plan.runtime_layer,
+            'tableName': plan.runtime_table_name,
+            'engineType': plan.runtime_engine_type,
             'owner': model.owner,
         }]
 
+
+def _build_model_execution_summary(plan: ModelExecutionPlan, result: ModelExecutionResult, *, start_time, start_perf: float):
     duration = round(timezone.now().timestamp() - start_perf, 2)
-    if engine_result.get('duration_seconds') not in (None, ''):
-        duration = engine_result['duration_seconds']
+    if result.engine_result.get('duration_seconds') not in (None, ''):
+        duration = result.engine_result['duration_seconds']
     end_time = start_time + timedelta(seconds=duration)
-    result_summary = {
-        'columns': columns,
-        'rowCount': len(rows),
-        'engine': runtime_engine_type,
-        'tableName': runtime_table_name,
-        'layer': runtime_layer,
-        'error': error_msg,
-    }
-    TaskService.finalize_instance(
-        instance=task_instance,
-        status=status,
-        result_summary=result_summary,
-        error_message=error_msg,
-        started_at=start_time,
-        finished_at=end_time,
-        duration_seconds=duration,
+    return {
+        'columns': result.columns,
+        'rows': result.rows,
+        'rowCount': len(result.rows),
+        'engine': plan.runtime_engine_type,
+        'tableName': plan.runtime_table_name,
+        'layer': plan.runtime_layer,
+        'error': result.error_msg,
+        'duration': duration,
+        'startedAt': start_time,
+        'finishedAt': end_time,
+    }, end_time, duration
+
+
+def _mark_model_execution_success(model, *, username: str = '') -> None:
+    model.status = 'deployed'
+    model.update_by = username
+    model.save(update_fields=['status', 'update_by', 'update_time'])
+
+
+def execute_model_task(
+    model,
+    *,
+    username: str = '',
+    trigger_mode: str = 'manual',
+    runtime_config: dict | None = None,
+    platform_task=None,
+) -> dict:
+    # Model DDL execution is a datadev-local action. The model definition itself
+    # is not a datatask source and should not create a platform task mirror.
+    try:
+        _validate_model_execution_ready(model)
+        plan = _build_model_execution_plan(
+            model,
+            runtime_config=runtime_config,
+        )
+    except ValueError as exc:
+        return {'ok': False, 'msg': str(exc), 'data': None}
+
+    start_time = timezone.now()
+    start_perf = timezone.now().timestamp()
+    result = _execute_model_plan(model, plan)
+    _apply_model_success_fallback(model, plan, result)
+    result_summary, end_time, duration = _build_model_execution_summary(
+        plan=plan,
+        result=result,
+        start_time=start_time,
+        start_perf=start_perf,
     )
-    if status == 'success':
-        model.status = 'deployed'
-        model.update_by = username
-        model.save(update_fields=['status', 'update_by', 'update_time'])
-        if task.status != 'active':
-            task.status = 'active'
-            task.save(update_fields=['status', 'update_time'])
-    if status == 'failed':
+
+    if result.status == 'success':
+        _mark_model_execution_success(model, username=username)
+    if result.status == 'failed':
         return {
             'ok': False,
-            'msg': f'提交建表失败: {error_msg}',
-            'data': {'taskInstanceId': task_instance.id, 'status': 'failed'},
+            'msg': f'提交建表失败: {result.error_msg}',
+            'data': {'status': 'failed', 'resultSummary': result_summary},
         }
     return {
         'ok': True,
         'msg': '提交建表成功',
         'data': {
-            'taskInstanceId': task_instance.id,
-            'executionId': task_instance.instance_id,
-            'status': status,
-            'columns': columns,
-            'rows': rows,
+            'status': result.status,
+            'columns': result.columns,
+            'rows': result.rows,
             'duration': duration,
-            'generatedSql': sql_text,
+            'generatedSql': plan.sql,
             'startedAt': start_time,
             'finishedAt': end_time,
         },
@@ -795,16 +766,6 @@ def _execute_script_from_platform(platform_task, source_record, username: str, t
     )
 
 
-def _execute_model_from_platform(platform_task, source_record, username: str, trigger_mode: str, runtime_config: dict | None) -> ExecuteTaskResult:
-    return execute_model_task(
-        source_record,
-        username=username,
-        trigger_mode=trigger_mode,
-        runtime_config=runtime_config,
-        platform_task=platform_task,
-    )
-
-
 register_source_handler(
     SCRIPT_SOURCE_MODULE,
     SourceHandler(
@@ -812,15 +773,5 @@ register_source_handler(
         sync_source_task=sync_script_source_task,
         sync_platform_snapshot=sync_script_platform_snapshot,
         execute_task=_execute_script_from_platform,
-    ),
-)
-
-register_source_handler(
-    MODEL_SOURCE_MODULE,
-    SourceHandler(
-        load_source_record=get_model_source_record,
-        sync_source_task=sync_model_source_task,
-        sync_platform_snapshot=sync_model_platform_snapshot,
-        execute_task=_execute_model_from_platform,
     ),
 )
