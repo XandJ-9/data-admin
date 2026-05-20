@@ -460,10 +460,15 @@ async function handlePublishVersion() {
 
 async function handlePublishTask() {
   if (!currentScript.value) return
+  if (hasUnsavedContent.value) {
+    const message = '当前脚本内容尚未发布为正式版本，请先点击“发布版本”后再发布到任务运维'
+    showWorkspaceFeedback('warning', '发布到任务运维前需要正式版本', message)
+    ElMessage.warning(message)
+    return
+  }
   publishingTask.value = true
   try {
     await persistMeta({ silent: true })
-    await ensureDraftSynced()
     const res = await publishScriptTask(currentScript.value.scriptId)
     ElMessage.success(res.msg || '已发布到任务运维')
     router.push({ name: 'DataTaskDetail', params: { id: res.data.taskId } })

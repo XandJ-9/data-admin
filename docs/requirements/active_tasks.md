@@ -4,9 +4,9 @@
 
 ## 2026-05-19 当前进行中
 
-1. `datadev` 正在执行权限与兼容收敛修复：加工作业写操作从 `datadev:ide:view` 拆分到 `add/edit/remove/execute/publish` 权限码，前后端按钮与后端 action 权限同时对齐。
+1. `datadev` 正在执行权限与兼容收敛修复：加工作业写操作从 `datadev:ide:view` 拆分到 `add/edit/remove/execute/publish` 权限码，前后端按钮与后端 action 权限同时对齐；模型详情“提交建表”入口也已按实际保存+提交链路要求同时校验保存权限与提交权限。
 2. `datadev` 脚本列表序列化正在收敛 N+1 查询：通过 `ScriptViewSet` 统一注入平台任务子查询注解，替代逐条查询 `Task` 的序列化器逻辑。
-3. `datadev` 兼容目录页已调整为“仅目录管理，不再展示目录-脚本绑定”，避免前端传 `directoryId` 与后端无绑定字段导致的误导展示。
+3. `datadev` 兼容目录页已调整为“仅目录管理，不再展示目录-脚本绑定”，避免前端传 `directoryId` 与后端无绑定字段导致的误导展示；未使用的旧目录-脚本绑定侧栏组件已清理。
 
 ## 当前最高优先级
 

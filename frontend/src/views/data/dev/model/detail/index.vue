@@ -8,8 +8,8 @@
       <div class="header-actions">
         <el-button @click="goBack">返回</el-button>
         <el-button v-if="!isCreate && currentModelId" type="primary" plain v-hasPermi="['datadev:ide:add']" @click="handleCreateJob">创建加工作业</el-button>
-        <el-button type="primary" :loading="saving" v-hasPermi="[isCreate ? 'datadev:model:add' : 'datadev:model:edit']" @click="handleSave">保存模型</el-button>
-        <el-button type="success" :loading="submitting" v-hasPermi="['datadev:model:submit']" @click="handleSubmit">提交建表</el-button>
+        <el-button v-if="canSaveModel" type="primary" :loading="saving" @click="handleSave">保存模型</el-button>
+        <el-button v-if="canSubmitModel" type="success" :loading="submitting" @click="handleSubmit">提交建表</el-button>
       </div>
     </div>
 
@@ -125,6 +125,7 @@
 <script setup>
 import { ElMessage } from 'element-plus'
 import { addModel, getModel, submitModel, updateModel } from '@/api/data/datadev'
+import { checkPermi } from '@/utils/permission'
 
 defineOptions({ name: 'DataDevModelDetail' })
 
@@ -159,6 +160,9 @@ const rules = {
 }
 
 const isCreate = computed(() => Number(route.params.modelId || 0) === 0 || route.query.mode === 'create')
+const savePermission = computed(() => (isCreate.value ? 'datadev:model:add' : 'datadev:model:edit'))
+const canSaveModel = computed(() => checkPermi([savePermission.value]))
+const canSubmitModel = computed(() => checkPermi(['datadev:model:submit']) && canSaveModel.value)
 const generatedSql = computed(() => {
   if (!fieldRows.value.length) return '-- 请先添加字段后再生成 DDL'
   const safeTableName = form.tableName || 'table_name'
@@ -274,6 +278,10 @@ async function handleSave() {
 }
 
 async function handleSubmit() {
+  if (!canSubmitModel.value) {
+    ElMessage.error('缺少保存模型或提交建表权限')
+    return
+  }
   submitting.value = true
   try {
     const modelId = await saveOrUpdateModel()

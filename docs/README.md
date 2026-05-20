@@ -18,6 +18,7 @@
 2. `docs/developments/frontend-conventions.md`
 3. `docs/developments/creating-modules.md`
 4. `docs/developments/quick-reference.md`
+5. `docs/prompts/`（AI 自主开发、排障、评审与交付检查提示词模板）
 
 ## 历史归档
 

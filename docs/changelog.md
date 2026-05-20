@@ -2,6 +2,13 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.102] - 2026-05-21
+
+- [Docs] 新增 `docs/prompts/` 自主开发提示词模板，覆盖项目固定规则、单任务开发、Bug 修复、模块边界检查、代码评审与交付检查六类工作流。
+- [Fix] `datadev` 作业详情“发布到任务运维”不再把未保存内容先落成草稿，改为提示先发布正式版本，避免草稿状态触发后端发布校验失败。
+- [Fix] `datadev` 模型详情“提交建表”按钮权限已与实际保存+提交链路对齐，需同时具备保存模型和提交建表权限才展示。
+- [Refactor] 清理 `datadev` 未使用的旧目录-脚本绑定侧栏组件，避免已下线的目录脚本绑定职责回流。
+
 ## [v1.4.101] - 2026-05-19
 
 - [Security] `datadev` 加工作业权限已按动作拆分：后端 `ScriptViewSet.permission_map` 从单一 `datadev:ide:view` 收敛为 `datadev:ide:add/edit/remove/execute/publish`，并同步前端按钮权限约束。
