@@ -12,7 +12,7 @@ model: sonnet
 当被调用时：
 
 1. **获取上下文** — 运行 `git diff --staged` 和 `git diff` 查看所有变更。如果没有diff，查看最近5个提交：`git log --oneline -5`。
-2. **确认项目根目录** — 确保当前工作目录是 `/Users/xujia/MyCode/data-admin`。
+2. **确认项目根目录** — 确保当前工作目录是当前仓库根目录，且包含 `CLAUDE.md`、`backend/`、`frontend/` 和 `docs/`。
 3. **读取项目规范** — 优先读取项目根目录下的 `CLAUDE.md`，了解项目核心规则。
 4. **识别变更范围** — 确定变更属于前端（frontend/）、后端（backend/）还是文档（docs/）。
 5. **应用专项检查清单** — 按照下面的分类从高到低优先级检查。
