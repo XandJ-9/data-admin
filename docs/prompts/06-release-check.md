@@ -26,7 +26,7 @@
    - 菜单 seed 中 perms 是否存在并语义正确。
    - 前端按钮或入口是否使用 v-hasPermi。
 5. 模块边界一致
-   - 是否符合 ADR-011 和 ADR-012。
+   - 是否符合 ADR-002 和 ADR-003。
    - Task、TaskInstance、source handler、executors、dbutils 边界是否清晰。
 6. 数据一致
    - 软删除、唯一约束、迁移、历史数据兼容是否处理。

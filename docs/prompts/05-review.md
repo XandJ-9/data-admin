@@ -20,8 +20,8 @@
 - 涉及任务执行或模块边界时读取 docs/developments/module-responsibility-execution-guide.md
 
 重点检查：
-1. 是否违反 ADR-011 阶段职责边界。
-2. 是否违反 ADR-012 的业务任务真源、Task 平台镜像、TaskInstance 唯一执行记录边界。
+1. 是否违反 ADR-002 阶段职责边界。
+2. 是否违反 ADR-003 的业务任务真源、Task 平台镜像、TaskInstance 唯一执行记录边界。
 3. 是否重复实现已有功能。
 4. 是否未同步 active_tasks.md 和 changelog.md。
 5. 后端是否缺少必要 type hints、输入校验、权限校验、错误处理。

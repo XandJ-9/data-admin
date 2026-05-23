@@ -7,13 +7,13 @@
 
 必须读取：
 - CLAUDE.md
-- docs/adr/ADR-011-平台五阶段职责划分规范.md
-- docs/adr/ADR-012-统一任务定义与执行实例边界规范.md
+- docs/adr/ADR-002-平台分层与五阶段职责.md
+- docs/adr/ADR-003-统一任务内核与执行实例边界.md
 - docs/developments/module-responsibility-execution-guide.md
 - docs/requirements/active_tasks.md
 
 边界判断问题：
-1. 这个需求属于 ADR-011 的哪个阶段？
+1. 这个需求属于 ADR-002 的哪个阶段？
    - datasource：Connection & Discovery
    - dataintegration：Data Integration
    - datadev：Data Development
@@ -31,7 +31,7 @@
 11. 是否需要通过 source handler 接入 TaskService？
 12. 是否需要区分“业务页面调试草稿”和“任务中心发布快照”？
 13. 是否涉及权限码、菜单 seed、前端按钮权限三处一致性？
-14. 是否需要同步 ADR、active_tasks.md、changelog.md 或开发规范？
+14. 是否需要同步 ADR、模块架构、active_tasks.md、changelog.md 或开发规范？
 
 判断输出格式：
 

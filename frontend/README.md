@@ -9,7 +9,7 @@
 | 数据源 | `src/views/data/datasource/` | 数据源管理、源端发现、采集到资产 |
 | 数据集成 | `src/views/data/integration/` | 同步任务配置、执行与记录 |
 | 数据开发 | `src/views/data/dev/` | 脚本开发、模型设计、执行历史 |
-| 任务运维 | `src/views/data/task/` / `orchestration/` | 统一任务与实例运维 |
+| 任务运维 | `src/views/data/task/` | 统一任务与实例运维 |
 | 数据资产 / 服务 | `src/views/data/asset/` / `service/` | 资产目录、血缘、查询与接口 |
 
 当前重要口径：

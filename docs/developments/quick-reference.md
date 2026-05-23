@@ -69,10 +69,10 @@ hotfix/<topic>
 ## 当前文档入口
 
 1. `docs/README.md`
-2. `docs/developments/module-responsibility-execution-guide.md`
-3. `docs/requirements/active_tasks.md`
-4. `docs/changelog.md`
-5. `docs/adr/ADR-011-平台五阶段职责划分规范.md`
+2. `docs/architecture/README.md`
+3. `docs/developments/README.md`
+4. `docs/adr/README.md`
+5. `docs/troubleshooting/README.md`
 
 ## 当前开发硬约束
 

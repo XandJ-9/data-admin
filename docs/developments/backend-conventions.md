@@ -4,7 +4,7 @@
 
 - **框架**：Django 5.2 + DRF 3.16 + SimpleJWT + drf-spectacular
 - **WebSocket**：Django Channels 4.3 + Daphne（ASGI 服务器）
-- **数据库**：SQLite（开发环境），支持连接外部 MySQL/PostgreSQL/Presto/StarRocks
+- **数据库**：PostgreSQL（默认，读取 `backend/config/env.py`，可通过 `DJANGO_DATABASE_*` 环境变量覆盖为 SQLite 或其他后端），支持连接外部 MySQL/PostgreSQL/Presto/StarRocks
 - **包管理器**：`uv`
 
 ## 包管理

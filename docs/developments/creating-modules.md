@@ -2,7 +2,7 @@
 
 ## 0. 开发前置检查（必须先做）
 
-在创建任何新模块前，先把 `docs/adr/ADR-011-平台五阶段职责划分规范.md` 当作唯一边界依据，按下面流程执行：
+在创建任何新模块前，先把 `docs/adr/ADR-002-平台分层与五阶段职责.md` 当作阶段边界依据，按下面流程执行：
 
 如果模块涉及任务定义、任务执行、数据库查询或库表字段探查，还必须同时检查 `docs/developments/module-responsibility-execution-guide.md`，确认业务真源、任务镜像、执行实例和统一执行层边界。
 
@@ -273,7 +273,7 @@ export function delMyModel(id) {
 
 ## 验证清单
 
-- [ ] 已按 ADR-011 明确模块所属阶段、上游输入、下游交付物
+- [ ] 已按 ADR-002 明确模块所属阶段、上游输入、下游交付物
 - [ ] 若涉及任务或数据库执行，已按 `module-responsibility-execution-guide.md` 明确业务真源、`datatask` 镜像和 `executors/dbutils` 调用边界
 - [ ] 已全局检查当前项目是否存在同职责旧实现
 - [ ] 若存在旧实现，已先整理替换范围并删除旧代码，再开始重建

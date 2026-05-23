@@ -2,7 +2,7 @@
 
 Data Admin 是一个面向数据平台建设的统一管理后台，覆盖数据源接入、元数据发现、贴源同步、数据开发、任务编排、资产目录、血缘呈现和数据服务等核心场景。项目采用前后端分离架构，前端基于 Vue 3 与 Element Plus，后端基于 Django 5.2 与 DRF，并通过 `datatask` 统一承载任务定义、依赖关系、执行实例与调度分发。
 
-当前主干以 **ADR-010 + ADR-011 + ADR-012** 为架构基线，模块职责围绕“连接与发现、数据集成、数据开发、任务运维、资产与服务”五个阶段收敛。
+当前主干以 **ADR-001 + ADR-002 + ADR-003** 为架构基线，模块职责围绕“连接与发现、数据集成、数据开发、任务运维、资产与服务”五个阶段收敛。
 
 ![Data Admin 当前项目架构图](docs/architecture/ig_0e9ff8288d835edc016a0c5baf688c8191a4dae3496f6e1a66.png)
 
@@ -40,7 +40,7 @@ Data Admin 是一个面向数据平台建设的统一管理后台，覆盖数据
 - **前端**：Vue 3、Element Plus、Vite、Pinia、Vue Router、Axios、ECharts、xterm.js、Ace Editor
 - **数据连接**：SQLite、MySQL、PostgreSQL、Presto/Trino、Hive、Mock
 - **包管理器**：`uv`（后端）、`pnpm`（前端）
-- **开发数据库**：SQLite
+- **默认数据库**：PostgreSQL（读取 `backend/config/env.py`），可通过 `DJANGO_DATABASE_*` 环境变量覆盖为 SQLite 或其他后端
 
 ## 快速开始
 
@@ -103,7 +103,7 @@ data-admin/
 
 ## 开发约束
 
-1. 新模块或重构模块前，先阅读 `docs/adr/ADR-011-平台五阶段职责划分规范.md`。
-2. 涉及统一任务定义、执行实例、调度或来源分发时，同步参考 `docs/adr/ADR-012-统一任务定义与执行实例边界规范.md`。
+1. 新模块或重构模块前，先阅读 `docs/adr/ADR-002-平台分层与五阶段职责.md`。
+2. 涉及统一任务定义、执行实例、调度或来源分发时，同步参考 `docs/adr/ADR-003-统一任务内核与执行实例边界.md`。
 3. 提交前同步更新 `docs/requirements/active_tasks.md` 与 `docs/changelog.md`。
 4. 默认遵循：**主干稳定、短分支交付、单分支单目标**。

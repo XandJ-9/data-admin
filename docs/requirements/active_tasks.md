@@ -18,13 +18,13 @@
 
 ## 当前架构基线
 
-1. 平台按 ADR-011 收敛为五阶段职责模型：
+1. 平台按 ADR-002 收敛为五阶段职责模型：
    - `datasource`：Connection & Discovery
    - `dataintegration`：Data Integration
    - `datadev`：Data Development
    - `datatask`：Orchestration & DataOps
    - `dataasset`：Assetization & Service
-2. 平台任务边界按 ADR-012 执行：`datasource`、`dataintegration`、`datadev` 各自保留正式任务定义，`datatask.Task` 作为平台镜像，`datatask.TaskInstance` 作为唯一执行记录中心。
+2. 平台任务边界按 ADR-003 执行：`datasource`、`dataintegration`、`datadev` 各自保留正式任务定义，`datatask.Task` 作为平台镜像，`datatask.TaskInstance` 作为唯一执行记录中心。
 3. 三个业务模块职责按 `module-responsibility-execution-guide.md` 执行：业务模块只定义“要做什么”，`datatask` 管“什么时候跑、谁在跑、跑成什么样”，`executors/dbutils` 负责“怎么实际连接和执行”。
 4. `datasource`、`dataintegration` 与 `datadev` 已通过各自 source handler 接入 `datatask`，统一任务中心只保留任务内核与来源分发协议；其中 `datasource` 当前已将原 `task_source.py` 收敛并更名为 `task_handler.py`。
 5. `datatask` 当前通过 source handler / registry 分发来源模块执行能力；调度执行优先基于 `datatask.Task.task_config` 发布快照运行，不再默认回落到业务任务 live 配置作为执行事实来源。
@@ -66,7 +66,7 @@
 22. `datatask` 当前已将任务治理更新入口收敛到 `TaskService.update_task_governance`：`TaskViewSet.update` 不再直接拼装状态、调度与来源快照同步字段，统一由 service 承接，相关 `apps.datatask` 回归测试当前通过。
 23. `datatask` 当前已建立发布快照统一边界：`TaskService.get_published_snapshot` / `build_task_config_payload` 作为唯一快照读写入口，`datasource`、`dataintegration`、`datadev` 执行链路统一优先读取发布快照，旧 `task_config` 结构保持兼容回退。
 24. `datatask` 当前已收敛 `SourceHandler` 契约：来源执行返回统一采用 `{ok,msg,data}` envelope，并由 `TaskService.execute_task` 统一归一化；当来源模块返回结构异常时，任务中心会稳定降级为失败响应而不是抛出运行时错误。
-25. `docs/architecture/datatask-architecture-review-2026-04-29.md` 与 `ADR-010` 当前已完成时效性对齐：专项评审稿新增“已落实/待落实”收敛进度，`ADR-010` 中 `datasource` 接入状态补充了 2026-04-30 的阶段说明，避免历史决策描述与主干实现口径冲突。
+25. ADR 目录当前已收敛为 5 份有效决策：全局技术栈、平台分层、统一任务边界、资产服务边界和 Web Terminal PTY 架构；旧阶段性 ADR 已合并删除，避免后续继续引用过时口径。
 26. `initdata` 当前菜单种子继续保留 `/datadev` 与 `/datatask` 作为正式业务根菜单，同时显式停用历史 `/data-orchestration` 入口，菜单回归测试已按该现状对齐。
 27. 前端当前已清理未接入后端的遗留断链入口：移除 `/register` 静态路由，以及 monitor 的 `job / jobLog / logininfor` 与 `tool/gen` 相关页面和 API 封装，避免保留不可用前台代码。
 28. 前端当前已清理历史 `views/data/orchestration/` 页面及任务首页中的“进入依赖编排”断链按钮；任务运维入口统一保留在 `views/data/task/`。
@@ -91,4 +91,4 @@
 6. `docs/developments/module-responsibility-execution-guide.md` 已作为后续开发新的指导手册，明确三个业务模块、`datatask`、`executors`、`dbutils` 的职责边界与禁止事项。
 7. `docs/developments/development-priority-correction-2026-04-30.md` 已新增开发顺序纠偏方案，并已提升为当前文档入口中的优先阅读项，用于约束未来 4 到 6 周的开发顺序、非目标范围和模块优先级。
 8. 项目根 README、前后端 README 与前端开发规范当前已完成实现口径校准：`datasource` 明确保留采集到资产能力，前端免登录白名单明确仅保留 `/login`。
-9. `docs/adr/README.md` 当前已按新编写规则重新分为“当前基线 / 背景决策 / 历史阶段口径 / 已删除旧 ADR”；ADR-006、ADR-008、ADR-009、ADR-010 已标注部分被 ADR-012 与当前主干实现覆盖，完全对应已下线 `apps.dataetl` 的 ADR-002 已删除。
+9. `docs/adr/README.md` 当前只保留有效 ADR 入口；历史阶段性 ADR 已被合并或删除，不再作为当前实现参考。
