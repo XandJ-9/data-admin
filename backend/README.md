@@ -22,6 +22,8 @@
 
 ## 启动命令
 
+### 开发环境
+
 ```bash
 cd backend
 uv sync
@@ -30,8 +32,27 @@ uv run python manage.py initdata
 uv run python manage.py runserver 0.0.0.0:8000
 ```
 
+### 生产环境部署
+
+后端使用 Django Channels 承载 Web 终端的 WebSocket 通道，生产环境应使用 `daphne` 启动 ASGI 应用，不使用 `gunicorn` 启动。
+
+```bash
+cd backend
+uv sync
+uv run python manage.py migrate
+uv run python manage.py initdata
+uv run env DJANGO_DEBUG=false DJANGO_ALLOWED_HOSTS='*' daphne -b 0.0.0.0 -p 8001 --access-log /tmp/data-admin-backend-8001-access.log config.asgi:application
+```
+
+后台托管可使用系统服务管理器，或本地排障时临时使用 `screen`：
+
+```bash
+screen -dmS data-admin-daphne-8001 bash -lc 'cd /path/to/data-admin/backend && exec uv run env DJANGO_DEBUG=false DJANGO_ALLOWED_HOSTS="*" daphne -b 0.0.0.0 -p 8001 --access-log /tmp/data-admin-backend-8001-access.log config.asgi:application > /tmp/data-admin-backend-8001-daphne.log 2>&1'
+```
+
 - Python：`3.12+`
-- Swagger：`http://localhost:8000/api/docs/`
+- 开发 Swagger：`http://localhost:8000/api/docs/`
+- 生产 Swagger：`http://localhost:8001/api/docs/`
 
 ## 常用校验命令
 

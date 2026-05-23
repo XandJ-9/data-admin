@@ -46,6 +46,8 @@ Data Admin 是一个面向数据平台建设的统一管理后台，覆盖数据
 
 ### 后端
 
+开发环境：
+
 ```bash
 cd backend
 uv sync
@@ -53,6 +55,18 @@ uv run python manage.py migrate
 uv run python manage.py initdata
 uv run python manage.py runserver 0.0.0.0:8000
 ```
+
+生产环境部署：
+
+```bash
+cd backend
+uv sync
+uv run python manage.py migrate
+uv run python manage.py initdata
+uv run env DJANGO_DEBUG=false DJANGO_ALLOWED_HOSTS='*' daphne -b 0.0.0.0 -p 8001 --access-log /tmp/data-admin-backend-8001-access.log config.asgi:application
+```
+
+后端生产环境使用 `daphne` 启动 `config.asgi:application`，以保证 Django Channels 和 Web 终端 WebSocket 正常工作。
 
 ### 前端
 
@@ -67,6 +81,7 @@ pnpm dev
 - 前端：`http://localhost:80/data-admin/`
 - API：`http://localhost:8000/data-api/`
 - API 文档：`http://localhost:8000/api/docs/`
+- 生产 API 文档：`http://localhost:8001/api/docs/`
 - 默认账号：`admin / admin123`
 
 ## 目录结构
