@@ -63,10 +63,10 @@ cd backend
 uv sync
 uv run python manage.py migrate
 uv run python manage.py initdata
-uv run env DJANGO_DEBUG=false DJANGO_ALLOWED_HOSTS='*' daphne -b 0.0.0.0 -p 8001 --access-log /tmp/data-admin-backend-8001-access.log config.asgi:application
+uv run env DJANGO_DEBUG=false DJANGO_ALLOWED_HOSTS='*' daphne -b 127.0.0.1 -p 18001 --access-log /tmp/data-admin-backend-18001-access.log config.asgi:application
 ```
 
-后端生产环境使用 `daphne` 启动 `config.asgi:application`，以保证 Django Channels 和 Web 终端 WebSocket 正常工作。
+后端生产环境使用 `daphne` 启动 `config.asgi:application`，以保证 Django Channels 和 Web 终端 WebSocket 正常工作。Nginx 配置见 `nginx/data-admin.conf`，对外暴露 `/data-admin/`、`/data-api/`、`/api/` 和 `/ws/`，并代理到本机 `18001` 端口。
 
 ### 前端
 
@@ -81,7 +81,7 @@ pnpm dev
 - 前端：`http://localhost:80/data-admin/`
 - API：`http://localhost:8000/data-api/`
 - API 文档：`http://localhost:8000/api/docs/`
-- 生产 API 文档：`http://localhost:8001/api/docs/`
+- 生产 API 文档：`http://localhost:80/api/docs/`
 - 默认账号：`admin / admin123`
 
 ## 目录结构
