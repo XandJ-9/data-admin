@@ -70,6 +70,15 @@ class TaskService:
         normalized_module = source_module.replace('.', '_').replace('-', '_')
         return f'{task_type.lower()}_{normalized_module}_{source_record_id}'
 
+    @staticmethod
+    def build_unique_task_code(base_code: str) -> str:
+        for index in range(2, 1000):
+            suffix = f'_{index}'
+            candidate = f'{base_code[:128 - len(suffix)]}{suffix}'
+            if not Task.objects.filter(task_code=candidate).exists():
+                return candidate
+        raise IntegrityError(f'Unable to allocate unique task_code for {base_code}')
+
     @classmethod
     def upsert_source_task(
         cls,
@@ -113,15 +122,34 @@ class TaskService:
 
             if task is None:
                 try:
-                    task = Task.objects.create(
-                        source_module=source_module,
-                        source_record_id=source_record_id,
-                        create_by=username,
-                        **defaults,
-                    )
+                    with transaction.atomic():
+                        task = Task.objects.create(
+                            source_module=source_module,
+                            source_record_id=source_record_id,
+                            create_by=username,
+                            **defaults,
+                        )
                     return task, True
                 except IntegrityError:
-                    task = Task.objects.select_for_update().get(task_code=defaults['task_code'])
+                    task = Task.objects.select_for_update().filter(
+                        source_module=source_module,
+                        source_record_id=source_record_id,
+                    ).first()
+                    if task is None:
+                        conflicting_task = Task.objects.select_for_update().filter(
+                            task_code=defaults['task_code'],
+                        ).first()
+                        if conflicting_task is None:
+                            raise
+                        defaults['task_code'] = cls.build_unique_task_code(defaults['task_code'])
+                        with transaction.atomic():
+                            task = Task.objects.create(
+                                source_module=source_module,
+                                source_record_id=source_record_id,
+                                create_by=username,
+                                **defaults,
+                            )
+                        return task, True
 
             has_upstream_dependencies = TaskDependency.objects.filter(
                 downstream_task_id=task.id,

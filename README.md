@@ -62,8 +62,8 @@ uv run python manage.py runserver 0.0.0.0:8000
 cd backend
 uv sync
 uv run python manage.py migrate
-uv run python manage.py initdata
-uv run env DJANGO_DEBUG=false DJANGO_ALLOWED_HOSTS='*' daphne -b 127.0.0.1 -p 18001 --access-log /tmp/data-admin-backend-18001-access.log config.asgi:application
+uv run env DJANGO_DEBUG=false DJANGO_SECRET_KEY='<strong-secret>' DATA_ADMIN_ADMIN_PASSWORD='<strong-admin-password>' DATA_ADMIN_USER_PASSWORD='<strong-user-password>' python manage.py initdata
+uv run env DJANGO_DEBUG=false DJANGO_SECRET_KEY='<strong-secret>' DJANGO_ALLOWED_HOSTS='example.com,127.0.0.1' daphne -b 127.0.0.1 -p 18001 --access-log /tmp/data-admin-backend-18001-access.log config.asgi:application
 ```
 
 后端生产环境使用 `daphne` 启动 `config.asgi:application`，以保证 Django Channels 和 Web 终端 WebSocket 正常工作。Nginx 配置见 `nginx/data-admin.conf`，对外暴露 `/data-admin/`、`/data-api/`、`/api/` 和 `/ws/`，并代理到本机 `18001` 端口。
@@ -82,7 +82,8 @@ pnpm dev
 - API：`http://localhost:8000/data-api/`
 - API 文档：`http://localhost:8000/api/docs/`
 - 生产 API 文档：`http://localhost:80/api/docs/`
-- 默认账号：`admin / admin123`
+- 开发默认账号：`admin / admin123`
+- 生产初始化时必须通过 `DATA_ADMIN_ADMIN_PASSWORD` / `DATA_ADMIN_USER_PASSWORD` 设置初始密码。
 
 ## 目录结构
 

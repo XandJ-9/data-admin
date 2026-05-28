@@ -13,6 +13,18 @@ from ..serializers import MenuSerializer, MenuQuerySerializer, MenuUpdateSeriali
 
 class MenuViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:menu:list',
+        'model_list': 'system:menu:list',
+        'retrieve': 'system:menu:query',
+        'create': 'system:menu:add',
+        'update': 'system:menu:edit',
+        'update_by_body': 'system:menu:edit',
+        'partial_update': 'system:menu:edit',
+        'destroy': 'system:menu:remove',
+        'treeselect': 'system:menu:query',
+        'roleMenuTreeselect': 'system:menu:query',
+    }
     queryset = Menu.objects.filter(del_flag='0').order_by('parent_id', 'order_num')
     serializer_class = MenuSerializer
     update_body_serializer_class = MenuUpdateSerializer

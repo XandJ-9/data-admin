@@ -30,8 +30,8 @@
 5. `datatask` 当前通过 source handler / registry 分发来源模块执行能力；调度执行优先基于 `datatask.Task.task_config` 发布快照运行，不再默认回落到业务任务 live 配置作为执行事实来源。
 6. 数据源连接上下文统一复用 `apps.datasource.executor_info`；后续若继续演进，应优先沉淀为 datasource facade 或 dbutils 公共连接上下文，避免业务模块依赖内部文件。
 7. `dataservice` 已注册到 Django `INSTALLED_APPS` 并挂载到 `data-api/dataservice/`，数据服务前后端链路现以该入口作为唯一后端访问前缀。
-8. 后端权限基线当前已支持按视图 action 绑定菜单 `perms` 校验；主链路模块已声明 `permission_map`，`admin` 角色继续保留全量放行。
-9. Django 数据库默认读取 `backend/config/env.py` 中的 PostgreSQL 配置；生产敏感配置当前已支持通过环境变量覆盖 `SECRET_KEY`、`DEBUG`、`ALLOWED_HOSTS`、数据库连接与 Channel Layer 后端。
+8. 后端权限基线当前已支持按视图 action 绑定菜单 `perms` 校验；主链路模块、`system`、`monitor` 与 `terminal` 已声明 `permission_map`，`admin` 角色继续保留全量放行。
+9. Django 数据库默认读取 `backend/config/env.py` 中的 PostgreSQL 配置；生产敏感配置当前必须通过环境变量显式提供 `DJANGO_SECRET_KEY` 与非通配 `DJANGO_ALLOWED_HOSTS`，数据库连接与 Channel Layer 后端仍支持环境变量覆盖。
 10. 模块物理表名前缀当前已按模块归属收敛：`datasource.DataSource` 使用 `datasource_data_source`，`monitor` 日志表使用 `monitor_*` 前缀，历史错位表名通过迁移重命名保留数据。
 11. 前端 `views/data` 当前已按模块入口收敛：各数据模块的 `index.vue` 统一作为模块首页，列表、详情、日志、执行记录等具体功能页下沉到对应子目录，并由菜单种子的 `component` 路径精确指向。
 
@@ -80,6 +80,9 @@
 36. `dataservice.InterfaceInfo` 当前可选绑定 `dataasset.DataAsset` 作为资产锚点，发布接口时会校验资产所属数据源与接口数据源一致。
 37. `dataintegration` 的任务中心调度治理更新不再反写业务任务草稿中的 `schedule_type` / `cron_expression`；业务侧字段只作为发布前配置，调度事实源保留在 `datatask.Task`。
 38. 前端数据模块页面组织当前已收敛：`datasource`、`datadev`、`dataintegration`、`dataservice`、`datatask` 的首页保持在模块根 `index.vue`，具体功能页按 `list/detail/ide/model/query/interface/instances` 等子目录组织。
+39. `dataservice` 接口导入、导出、执行与接口字段增删改权限码当前已与前端按钮、后端 `permission_map` 和菜单种子对齐。
+40. `datatask.TaskService.upsert_source_task` 当前已对唯一约束并发冲突使用内部事务保存点隔离，避免 PostgreSQL 下捕获 `IntegrityError` 后继续查询触发事务不可用；任务编码撞到无来源手工任务时会生成备用编码，不再误复用无关任务。
+41. 生产环境初始化账号当前要求通过 `DATA_ADMIN_ADMIN_PASSWORD` 与 `DATA_ADMIN_USER_PASSWORD` 提供密码，初始化命令不再输出明文默认密码。
 
 ## 当前文档口径
 

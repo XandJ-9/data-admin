@@ -207,6 +207,9 @@ def _get_sys_files():
 
 class ServerView(BaseViewMixin, ViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'get': 'monitor:server:query',
+    }
 
     def get(self, request):
         warnings = []
@@ -238,6 +241,10 @@ class ServerView(BaseViewMixin, ViewSet):
 
 class OnlineViewSet(BaseViewMixin, ViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list_action': 'monitor:online:query',
+        'destroy_by_token': 'monitor:online:forceLogout',
+    }
 
     @action(detail=False, methods=['get'], url_path='list')
     def list_action(self, request):
@@ -279,6 +286,14 @@ class OnlineViewSet(BaseViewMixin, ViewSet):
 
 class OperLogViewSet(BaseViewSet):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'monitor:operlog:query',
+        'model_list': 'monitor:operlog:query',
+        'retrieve': 'monitor:operlog:query',
+        'destroy': 'monitor:operlog:remove',
+        'clean': 'monitor:operlog:remove',
+        'export': 'monitor:operlog:export',
+    }
     serializer_class = OperLogSerializer
     queryset = OperLog.objects.all().order_by('-oper_time')
 

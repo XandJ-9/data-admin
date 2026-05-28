@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db.models import F
 
 from .env import DATABASE_CONFIG
@@ -26,13 +27,21 @@ def env_list(name, default=None):
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
+DEFAULT_DEV_SECRET_KEY = 'django-insecure-egt!&y34$i(mnlz!k-d*4ba)ng$6+vn9(@bm^c)lxe530te35q'
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-egt!&y34$i(mnlz!k-d*4ba)ng$6+vn9(@bm^c)lxe530te35q')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', DEFAULT_DEV_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool('DJANGO_DEBUG', True)
 
 ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', ['*'] if DEBUG else [])
+
+if not DEBUG:
+    if SECRET_KEY == DEFAULT_DEV_SECRET_KEY:
+        raise ImproperlyConfigured('DJANGO_SECRET_KEY must be set when DJANGO_DEBUG=false')
+    if not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS:
+        raise ImproperlyConfigured('DJANGO_ALLOWED_HOSTS must be set to explicit hosts when DJANGO_DEBUG=false')
 
 
 # Application definition
@@ -208,7 +217,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DATAX_HOME = os.environ.get('DATAX_HOME', '/opt/datax')
 
 # DataX使用的Python解释器路径
-DATAX_PYTHON = os.environ.get('DATAX_PYTHON', '/Users/xujia/MyCode/data-admin/backend/.venv/bin/python3')
+DATAX_PYTHON = os.environ.get('DATAX_PYTHON', 'python3')
 
 # DataX作业配置文件临时目录
 DATAX_JOB_DIR = os.environ.get('DATAX_JOB_DIR', '/tmp/datax_jobs')

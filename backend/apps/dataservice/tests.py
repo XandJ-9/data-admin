@@ -527,6 +527,8 @@ class ReportInfoTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='reporter', password='password123')
+        admin_role = Role.objects.create(role_name='报表测试管理员', role_key='admin', role_sort=0, status='0')
+        UserRole.objects.create(user=self.user, role=admin_role)
         self.interface_a = InterfaceInfo.objects.create(
             interface_name='用户接口',
             interface_code='user_api',

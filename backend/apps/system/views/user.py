@@ -22,6 +22,22 @@ from drf_spectacular.utils import extend_schema
 
 class UserViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:user:list',
+        'model_list': 'system:user:list',
+        'retrieve': 'system:user:query',
+        'create': 'system:user:add',
+        'update': 'system:user:edit',
+        'update_by_body': 'system:user:edit',
+        'partial_update': 'system:user:edit',
+        'destroy': 'system:user:remove',
+        'export': 'system:user:export',
+        'resetPwd': 'system:user:resetPwd',
+        'changeStatus': 'system:user:edit',
+        'deptTree': 'system:user:query',
+        'getAuthRole': 'system:user:edit',
+        'updateAuthRole': 'system:user:edit',
+    }
     queryset = User.objects.all()
     serializer_class = UserSerializer
     update_body_serializer_class = UserUpdateSerializer

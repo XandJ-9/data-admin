@@ -48,6 +48,30 @@ class TaskServiceTests(TestCase):
         self.assertEqual(refreshed_task.owner, 'bob')
         self.assertEqual(refreshed_task.task_config['sqlText'], 'SELECT 2')
 
+    def test_upsert_source_task_should_not_reuse_unrelated_task_code_collision(self):
+        base_code = TaskService.build_task_code('SQL_COMPUTE', 'datadev.script', 303)
+        unrelated_task = Task.objects.create(
+            task_name='手工任务',
+            task_code=base_code,
+            task_type='SQL_COMPUTE',
+            create_by='legacy',
+        )
+
+        task, created = TaskService.upsert_source_task(
+            task_name='脚本发布任务',
+            task_type='SQL_COMPUTE',
+            source_module='datadev.script',
+            source_record_id=303,
+            task_config={'scriptId': 303, 'sqlText': 'SELECT 303'},
+            username='tester',
+        )
+
+        self.assertTrue(created)
+        self.assertNotEqual(task.pk, unrelated_task.pk)
+        self.assertEqual(task.source_module, 'datadev.script')
+        self.assertEqual(task.source_record_id, 303)
+        self.assertTrue(task.task_code.startswith(f'{base_code}_'))
+
     def test_upsert_source_task_should_persist_published_snapshot(self):
         task, _ = TaskService.upsert_source_task(
             task_name='快照任务',
@@ -490,7 +514,7 @@ class TaskViewSetTests(TestCase):
         response = view(request, pk=str(self.platform_integration_task.id))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['code'], 200)
+        self.assertEqual(response.data['code'], 200, response.data)
         self.platform_integration_task.refresh_from_db()
         self.assertEqual(self.platform_integration_task.last_instance_status, 'success')
 
@@ -515,7 +539,7 @@ class TaskViewSetTests(TestCase):
         response = view(request, pk=str(self.platform_script_task.id))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['code'], 200)
+        self.assertEqual(response.data['code'], 200, response.data)
         self.assertTrue(
             TaskInstance.objects.filter(task=self.platform_script_task, status='success').exists()
         )
@@ -552,6 +576,8 @@ class TaskDependencyViewSetTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='dag_tester', password='password123')
+        admin_role = Role.objects.create(role_name='依赖测试管理员', role_key='admin', role_sort=0, status='0')
+        UserRole.objects.create(user=self.user, role=admin_role)
         self.sync_task = Task.objects.create(
             task_name='订单同步任务',
             task_code='data_sync_orders',
@@ -883,6 +909,8 @@ class TaskInstanceViewSetTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.user = get_user_model().objects.create_user(username='instance_tester', password='password123')
+        admin_role = Role.objects.create(role_name='实例测试管理员', role_key='admin', role_sort=0, status='0')
+        UserRole.objects.create(user=self.user, role=admin_role)
         self.task = Task.objects.create(
             task_name='采集 源库 / sales',
             task_code='asset_collection_datasource_collection_8',

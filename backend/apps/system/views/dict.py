@@ -18,6 +18,19 @@ from .core import BaseViewSet
 
 class DictTypeViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:dict:list',
+        'model_list': 'system:dict:list',
+        'retrieve': 'system:dict:query',
+        'create': 'system:dict:add',
+        'update': 'system:dict:edit',
+        'update_by_body': 'system:dict:edit',
+        'partial_update': 'system:dict:edit',
+        'destroy': 'system:dict:remove',
+        'export': 'system:dict:export',
+        'refreshCache': 'system:dict:edit',
+        'optionselect': 'system:dict:list',
+    }
     queryset = DictType.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = DictTypeSerializer
     update_body_serializer_class = DictTypeUpdateSerializer
@@ -97,6 +110,19 @@ class DictTypeViewSet(BaseViewSet, ExportExcelMixin):
 
 class DictDataViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:dict:list',
+        'model_list': 'system:dict:list',
+        'list_action': 'system:dict:list',
+        'retrieve': 'system:dict:query',
+        'create': 'system:dict:add',
+        'update': 'system:dict:edit',
+        'update_by_body': 'system:dict:edit',
+        'partial_update': 'system:dict:edit',
+        'destroy': 'system:dict:remove',
+        'export': 'system:dict:export',
+        'by_type': 'system:dict:list',
+    }
     queryset = DictData.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = DictDataSerializer
     update_body_serializer_class = DictDataUpdateSerializer
@@ -178,4 +204,3 @@ class DictDataViewSet(BaseViewSet, ExportExcelMixin):
         serializer = self.get_serializer(qs, many=True)
         cache.set(cache_key, serializer.data, timeout=3600)
         return Response({'code': 200, 'msg': '操作成功', 'data': serializer.data})
-        

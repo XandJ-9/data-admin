@@ -21,6 +21,25 @@ from ..serializers import (
 
 class RoleViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:role:list',
+        'model_list': 'system:role:list',
+        'retrieve': 'system:role:query',
+        'create': 'system:role:add',
+        'update': 'system:role:edit',
+        'update_by_body': 'system:role:edit',
+        'partial_update': 'system:role:edit',
+        'destroy': 'system:role:remove',
+        'export': 'system:role:export',
+        'change_status': 'system:role:edit',
+        'data_scope': 'system:role:edit',
+        'dept_tree_select': 'system:role:query',
+        'allocated_user_list': 'system:role:query',
+        'unallocated_user_list': 'system:role:query',
+        'auth_user_cancel': 'system:role:remove',
+        'auth_user_cancel_all': 'system:role:remove',
+        'auth_user_select_all': 'system:role:add',
+    }
     queryset = Role.objects.filter(del_flag='0').order_by('create_time')
     serializer_class = RoleSerializer
     update_body_serializer_class = RoleUpdateSerializer

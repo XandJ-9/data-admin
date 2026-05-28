@@ -304,16 +304,16 @@ class InterfaceInfoViewSet(BaseViewSet):
         'retrieve': 'dataservice:interface:view',
         'create': 'dataservice:interface:add',
         'publish_from_query': 'dataservice:interface:add',
-        'import_meta': 'dataservice:interface:add',
+        'import_meta': 'dataservice:interface:import',
         'update': 'dataservice:interface:edit',
         'update_by_body': 'dataservice:interface:edit',
         'change_status': 'dataservice:interface:edit',
         'destroy': 'dataservice:interface:remove',
-        'test_by_id': 'dataservice:interface:view',
-        'execute_by_id': 'dataservice:interface:view',
-        'export_by_id': 'dataservice:interface:view',
-        'export_meta': 'dataservice:interface:view',
-        'export_by_body': 'dataservice:interface:view',
+        'test_by_id': 'dataservice:interface:execute',
+        'execute_by_id': 'dataservice:interface:execute',
+        'export_by_id': 'dataservice:interface:export',
+        'export_meta': 'dataservice:interface:export',
+        'export_by_body': 'dataservice:interface:export',
     }
     queryset = InterfaceInfo.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = InterfaceInfoSerializer
@@ -751,10 +751,10 @@ class InterfaceFieldViewSet(BaseViewSet):
         'list': 'dataservice:interface:query',
         'model_list': 'dataservice:interface:query',
         'retrieve': 'dataservice:interface:view',
-        'create': 'dataservice:interface:add',
-        'update': 'dataservice:interface:edit',
-        'update_by_body': 'dataservice:interface:edit',
-        'destroy': 'dataservice:interface:remove',
+        'create': 'dataservice:interface-field:add',
+        'update': 'dataservice:interface-field:edit',
+        'update_by_body': 'dataservice:interface-field:edit',
+        'destroy': 'dataservice:interface-field:remove',
     }
     queryset = InterfaceField.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = InterfaceFieldSerializer

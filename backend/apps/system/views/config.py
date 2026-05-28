@@ -21,6 +21,20 @@ from ..serializers import (
 
 class ConfigViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:config:list',
+        'model_list': 'system:config:list',
+        'list_action': 'system:config:list',
+        'retrieve': 'system:config:query',
+        'create': 'system:config:add',
+        'update': 'system:config:edit',
+        'update_by_body': 'system:config:edit',
+        'partial_update': 'system:config:edit',
+        'destroy': 'system:config:remove',
+        'export': 'system:config:export',
+        'get_config_key': 'system:config:query',
+        'refresh_cache': 'system:config:edit',
+    }
     queryset = Config.objects.filter(del_flag='0').order_by('-create_time')
     serializer_class = ConfigSerializer
     update_body_serializer_class = ConfigUpdateSerializer

@@ -3,8 +3,10 @@
 用法: python manage.py initdata
 """
 import json
+import os
 
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.system.management.commands.sync_menu_data import MENU_DATA_FILE, flatten_menu_tree
@@ -33,6 +35,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         force = options['force']
+        admin_password = os.environ.get('DATA_ADMIN_ADMIN_PASSWORD', 'admin123')
+        normal_password = os.environ.get('DATA_ADMIN_USER_PASSWORD', 'user123')
+
+        if not settings.DEBUG:
+            if not os.environ.get('DATA_ADMIN_ADMIN_PASSWORD'):
+                raise CommandError('DATA_ADMIN_ADMIN_PASSWORD must be set when DJANGO_DEBUG=false')
+            if not os.environ.get('DATA_ADMIN_USER_PASSWORD'):
+                raise CommandError('DATA_ADMIN_USER_PASSWORD must be set when DJANGO_DEBUG=false')
 
         if force:
             self.stdout.write(self.style.WARNING('强制模式：将清除已有菜单、角色数据后重建'))
@@ -42,11 +52,11 @@ class Command(BaseCommand):
             self._init_menus(force)
             self._init_datadev_directories(force)
             self._init_roles(force)
-            self._init_users(force)
+            self._init_users(force, admin_password=admin_password, normal_password=normal_password)
 
         self.stdout.write(self.style.SUCCESS('初始化完成！'))
-        self.stdout.write(f'  管理员账号: admin / admin123')
-        self.stdout.write(f'  普通用户: user / user123')
+        self.stdout.write('  管理员账号: admin')
+        self.stdout.write('  普通用户: user')
 
     # ------------------------------------------------------------------ 部门
     def _init_dept(self, force):
@@ -279,7 +289,7 @@ class Command(BaseCommand):
         ))
 
     # ------------------------------------------------------------------ 用户
-    def _init_users(self, force):
+    def _init_users(self, force, *, admin_password: str, normal_password: str):
         if force:
             UserRole.objects.all().delete()
             User.objects.filter(username__in=['admin', 'user']).delete()
@@ -289,7 +299,7 @@ class Command(BaseCommand):
         if admin_user is None:
             admin_user = User.objects.create_user(
                 username='admin',
-                password='admin123',
+                password=admin_password,
                 nick_name='管理员',
                 sex='0',
                 status='0',
@@ -321,7 +331,7 @@ class Command(BaseCommand):
         if normal_user is None:
             normal_user = User.objects.create_user(
                 username='user',
-                password='user123',
+                password=normal_password,
                 nick_name='普通用户',
                 sex='0',
                 status='0',

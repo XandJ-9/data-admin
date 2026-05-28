@@ -11,6 +11,17 @@ from ..serializers import NoticeSerializer, NoticeQuerySerializer, NoticeUpdateS
 
 class NoticeViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:notice:list',
+        'model_list': 'system:notice:list',
+        'retrieve': 'system:notice:query',
+        'create': 'system:notice:add',
+        'update': 'system:notice:edit',
+        'update_by_body': 'system:notice:edit',
+        'partial_update': 'system:notice:edit',
+        'destroy': 'system:notice:remove',
+        'export': 'system:notice:export',
+    }
     queryset = Notice.objects.all()
     serializer_class = NoticeSerializer
     update_body_serializer_class = NoticeUpdateSerializer

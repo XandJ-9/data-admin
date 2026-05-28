@@ -13,6 +13,17 @@ from ..serializers import PostSerializer, PaginationQuerySerializer, PostQuerySe
 
 class PostViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:post:list',
+        'model_list': 'system:post:list',
+        'retrieve': 'system:post:query',
+        'create': 'system:post:add',
+        'update': 'system:post:edit',
+        'update_by_body': 'system:post:edit',
+        'partial_update': 'system:post:edit',
+        'destroy': 'system:post:remove',
+        'export': 'system:post:export',
+    }
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     update_body_serializer_class = PostUpdateSerializer

@@ -8,6 +8,7 @@ from captcha.models import CaptchaStore
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
+from unittest.mock import patch
 
 from .models import Menu, Role, RoleMenu, UserRole
 from .permission import HasRolePermission
@@ -281,7 +282,11 @@ class LoginViewTests(TestCase):
 
 class InitDataMenuTests(TestCase):
     def test_initdata_should_keep_current_business_roots_and_disable_legacy_orchestration_root(self):
-        call_command('initdata', force=True, stdout=StringIO())
+        with patch.dict('os.environ', {
+            'DATA_ADMIN_ADMIN_PASSWORD': 'admin-test-password',
+            'DATA_ADMIN_USER_PASSWORD': 'user-test-password',
+        }):
+            call_command('initdata', force=True, stdout=StringIO())
 
         self.assertTrue(Menu.objects.filter(path='/data-asset', del_flag='0').exists())
         self.assertTrue(Menu.objects.filter(path='/data-service', del_flag='0').exists())
@@ -290,7 +295,11 @@ class InitDataMenuTests(TestCase):
         self.assertFalse(Menu.objects.filter(path='/data-orchestration', del_flag='0').exists())
 
     def test_initdata_should_split_data_integration_home_and_task_menu(self):
-        call_command('initdata', force=True, stdout=StringIO())
+        with patch.dict('os.environ', {
+            'DATA_ADMIN_ADMIN_PASSWORD': 'admin-test-password',
+            'DATA_ADMIN_USER_PASSWORD': 'user-test-password',
+        }):
+            call_command('initdata', force=True, stdout=StringIO())
 
         data_integration_root = Menu.objects.get(path='/data-integration', del_flag='0')
         self.assertEqual(data_integration_root.redirect, '/data-integration/home')

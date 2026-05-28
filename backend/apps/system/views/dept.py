@@ -17,6 +17,18 @@ from ..serializers import (
 
 class DeptViewSet(BaseViewSet, ExportExcelMixin):
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'system:dept:list',
+        'model_list': 'system:dept:list',
+        'retrieve': 'system:dept:query',
+        'create': 'system:dept:add',
+        'update': 'system:dept:edit',
+        'update_by_body': 'system:dept:edit',
+        'partial_update': 'system:dept:edit',
+        'destroy': 'system:dept:remove',
+        'export': 'system:dept:export',
+        'list_exclude_child': 'system:dept:query',
+    }
     queryset = Dept.objects.filter(del_flag='0').order_by('parent_id', 'order_num')
     serializer_class = DeptSerializer
     update_body_serializer_class = DeptUpdateSerializer

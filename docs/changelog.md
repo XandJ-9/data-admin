@@ -2,6 +2,14 @@
 
 说明：本文件仅保留近期有效变更摘要，更早历史见 `docs/archive/`。
 
+## [v1.4.104] - 2026-05-28
+
+- [Security] `system`、`monitor`、`terminal` 后端视图已补齐 `permission_map`，Web Terminal WebSocket 连接改为校验菜单权限 `terminal:index:view`，避免只靠前端菜单隐藏或 `is_staff` 放行。
+- [Security] 生产环境启动现在强制要求显式配置 `DJANGO_SECRET_KEY` 与非通配 `DJANGO_ALLOWED_HOSTS`；初始化账号密码也需通过环境变量提供，不再在生产默认使用固定口令。
+- [Fix] `dataservice` 接口导入、导出、执行与接口字段增删改权限码已与前端和菜单种子对齐，避免按钮可见但后端拒绝或菜单授权无效。
+- [Fix] `datatask.TaskService.upsert_source_task` 已修复唯一约束并发冲突后的事务破坏问题，且任务编码撞到无来源手工任务时会生成备用编码，不再误复用无关任务。
+- [Docs] 项目根 README、后端 README 与当前状态页已同步生产部署安全配置要求。
+
 ## [v1.4.103] - 2026-05-22
 
 - [Docs] 文档中心已重构为“架构设计 / 开发流程 / 方案选型 / 问题解决”四类入口，并新增模块级架构文档、方案选型入口和反复问题处理手册。

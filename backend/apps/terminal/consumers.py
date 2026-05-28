@@ -26,6 +26,7 @@ else:
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from apps.system.permission import user_has_menu_permission
 from .models import TerminalSession, TerminalCommand
 from .security import is_command_allowed
 
@@ -347,7 +348,7 @@ class TerminalConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def check_terminal_permission(self) -> bool:
-        return self.user.is_superuser or self.user.is_staff
+        return user_has_menu_permission(self.user, 'terminal:index:view')
 
     @database_sync_to_async
     def create_session(self) -> TerminalSession:

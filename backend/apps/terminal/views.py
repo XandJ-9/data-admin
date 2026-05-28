@@ -18,7 +18,15 @@ class TerminalSessionViewSet(BaseViewSet):
     queryset = TerminalSession.objects.all()
     serializer_class = TerminalSessionSerializer
     permission_classes = [IsAuthenticated, HasRolePermission]
-    required_roles = None  # Allow all authenticated users, check in consumer
+    permission_map = {
+        'list': 'terminal:index:view',
+        'model_list': 'terminal:index:view',
+        'retrieve': 'terminal:index:view',
+        'create': 'terminal:index:view',
+        'commands': 'terminal:history:view',
+        'close': 'terminal:index:view',
+        'active': 'terminal:index:view',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset().annotate(command_count=Count('commands'))
@@ -118,6 +126,13 @@ class TerminalCommandViewSet(BaseViewSet):
     queryset = TerminalCommand.objects.all()
     serializer_class = TerminalCommandSerializer
     permission_classes = [IsAuthenticated, HasRolePermission]
+    permission_map = {
+        'list': 'terminal:history:view',
+        'model_list': 'terminal:history:view',
+        'retrieve': 'terminal:history:view',
+        'recent': 'terminal:history:view',
+        'search': 'terminal:history:view',
+    }
 
     def get_queryset(self):
         """Filter commands for current user"""
